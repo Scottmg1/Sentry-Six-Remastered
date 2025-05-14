@@ -8,6 +8,7 @@ import subprocess
 import traceback
 import tempfile
 
+# TeslaCamViewer provides a PyQt6-based GUI to view and export TeslaCam multi-camera footage.
 class TeslaCamViewer(QWidget):
     def closeEvent(self, event):
         for player in self.players:
@@ -40,7 +41,7 @@ class TeslaCamViewer(QWidget):
         folder_export_layout = QHBoxLayout()
         self.select_folder_btn = QPushButton("Select TeslaCam Folder")
         self.export_btn = QPushButton("Export Clip")
-        self.export_status = QLabel("")
+        self.export_status = QLabel("")  # Shows export status messages
         self.select_folder_btn.clicked.connect(self.select_folder)
         self.export_btn.clicked.connect(self.export_clip)
         folder_export_layout.addWidget(self.select_folder_btn)
@@ -60,10 +61,12 @@ class TeslaCamViewer(QWidget):
 
         # Video grid layout
         self.video_grid = QGridLayout()
-        self.players = []
-        self.video_widgets = []
-        self.sources = [None] * 6
+        self.players = []  # List of QMediaPlayer instances for each camera
+        self.video_widgets = []  # QVideoWidget instances associated with each player
+        self.sources = [None] * 6  # Source file paths for each camera
 
+        # Initialize 6 media players and corresponding video widgets for each camera
+        # Create 6 video players and video widgets for the 6 Tesla cameras
         for _ in range(6):
             video_widget = QVideoWidget()
             player = QMediaPlayer()
@@ -109,7 +112,7 @@ class TeslaCamViewer(QWidget):
             self.single_view_group.addButton(btn)
             self.single_view_buttons.append(btn)
             self.single_view_layout.addWidget(btn)
-        self.single_view_buttons[0].setChecked(True)
+        self.single_view_buttons[0].setChecked(True)  # Default to Front camera  # Default selection is 'Front' camera
 
         self.single_view_container = QWidget()
         self.single_view_container.setLayout(self.single_view_layout)
@@ -122,7 +125,7 @@ class TeslaCamViewer(QWidget):
         # Time label + scrubber
         self.slider_layout = QHBoxLayout()
         self.time_label = QLabel("00:00 / 00:00")
-        self.scrubber = QSlider(Qt.Orientation.Horizontal)
+        self.scrubber = QSlider(Qt.Orientation.Horizontal)  # Timeline scrubber  # Used to scrub through video timeline
         self.scrubber.setRange(0, 1000)
         self.scrubber.sliderMoved.connect(self.seek_all)
         self.slider_layout.addWidget(self.time_label)
@@ -131,11 +134,11 @@ class TeslaCamViewer(QWidget):
 
         self.setLayout(self.layout)
 
-        self.sync_timer = QTimer()
+        self.sync_timer = QTimer()  # Keeps videos in sync during playback
         self.sync_timer.timeout.connect(self.sync_playback)
         self.sync_timer.start(1000)
 
-        self.slider_timer = QTimer()
+        self.slider_timer = QTimer()  # Updates the UI scrubber position
         self.slider_timer.timeout.connect(self.update_slider)
         self.slider_timer.start(500)
 
@@ -304,6 +307,7 @@ class TeslaCamViewer(QWidget):
             traceback.print_exc()
             QMessageBox.critical(self, "Error", f"Failed to load videos:\n{e}")
 
+    # Handles trimming and exporting selected video layout using FFmpeg
     def export_clip(self):
         self.export_status.setText("Exporting... Please wait.")
         QApplication.processEvents()
@@ -333,6 +337,7 @@ class TeslaCamViewer(QWidget):
                 return
 
             mode = self.layout_selector.currentText()
+            # Maps UI layout selections to internal player indices
             layout_map = {
                 "All Cameras (3x2)": [4, 0, 5, 1, 3, 2],
                 "Front & Back (2x1)": [0, 3],
@@ -435,7 +440,7 @@ class TeslaCamViewer(QWidget):
                 QMessageBox.warning(self, "Unsupported Layout", "This layout is not yet supported for export.")
                 return
 
-            self.export_status.setText("Export complete!")
+            self.export_status.setText("Export complete!")  # Show export success message
 
             # Clean up temporary trim and row files
             for file in os.listdir(output_folder):
