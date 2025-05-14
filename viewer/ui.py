@@ -253,7 +253,7 @@ class TeslaCamViewer(QWidget):
                 return
 
             files = sorted(os.listdir(folder))
-            cam_keywords = ["front", "left_repeater", "right_repeater", "back", "left_bpillar", "right_bpillar"]
+            cam_keywords = ["front", "left_repeater", "right_repeater", "back", "left_pillar", "right_pillar"]
             grouped = {kw: [] for kw in cam_keywords}
 
             for file in files:
