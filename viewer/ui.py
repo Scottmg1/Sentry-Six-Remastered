@@ -52,7 +52,7 @@ class TeslaCamViewer(QWidget):
         layout_selector_layout = QHBoxLayout()
         layout_selector_label = QLabel("View Layout:")
         self.layout_selector = QComboBox()
-        self.layout_selector.addItems(["All Cameras (3x2)", "Front & Back (2x2)", "Repeaters (1x2)", "Pillars (1x2)", "Single View (1x1)"])
+        self.layout_selector.addItems(["All Cameras (3x2)", "Front & Back (2x1)", "Repeaters (1x2)", "Pillars (1x2)", "Single View (1x1)"])
         self.layout_selector.currentIndexChanged.connect(self.update_layout)
         layout_selector_layout.addWidget(layout_selector_label)
         layout_selector_layout.addWidget(self.layout_selector)
@@ -186,11 +186,14 @@ class TeslaCamViewer(QWidget):
             self.video_grid.addWidget(self.video_widgets[3], 1, 1)
             self.video_widgets[2].show()
             self.video_grid.addWidget(self.video_widgets[2], 1, 2)
-        elif mode == "Front & Back (2x2)":
+        elif mode == "Front & Back (2x1)":
             self.video_widgets[0].show()
-            self.video_grid.addWidget(self.video_widgets[0], 0, 0, 1, 3)
             self.video_widgets[3].show()
-            self.video_grid.addWidget(self.video_widgets[3], 1, 0, 1, 3)
+            self.video_grid.addWidget(self.video_widgets[3], 0, 0, 2, 1)
+            self.video_grid.addWidget(self.video_widgets[0], 0, 1, 2, 1)
+            self.video_grid.setColumnStretch(0, 1)
+            self.video_grid.setColumnStretch(1, 1)
+            self.video_grid.setColumnStretch(2, 0)
         elif mode == "Repeaters (1x2)":
             self.video_widgets[1].show()
             self.video_widgets[2].show()
@@ -332,7 +335,7 @@ class TeslaCamViewer(QWidget):
             mode = self.layout_selector.currentText()
             layout_map = {
                 "All Cameras (3x2)": [4, 0, 5, 1, 3, 2],
-                "Front & Back (2x2)": [0, 3],
+                "Front & Back (2x1)": [0, 3],
                 "Repeaters (1x2)": [1, 2],
                 "Pillars (1x2)": [4, 5],
                 "Single View (1x1)": [self.selected_single_view_index]
@@ -356,16 +359,34 @@ class TeslaCamViewer(QWidget):
             final_output = os.path.join(output_folder, "final_output.mp4")
             if len(inputs) == 1:
                 os.rename(inputs[0], final_output)
-            elif mode == "Front & Back (2x2)":
-                subprocess.run([
-                    "ffmpeg", "-y", "-i", inputs[0], "-i", inputs[1],
-                    "-filter_complex", "[0:v][1:v]vstack=inputs=2[v]", "-map", "[v]", final_output
-                ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            elif mode == "Front & Back (2x1)":
+                if export_mobile:
+                    final_output = os.path.join(output_folder, "final_output_mobile.mp4")
+                    # Flip order so front is on right
+                    scale_filter = "[0:v]scale=-1:720[a];[1:v]scale=-1:720[b];[a][b]hstack=inputs=2[v]"
+                else:
+                    final_output = os.path.join(output_folder, "final_output.mp4")
+                    # Flip input order to match Back (left) + Front (right)
+                    scale_filter = "[0:v]scale=-1:1876[a];[1:v]scale=-1:1876[b];[a][b]hstack=inputs=2[v]"
+
+                result = subprocess.run([
+                    "ffmpeg", "-y", "-i", inputs[1], "-i", inputs[0],
+                    "-filter_complex", scale_filter, "-map", "[v]", final_output
+                ], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                print("FFmpeg output (front_back):\n" + result.stderr.decode())
+                QMessageBox.information(self, "Export Complete", f"Exported layout to: {final_output}")
             elif mode in ("Repeaters (1x2)", "Pillars (1x2)"):
+                if export_mobile:
+                    final_output = os.path.join(output_folder, "final_output_mobile.mp4")
+                    scale_filter = "[0:v]scale=-1:720[a];[1:v]scale=-1:720[b];[a][b]hstack=inputs=2[v]"
+                else:
+                    scale_filter = "[0:v][1:v]hstack=inputs=2[v]"
+
                 subprocess.run([
                     "ffmpeg", "-y", "-i", inputs[0], "-i", inputs[1],
-                    "-filter_complex", "[0:v][1:v]hstack=inputs=2[v]", "-map", "[v]", final_output
+                    "-filter_complex", scale_filter, "-map", "[v]", final_output
                 ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                QMessageBox.information(self, "Export Complete", f"Exported layout to: {final_output}")
             elif mode == "All Cameras (3x2)":
                 top = os.path.join(output_folder, "row_top.mp4")
                 mid = os.path.join(output_folder, "row_mid.mp4")
