@@ -9,7 +9,26 @@ import traceback
 import tempfile
 
 class TeslaCamViewer(QWidget):
+    def closeEvent(self, event):
+        for player in self.players:
+            player.setSource(QUrl())  # release video file lock
+        try:
+            if self.temp_dir and os.path.exists(self.temp_dir):
+                for file in os.listdir(self.temp_dir):
+                    if file.endswith("_combined.mp4") or file.endswith("_list.txt"):
+                        try:
+                            os.remove(os.path.join(self.temp_dir, file))
+                        except Exception as e:
+                            print("Cleanup on close error:", e)
+                try:
+                    os.rmdir(self.temp_dir)
+                except Exception as e:
+                    print("Failed to remove temp folder:", e)
+        except Exception as e:
+            print("Cleanup on close error:", e)
+        super().closeEvent(event)
     def __init__(self):
+        self.temp_dir = None
         super().__init__()
         self.setWindowTitle("TeslaCam 6-Camera Viewer")
         self.setGeometry(100, 100, 1200, 800)
@@ -263,12 +282,12 @@ class TeslaCamViewer(QWidget):
                     if cam in file and file.endswith(".mp4"):
                         grouped[cam].append(os.path.join(folder, file))
 
-            temp_dir = tempfile.mkdtemp()
+            self.temp_dir = tempfile.mkdtemp()
 
             for i, cam in enumerate(cam_keywords):
                 if grouped[cam]:
-                    txt_path = os.path.join(temp_dir, f"{cam}_list.txt")
-                    output_path = os.path.join(temp_dir, f"{cam}_combined.mp4")
+                    txt_path = os.path.join(self.temp_dir, f"{cam}_list.txt")
+                    output_path = os.path.join(self.temp_dir, f"{cam}_combined.mp4")
                     with open(txt_path, 'w') as f:
                         for clip in grouped[cam]:
                             f.write(f"file '{clip.replace('\\', '/')}\n")
@@ -292,6 +311,21 @@ class TeslaCamViewer(QWidget):
                 return
 
             output_folder = QFileDialog.getExistingDirectory(self, "Select Export Destination")
+            if not output_folder:
+                return
+
+            resolution_choice, ok = QInputDialog.getItem(
+            self,
+            "Choose Export Quality",
+            "Pick export quality:\n• Full: Highest detail (may lag on phones)\n• Mobile: Compatible with all devices",
+                ["Mobile (Recommended)", "Full"],
+                0,
+                False
+            )
+            if not ok:
+                return
+
+            export_mobile = resolution_choice.startswith("Mobile")
             if not output_folder:
                 return
 
@@ -355,17 +389,40 @@ class TeslaCamViewer(QWidget):
                     "-map", "[v]", mid
                 ], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
                 print("FFmpeg output (row_mid):" + result_mid.stderr.decode())
-                result = subprocess.run([
-                "ffmpeg", "-y", "-i", top, "-i", mid,
-                "-filter_complex", "[0:v][1:v]vstack=inputs=2[v]", "-map", "[v]", final_output
-            ], stdout=subprocess.PIPE, stderr=subprocess.PIPE) 
-                print("FFmpeg output (final_output):" + result.stderr.decode())
+                 
+                
+
+                # Output final based on resolution choice
+                if export_mobile:
+                    final_output = os.path.join(output_folder, "final_output_mobile.mp4")
+                    result_scaled = subprocess.run([
+                        "ffmpeg", "-y", "-i", top, "-i", mid,
+                        "-filter_complex",
+                        "[0:v][1:v]vstack=inputs=2[stack];[stack]scale=1920:-2[v]",
+                        "-map", "[v]", final_output
+                    ], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                    print("FFmpeg output (mobile):\n" + result_scaled.stderr.decode())
+                    QMessageBox.information(self, "Export Complete", f"Exported mobile-friendly layout to: {final_output}")
+                else:
+                    result_full = subprocess.run([
+                        "ffmpeg", "-y", "-i", top, "-i", mid,
+                        "-filter_complex", "[0:v][1:v]vstack=inputs=2[v]", "-map", "[v]", final_output
+                    ], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                    print("FFmpeg output (full):\n" + result_full.stderr.decode())
+                    QMessageBox.information(self, "Export Complete", f"Exported full-resolution layout to: {final_output}")
             else:
                 QMessageBox.warning(self, "Unsupported Layout", "This layout is not yet supported for export.")
                 return
 
-            QMessageBox.information(self, "Export Complete", f"Exported composite layout to: {final_output}")
             self.export_status.setText("Export complete!")
+
+            # Clean up temporary trim and row files
+            for file in os.listdir(output_folder):
+                if file.startswith("trim_") or file.startswith("row_"):
+                    try:
+                        os.remove(os.path.join(output_folder, file))
+                    except Exception as cleanup_error:
+                        print(f"Cleanup error deleting {file}:", cleanup_error)
 
         except Exception as e:
             traceback.print_exc()
