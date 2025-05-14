@@ -51,6 +51,11 @@ class TeslaCamViewer(QWidget):
             self.players.append(player)
             self.video_widgets.append(video_widget)
 
+        self.video_grid.setRowStretch(0, 1)
+        self.video_grid.setRowStretch(1, 1)
+        self.video_grid.setColumnStretch(0, 1)
+        self.video_grid.setColumnStretch(1, 1)
+        self.video_grid.setColumnStretch(2, 1)
         self.layout.addLayout(self.video_grid)
 
         # Frame-by-frame and playback controls with inline single view selection
@@ -79,7 +84,7 @@ class TeslaCamViewer(QWidget):
         cam_labels = ["Front", "Back", "Left Repeater", "Right Repeater", "Left Pillar", "Right Pillar"]
         for label in cam_labels:
             btn = QRadioButton(label)
-            btn.toggled.connect(self.update_layout)
+            btn.toggled.connect(self.set_selected_single_view)
             self.single_view_group.addButton(btn)
             self.single_view_buttons.append(btn)
             self.single_view_layout.addWidget(btn)
@@ -113,38 +118,82 @@ class TeslaCamViewer(QWidget):
         self.slider_timer.timeout.connect(self.update_slider)
         self.slider_timer.start(500)
 
+        self.default_single_view_index = 0  # index for 'Front'
+        self.selected_single_view_index = 0  # start with 'Front'
+        self.update_layout()
+
+    def set_selected_single_view(self):
+        for i, btn in enumerate(self.single_view_buttons):
+            if btn.isChecked():
+                self.selected_single_view_index = i
         self.update_layout()
 
     def update_layout(self):
+        # Reset all video widget sizes to prevent layout corruption
+        for widget in self.video_widgets:
+            widget.setMinimumSize(1, 1)
+            widget.setMaximumSize(16777215, 16777215)
+        # Always ensure all widgets are visible before changing layout
+        for widget in self.video_widgets:
+            widget.setVisible(True)
         for i in reversed(range(self.video_grid.count())):
             widget = self.video_grid.itemAt(i).widget()
             if widget:
                 self.video_grid.removeWidget(widget)
                 widget.setParent(None)
+                widget.hide()
 
         mode = self.layout_selector.currentText()
         if hasattr(self, 'single_view_container'):
             self.single_view_container.setVisible(mode == "Single View (1x1)")
 
         if mode == "All Cameras (3x2)":
+            self.video_grid.setColumnStretch(0, 1)
+            self.video_grid.setColumnStretch(1, 1)
+            self.video_grid.setColumnStretch(2, 1)
+            self.video_grid.setRowStretch(0, 1)
+            self.video_grid.setRowStretch(1, 1)
+            self.video_widgets[4].show()
             self.video_grid.addWidget(self.video_widgets[4], 0, 0)
+            self.video_widgets[0].show()
             self.video_grid.addWidget(self.video_widgets[0], 0, 1)
+            self.video_widgets[5].show()
             self.video_grid.addWidget(self.video_widgets[5], 0, 2)
+            self.video_widgets[1].show()
             self.video_grid.addWidget(self.video_widgets[1], 1, 0)
+            self.video_widgets[3].show()
             self.video_grid.addWidget(self.video_widgets[3], 1, 1)
+            self.video_widgets[2].show()
             self.video_grid.addWidget(self.video_widgets[2], 1, 2)
         elif mode == "Front & Back (2x2)":
-            self.video_grid.addWidget(self.video_widgets[0], 0, 0)
-            self.video_grid.addWidget(self.video_widgets[3], 0, 1)
+            self.video_widgets[0].show()
+            self.video_grid.addWidget(self.video_widgets[0], 0, 0, 1, 3)
+            self.video_widgets[3].show()
+            self.video_grid.addWidget(self.video_widgets[3], 1, 0, 1, 3)
         elif mode == "Repeaters (1x2)":
-            self.video_grid.addWidget(self.video_widgets[1], 0, 0)
-            self.video_grid.addWidget(self.video_widgets[2], 0, 1)
+            self.video_widgets[1].show()
+            self.video_widgets[2].show()
+            self.video_grid.addWidget(self.video_widgets[1], 0, 0, 2, 1)
+            self.video_grid.addWidget(self.video_widgets[2], 0, 1, 2, 1)
+            self.video_grid.setColumnStretch(0, 1)
+            self.video_grid.setColumnStretch(1, 1)
+            self.video_grid.setColumnStretch(2, 0)
         elif mode == "Pillars (1x2)":
-            self.video_grid.addWidget(self.video_widgets[4], 0, 0)
-            self.video_grid.addWidget(self.video_widgets[5], 0, 1)
+            self.video_widgets[4].show()
+            self.video_widgets[5].show()
+            self.video_grid.addWidget(self.video_widgets[4], 0, 0, 2, 1)
+            self.video_grid.addWidget(self.video_widgets[5], 0, 1, 2, 1)
+            self.video_grid.setColumnStretch(0, 1)
+            self.video_grid.setColumnStretch(1, 1)
+            self.video_grid.setColumnStretch(2, 0)
         elif mode == "Single View (1x1)":
-            index = self.single_view_buttons.index(next(btn for btn in self.single_view_buttons if btn.isChecked()))
-            self.video_grid.addWidget(self.video_widgets[index], 0, 0)
+            index = self.selected_single_view_index
+            for i, widget in enumerate(self.video_widgets):
+                if i == index:
+                    widget.show()
+                    self.video_grid.addWidget(widget, 0, 0, 2, 3)
+                else:
+                    widget.hide()
 
     def format_time(self, ms):
         seconds = ms // 1000
