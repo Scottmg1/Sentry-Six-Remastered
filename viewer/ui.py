@@ -1,4 +1,4 @@
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QPushButton, QFileDialog, QGridLayout, QHBoxLayout, QInputDialog, QMessageBox, QSlider, QComboBox, QRadioButton, QButtonGroup
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QPushButton, QFileDialog, QGridLayout, QHBoxLayout, QInputDialog, QMessageBox, QSlider, QComboBox, QRadioButton, QButtonGroup, QApplication
 from PyQt6.QtMultimedia import QMediaPlayer, QAudioOutput
 from PyQt6.QtMultimediaWidgets import QVideoWidget
 from PyQt6.QtCore import Qt, QUrl, QTimer, QEvent
@@ -21,10 +21,12 @@ class TeslaCamViewer(QWidget):
         folder_export_layout = QHBoxLayout()
         self.select_folder_btn = QPushButton("Select TeslaCam Folder")
         self.export_btn = QPushButton("Export Clip")
+        self.export_status = QLabel("")
         self.select_folder_btn.clicked.connect(self.select_folder)
         self.export_btn.clicked.connect(self.export_clip)
         folder_export_layout.addWidget(self.select_folder_btn)
         folder_export_layout.addWidget(self.export_btn)
+        folder_export_layout.addWidget(self.export_status)
         self.layout.addLayout(folder_export_layout)
 
         # Layout selector
@@ -281,6 +283,8 @@ class TeslaCamViewer(QWidget):
             QMessageBox.critical(self, "Error", f"Failed to load videos:\n{e}")
 
     def export_clip(self):
+        self.export_status.setText("Exporting... Please wait.")
+        QApplication.processEvents()
         try:
             start_ms, ok1 = QInputDialog.getInt(self, "Start Time", "Enter start time (seconds):", min=0)
             duration_ms, ok2 = QInputDialog.getInt(self, "Duration", "Enter duration (seconds):", min=1)
@@ -291,36 +295,80 @@ class TeslaCamViewer(QWidget):
             if not output_folder:
                 return
 
-            for i, source in enumerate(self.sources):
-                if not source:
+            mode = self.layout_selector.currentText()
+            layout_map = {
+                "All Cameras (3x2)": [4, 0, 5, 1, 3, 2],
+                "Front & Back (2x2)": [0, 3],
+                "Repeaters (1x2)": [1, 2],
+                "Pillars (1x2)": [4, 5],
+                "Single View (1x1)": [self.selected_single_view_index]
+            }
+            selected_indices = layout_map.get(mode, [])
+            inputs = []
+            for idx in selected_indices:
+                if not self.sources[idx]:
                     continue
-                base_name = os.path.basename(source)
-                out_file = os.path.join(output_folder, f"clip_{i}_{base_name}")
-                cmd = [
-                    "ffmpeg",
-                    "-ss", str(start_ms),
-                    "-i", source,
-                    "-t", str(duration_ms),
-                    "-c", "copy",
-                    out_file
-                ]
-                subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                trimmed_path = os.path.join(output_folder, f"trim_{idx}.mp4")
+                subprocess.run([
+                    "ffmpeg", "-y", "-ss", str(start_ms), "-i", self.sources[idx],
+                    "-t", str(duration_ms), "-c:v", "libx264", "-preset", "ultrafast", trimmed_path
+                ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                inputs.append(trimmed_path)
 
-            QMessageBox.information(self, "Export Complete", "Clip export finished for all available cameras.")
+            if not inputs:
+                QMessageBox.warning(self, "No Sources", "No videos available to export for selected layout.")
+                return
+
+            final_output = os.path.join(output_folder, "final_output.mp4")
+            if len(inputs) == 1:
+                os.rename(inputs[0], final_output)
+            elif mode == "Front & Back (2x2)":
+                subprocess.run([
+                    "ffmpeg", "-y", "-i", inputs[0], "-i", inputs[1],
+                    "-filter_complex", "[0:v][1:v]vstack=inputs=2[v]", "-map", "[v]", final_output
+                ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            elif mode in ("Repeaters (1x2)", "Pillars (1x2)"):
+                subprocess.run([
+                    "ffmpeg", "-y", "-i", inputs[0], "-i", inputs[1],
+                    "-filter_complex", "[0:v][1:v]hstack=inputs=2[v]", "-map", "[v]", final_output
+                ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            elif mode == "All Cameras (3x2)":
+                top = os.path.join(output_folder, "row_top.mp4")
+                mid = os.path.join(output_folder, "row_mid.mp4")
+                result_top = subprocess.run([
+                    "ffmpeg", "-y",
+                    "-i", inputs[0],
+                    "-i", inputs[1],
+                    "-i", inputs[2],
+                    "-filter_complex",
+                    "[0:v]scale=-1:938[a];[1:v]scale=-1:938[b];[2:v]scale=-1:938[c];[a][b][c]hstack=inputs=3[v]",
+                    "-map", "[v]", top
+                ], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                print("FFmpeg output (row_top):" + result_top.stderr.decode())
+                result_mid = subprocess.run([
+                    "ffmpeg", "-y",
+                    "-i", inputs[3],
+                    "-i", inputs[4],
+                    "-i", inputs[5],
+                    "-filter_complex",
+                    "[0:v]scale=-1:938[a];[1:v]scale=-1:938[b];[2:v]scale=-1:938[c];[a][b][c]hstack=inputs=3[v]",
+                    "-map", "[v]", mid
+                ], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                print("FFmpeg output (row_mid):" + result_mid.stderr.decode())
+                result = subprocess.run([
+                "ffmpeg", "-y", "-i", top, "-i", mid,
+                "-filter_complex", "[0:v][1:v]vstack=inputs=2[v]", "-map", "[v]", final_output
+            ], stdout=subprocess.PIPE, stderr=subprocess.PIPE) 
+                print("FFmpeg output (final_output):" + result.stderr.decode())
+            else:
+                QMessageBox.warning(self, "Unsupported Layout", "This layout is not yet supported for export.")
+                return
+
+            QMessageBox.information(self, "Export Complete", f"Exported composite layout to: {final_output}")
+            self.export_status.setText("Export complete!")
+
         except Exception as e:
             traceback.print_exc()
-            QMessageBox.critical(self, "Export Error", f"An error occurred during export:\n{e}")
+            QMessageBox.critical(self, "Export Error", f"An error occurred during export:{e}")
+            self.export_status.setText("Export failed")
 
-    def keyPressEvent(self, event: QKeyEvent):
-        if event.key() == Qt.Key.Key_Space:
-            any_playing = any(p.playbackState() == QMediaPlayer.PlaybackState.PlayingState for p in self.players)
-            if any_playing:
-                self.pause_all()
-            else:
-                self.play_all()
-        elif event.key() == Qt.Key.Key_Right:
-            self.frame_forward()
-        elif event.key() == Qt.Key.Key_Left:
-            self.frame_back()
-        else:
-            super().keyPressEvent(event)
