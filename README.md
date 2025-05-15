@@ -72,6 +72,14 @@ pip install -r requirements.txt
 - All `trim_*.mp4` and intermediate files are auto-deleted after export
 
 ---
+## ⚠️ Disclaimer
+
+SentrySix is an open-source utility provided as-is, with no warranties or guarantees.
+By using this software, you accept that you are doing so at your own risk.
+The developer is not responsible for any data loss, system behavior, or other unexpected issues that may arise.
+
+Please make backups of your TeslaCam footage before using this tool — especially when trimming or exporting.
+---
 
 ## 🔒 License
 
