@@ -1,89 +1,91 @@
-SentrySix
+# SentrySix
 
 SentrySix is a multi-camera TeslaCam viewer and exporter built with Python and PyQt6.
 It supports synchronized playback of all six Tesla cameras and allows users to export custom clips with frame-accurate trimming and layout control.
 
-🚗 Features
+---
 
-🔭 6-Camera Playback — View front, back, repeater, and pillar footage in a synchronized grid
+## 🚗 Features
 
-🎛️ Selectable Layouts — Choose from presets like All Cameras, Front & Back, Repeaters, Pillars, or Single View
+- 🔭 **6-Camera Playback** — View front, back, repeater, and pillar footage in a synchronized grid
+- 🎛️ **Selectable Layouts** — Choose from presets like All Cameras, Front & Back, Repeaters, Pillars, or Single View
+- ✂️ **Export Clips** — Trim from any start time and duration, then export the selected layout
+- 📱 **Mobile & Full Res Output** — Choose mobile-optimized resolution or original full quality
+- 🕐 **Real-Time Timestamps** — Overlay running time synced from Tesla’s clip names
+- 🧹 **Auto-Cleanup** — Temporary files are cleaned after export or when the app closes
 
-✂️ Export Clips — Trim from any start time and duration, then export the selected layout
+---
 
-📱 Mobile & Full Res Output — Choose mobile-optimized resolution or original full quality
+## 📸 Layout Options
 
-🕐 Real-Time Timestamps — Overlay running time synced from Tesla’s clip names
+- **All Cameras (3x2)**
+  > Front / Back / Repeaters / Pillars in a grid layout
 
-🧹 Auto-Cleanup — Temporary files are cleaned after export or when the app closes
+- **Front & Back (2x1)**
+  > Side-by-side stitched view for clean event perspective
 
-📸 Layout Options
+- **Repeaters (1x2)**
+  > Left and Right side views stacked horizontally
 
-All Cameras (3x2)
+- **Pillars (1x2)**
+  > Left and Right interior pillar cams
 
-Front / Back / Repeaters / Pillars in a grid layout
+- **Single View (1x1)**
+  > Focus on any one camera — Front, Back, Repeater, or Pillar
 
-Front & Back (2x1)
+_📷 Screenshots for each layout can be added here_
 
-Side-by-side stitched view for clean event perspective
+---
 
-Repeaters (1x2)
+## 🛠 Requirements
 
-Left and Right side views stacked horizontally
-
-Pillars (1x2)
-
-Left and Right interior pillar cams
-
-Single View (1x1)
-
-Focus on any one camera — Front, Back, Repeater, or Pillar
-
-📷 Screenshots for each layout can be added here
-
-🛠 Requirements
-
-Python 3.10+
-
-PyQt6
-
-FFmpeg (must be in system PATH)
+- Python 3.10+
+- PyQt6
+- FFmpeg (must be in system PATH)
 
 Install dependencies:
-
+```bash
 pip install -r requirements.txt
+```
 
-🧪 Usage
+---
 
-Launch the app
+## 🧪 Usage
 
-Click “Select TeslaCam Folder” and point to a folder with your Tesla event clips
+1. **Launch the app**
+2. Click **“Select TeslaCam Folder”** and point to a folder with your Tesla event clips
+3. Choose a **layout** (e.g., All Cameras, Front & Back...)
+4. Use the playback controls to scrub or sync
+5. Click **“Export Clip”** to trim and export
+6. Select **start time**, **duration**, **output folder**, and **resolution type**
 
-Choose a layout (e.g., All Cameras, Front & Back...)
+---
 
-Use the playback controls to scrub or sync
+## 📂 Output Files
 
-Click “Export Clip” to trim and export
+- `final_output.mp4` — Full resolution export
+- `final_output_mobile.mp4` — Optimized for mobile playback
+- All `trim_*.mp4` and intermediate files are auto-deleted after export
 
-Select start time, duration, output folder, and resolution type
+---
 
-📂 Output Files
+## 🔒 License
 
-final_output.mp4 — Full resolution export
+MIT License — See [LICENSE](LICENSE) file
 
-final_output_mobile.mp4 — Optimized for mobile playback
+---
 
-All trim_*.mp4 and intermediate files are auto-deleted after export
+## 🚧 Roadmap / Ideas
 
-🔒 License
+- [ ] Add support for event.json GPS metadata
+- [ ] Option to export overlays with labels (Front, Left Repeater, etc.)
+- [ ] GIF or frame sequence exports
+- [ ] Drag and drop Tesla folders
 
-MIT License — See LICENSE file
+---
 
-🚧 Roadmap / Ideas
-
-
-
-🙌 Credits
+## 🙌 Credits
 
 Built with ❤️ by Chad — Inspired by TeslaCam’s incredible capture system
 
+Logo concept: **SentrySix** ⚡
