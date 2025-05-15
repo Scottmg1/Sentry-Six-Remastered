@@ -372,6 +372,7 @@ class TeslaCamViewer(QWidget):
                     ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 else:
                     os.rename(inputs[0], final_output)
+                QMessageBox.information(self, "Export Complete", f"Exported single view to: {final_output}")
             elif mode == "Front & Back (2x1)":
                 if export_mobile:
                     final_output = os.path.join(output_folder, "final_output_mobile.mp4")
