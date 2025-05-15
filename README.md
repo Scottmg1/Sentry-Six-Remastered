@@ -20,19 +20,24 @@ It supports synchronized playback of all six Tesla cameras and allows users to e
 
 - **All Cameras (3x2)**
   > Front / Back / Repeaters / Pillars in a grid layout
-  CCF1E970-C1C1-4E3A-8EF1-FE6DB9EEEB0F.png
+  ![All Cameras](Screenshots/All-cameras.png)
+
 
 - **Front & Back (2x1)**
   > Side-by-side stitched view for clean event perspective
+  ![Front And Back](Screenshots/Front-Back.png)
 
 - **Repeaters (1x2)**
   > Left and Right side views stacked horizontally
+  ![Rapeaters](Screenshots/Rapeaters.png)
 
 - **Pillars (1x2)**
   > Left and Right interior pillar cams
+  ![Pillers](Screenshots/Pillers.png)
 
 - **Single View (1x1)**
   > Focus on any one camera — Front, Back, Repeater, or Pillar
+  ![Single View](Screenshots/Single-view.png)
 
 _📷 Screenshots for each layout will be added here_
 
