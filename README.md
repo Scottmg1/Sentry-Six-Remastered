@@ -85,6 +85,7 @@ MIT License — See [LICENSE](LICENSE) file
 - [ ] Option to export overlays with labels (Front, Left Repeater, etc.)
 - [ ] GIF or frame sequence exports
 - [ ] Drag and drop Tesla folders
+- [ ] Add Model Y juniper Front Bumper Camera. (if they ever add it sentry???)
 
 ---
 
