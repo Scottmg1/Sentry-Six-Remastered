@@ -39,8 +39,6 @@ It supports synchronized playback of all six Tesla cameras and allows users to e
   > Focus on any one camera — Front, Back, Repeater, or Pillar
   ![Single View](Screenshots/Single-view.png)
 
-_📷 Screenshots for each layout will be added here_
-
 ---
 
 ## 🛠 Requirements
