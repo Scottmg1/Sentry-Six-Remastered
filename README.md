@@ -20,7 +20,7 @@ It supports synchronized playback of all six Tesla cameras and allows users to e
 
 - **All Cameras (3x2)**
   > Front / Back / Repeaters / Pillars in a grid layout
-  ![alt text]({CCF1E970-C1C1-4E3A-8EF1-FE6DB9EEEB0F}.png)
+  CCF1E970-C1C1-4E3A-8EF1-FE6DB9EEEB0F.png
 
 - **Front & Back (2x1)**
   > Side-by-side stitched view for clean event perspective
