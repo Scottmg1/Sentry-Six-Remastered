@@ -85,7 +85,5 @@ MIT License — See LICENSE file
 
 🙌 Credits
 
-Built with ❤️ by [Your Name] — Inspired by TeslaCam’s incredible capture system
-
-Logo concept: SentrySix ⚡
+Built with ❤️ by Chad — Inspired by TeslaCam’s incredible capture system
 
