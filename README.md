@@ -53,7 +53,7 @@ pip install -r requirements.txt
 ## 🧪 Usage
 
 1. **Launch the app**
-2. Click **“Select TeslaCam Folder”> "Date folder"** and point to a folder with your Tesla event clips
+2. Click **“Select TeslaCam Folder”** and point to a folder with your Tesla event clips
 3. Choose a **layout** (e.g., All Cameras, Front & Back...)
 4. Use the playback controls to scrub or sync
 5. Click **“Export Clip”** to trim and export
