@@ -105,7 +105,7 @@ class TeslaCamViewer(QWidget):
         self.single_view_group = QButtonGroup()
         self.single_view_buttons = []
         self.single_view_layout = QHBoxLayout()
-        cam_labels = ["Front", "Back", "Left Repeater", "Right Repeater", "Left Pillar", "Right Pillar"]
+        cam_labels = ["Front", "Left Repeater", "Right Repeater", "Back", "Left Pillar", "Right Pillar"]
         for label in cam_labels:
             btn = QRadioButton(label)
             btn.toggled.connect(self.set_selected_single_view)
@@ -363,7 +363,15 @@ class TeslaCamViewer(QWidget):
 
             final_output = os.path.join(output_folder, "final_output.mp4")
             if len(inputs) == 1:
-                os.rename(inputs[0], final_output)
+                if export_mobile:
+                    final_output = os.path.join(output_folder, "final_output_mobile.mp4")
+                    subprocess.run([
+                        "ffmpeg", "-y", "-i", inputs[0],
+                        "-vf", "scale=1920:-2",
+                        "-c:v", "libx264", "-preset", "fast", final_output
+                    ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                else:
+                    os.rename(inputs[0], final_output)
             elif mode == "Front & Back (2x1)":
                 if export_mobile:
                     final_output = os.path.join(output_folder, "final_output_mobile.mp4")
