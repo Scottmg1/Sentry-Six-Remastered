@@ -296,7 +296,8 @@ class TeslaCamViewer(QWidget):
                     output_path = os.path.join(self.temp_dir, f"{cam}_combined.mp4")
                     with open(txt_path, 'w') as f:
                         for clip in grouped[cam]:
-                            f.write(f"file '{clip.replace('\\', '/')}\n")
+                            fixed_clip = clip.replace('\\', '/')
+                            f.write(f"file '{fixed_clip}'\n")
                     subprocess.run([
                         "ffmpeg", "-y", "-f", "concat", "-safe", "0",
                         "-i", txt_path, "-c", "copy", output_path
