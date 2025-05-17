@@ -119,19 +119,33 @@ class TeslaCamViewer(QMainWindow):
         control_layout = QHBoxLayout()
         control_layout.addStretch()
 
-        self.frame_back_btn = QPushButton("⏪ Frame Back")
-        self.play_btn = QPushButton("▶️ Play All")
-        self.pause_btn = QPushButton("⏸️ Pause All")
-        self.frame_forward_btn = QPushButton("⏩ Frame Forward")
-
+        # Playback speed controls
+        self.speed_label = QLabel("Speed:")
+        self.speed_display = QLabel("1.0x")
+        self.slower_btn = QPushButton("⏪ Slower")
+        self.play_pause_btn = QPushButton("▶️ Play")  # Single play/pause toggle button
+        self.faster_btn = QPushButton("⏩ Faster")
+        self.frame_back_btn = QPushButton("⏮️ Frame Back")
+        self.frame_forward_btn = QPushButton("⏭️ Frame Forward")
+        
+        # Set initial playback speed (1.0x normal speed)
+        self.playback_speed = 1.0
+        self.available_speeds = [0.25, 0.5, 0.75, 1.0, 1.5, 2.0, 3.0, 4.0, 8.0, 16.0]
+        
+        # Connect signals
+        self.slower_btn.clicked.connect(self.decrease_speed)
+        self.play_pause_btn.clicked.connect(self.toggle_play_pause)  # Connect to toggle function
+        self.faster_btn.clicked.connect(self.increase_speed)
         self.frame_back_btn.clicked.connect(self.frame_back)
-        self.play_btn.clicked.connect(self.play_all)
-        self.pause_btn.clicked.connect(self.pause_all)
         self.frame_forward_btn.clicked.connect(self.frame_forward)
-
+        
+        # Add widgets to layout
+        control_layout.addWidget(self.speed_label)
+        control_layout.addWidget(self.slower_btn)
+        control_layout.addWidget(self.play_pause_btn)  # Single play/pause button
+        control_layout.addWidget(self.faster_btn)
+        control_layout.addWidget(self.speed_display)
         control_layout.addWidget(self.frame_back_btn)
-        control_layout.addWidget(self.play_btn)
-        control_layout.addWidget(self.pause_btn)
         control_layout.addWidget(self.frame_forward_btn)
 
         # Camera selection radio buttons for single view mode
@@ -181,7 +195,7 @@ class TeslaCamViewer(QMainWindow):
 
         self.slider_timer = QTimer()  # Updates the UI scrubber position
         self.slider_timer.timeout.connect(self.update_slider)
-        self.slider_timer.start(500)
+        self.slider_timer.start(100)  # More frequent updates for smoother scrubbing
 
         self.default_single_view_index = 0  # index for 'Front'
         self.selected_single_view_index = 0  # start with 'Front'
@@ -281,19 +295,71 @@ class TeslaCamViewer(QMainWindow):
                     break
 
     def seek_videos(self, value):
+        # Convert position to integer milliseconds if it's a float
+        position_ms = int(value * 1000) if isinstance(value, float) else int(value)
         for player in self.players:
             if player.source():
-                player.setPosition(value)
+                player.setPosition(position_ms)
 
-    def play_all(self):
+    def set_playback_speed(self, speed):
+        """Set playback speed for all players"""
+        self.playback_speed = speed
+        self.speed_display.setText(f"{speed:.2f}x")
         for player in self.players:
             if player.source():
+                player.setPlaybackRate(speed)
+    
+    def increase_speed(self):
+        """Increase playback speed to the next available speed"""
+        current_idx = 0
+        for i, speed in enumerate(self.available_speeds):
+            if speed > self.playback_speed or (i == len(self.available_speeds) - 1 and speed <= self.playback_speed):
+                current_idx = min(i, len(self.available_speeds) - 1)
+                break
+        
+        new_speed = self.available_speeds[min(current_idx + 1, len(self.available_speeds) - 1)]
+        self.set_playback_speed(new_speed)
+        
+        # If already playing, update the playback rate
+        if any(p.playbackState() == QMediaPlayer.PlaybackState.PlayingState for p in self.players if p.source()):
+            self.play_all()
+    
+    def decrease_speed(self):
+        """Decrease playback speed to the previous available speed"""
+        current_idx = 0
+        for i, speed in enumerate(self.available_speeds):
+            if speed > self.playback_speed or (i == len(self.available_speeds) - 1 and speed <= self.playback_speed):
+                current_idx = max(0, i - 1)
+                break
+        
+        new_speed = self.available_speeds[max(0, current_idx - 1)]
+        self.set_playback_speed(new_speed)
+        
+        # If already playing, update the playback rate
+        if any(p.playbackState() == QMediaPlayer.PlaybackState.PlayingState for p in self.players if p.source()):
+            self.play_all()
+    
+    def toggle_play_pause(self):
+        """Toggle between play and pause states"""
+        if any(p.playbackState() == QMediaPlayer.PlaybackState.PlayingState for p in self.players if p.source()):
+            self.pause_all()
+        else:
+            self.play_all()
+    
+    def play_all(self):
+        """Start or resume playback at current speed"""
+        for player in self.players:
+            if player.source():
+                player.setPlaybackRate(self.playback_speed)
                 player.play()
+        self.play_pause_btn.setText("⏸️ Pause")  # Update button text to show pause icon
 
     def pause_all(self):
+        """Pause all players"""
         for player in self.players:
             if player.source():
                 player.pause()
+        self.play_pause_btn.setText("▶️ Play")  # Update button text to show play icon
 
     def frame_forward(self):
         for player in self.players:
@@ -497,6 +563,10 @@ class TeslaCamViewer(QMainWindow):
             # Ensure the timeline is visible
             self.timeline.setFocus()
         
+        # Store current play state to restore it after seeking
+        was_playing = any(p.playbackState() == QMediaPlayer.PlaybackState.PlayingState 
+                         for p in self.players if p.source())
+        
         from datetime import datetime, timedelta
         from PyQt6.QtCore import QTimer, QUrl
         
@@ -616,9 +686,15 @@ class TeslaCamViewer(QMainWindow):
                     self.players[cam_idx].setSource(QUrl.fromLocalFile(combined_path))
                     self.sources[cam_idx] = combined_path
                     
-                    # Play briefly to ensure it loads
-                    self.players[cam_idx].play()
-                    QTimer.singleShot(100, lambda idx=cam_idx: self.players[idx].pause())
+                    # Start playback after seeking is complete
+                    def seek_and_play():
+                        self.seek_videos(time_since_start)
+                        if was_playing:  # If it was playing before seeking, resume playback
+                            self.play_all()
+                        else:  # Otherwise, just pause to show the frame
+                            self.pause_all()
+                    
+                    QTimer.singleShot(100, seek_and_play)
                 else:
                     # Fall back to individual clips if combined video doesn't exist
                     current_time = 0
