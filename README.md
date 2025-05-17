@@ -1,4 +1,5 @@
-# SentrySix
+# SentrySix (DOWN LOAD THIS BRANCH AT OWN RISK)
+this branh is used to oush new features that might be buggy and have issues I recommend not using this one
 
 SentrySix is a multi-camera TeslaCam viewer and exporter built with Python and PyQt6.
 It supports synchronized playback of all six Tesla cameras and allows users to export custom clips with frame-accurate trimming and layout control.
