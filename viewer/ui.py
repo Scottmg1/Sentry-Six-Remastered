@@ -1,11 +1,12 @@
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QLabel, QPushButton, QFileDialog, QGridLayout, QHBoxLayout, 
                             QInputDialog, QMessageBox, QComboBox, QRadioButton, QButtonGroup, QApplication,
-                            QListWidget, QListWidgetItem, QDockWidget, QMainWindow, QStyle, QStyleOptionSlider)
+                            QListWidget, QListWidgetItem, QDockWidget, QMainWindow, QStyle, QStyleOptionSlider,
+                            QCheckBox, QSpinBox, QColorDialog)
 from .event_timeline import EventTimeline
 from PyQt6.QtMultimedia import QMediaPlayer, QAudioOutput
+from PyQt6.QtCore import Qt, QTimer, QUrl, QDateTime, QTime, QEvent, QRect
+from PyQt6.QtGui import QPainter, QColor, QFont, QFontMetrics, QKeyEvent
 from PyQt6.QtMultimediaWidgets import QVideoWidget
-from PyQt6.QtCore import Qt, QUrl, QTimer, QEvent
-from PyQt6.QtGui import QKeyEvent
 import os
 import subprocess
 import traceback
@@ -14,6 +15,10 @@ import json
 import datetime
 
 # TeslaCamViewer provides a PyQt6-based GUI to view and export TeslaCam multi-camera footage.
+class TimestampVideoWidget(QVideoWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+
 class TeslaCamViewer(QMainWindow):
     def closeEvent(self, event):
         for player in self.players:
@@ -47,6 +52,10 @@ class TeslaCamViewer(QMainWindow):
         }
         self.current_event_time = 0  # Current position in event timeline (ms)
         self.total_duration = 0     # Total duration of all clips (ms)
+        # Timestamp settings
+        self.show_timestamp = True
+        self.timestamp_format = "MM/dd/yyyy hh:mm:ss AP"  # Default format
+        
         # Create central widget and main layout
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
@@ -95,18 +104,30 @@ class TeslaCamViewer(QMainWindow):
         # Video grid layout
         self.video_grid = QGridLayout()
         self.players = []  # List of QMediaPlayer instances for each camera
-        self.video_widgets = []  # QVideoWidget instances associated with each player
+        self.video_widgets = []  # TimestampVideoWidget instances associated with each player
         self.sources = [None] * 6  # Source file paths for each camera
 
         # Initialize 6 media players and corresponding video widgets for each camera
         # Create 6 video players and video widgets for the 6 Tesla cameras
-        for _ in range(6):
-            video_widget = QVideoWidget()
+        for i in range(6):
+            video_widget = TimestampVideoWidget(self)
             player = QMediaPlayer()
             player.setVideoOutput(video_widget)
             player.setAudioOutput(QAudioOutput())
             self.players.append(player)
             self.video_widgets.append(video_widget)
+            
+            # Connect position changed signal to update timestamp
+            player.positionChanged.connect(
+                lambda pos, idx=i: self.update_timestamp_display(idx, pos)
+            )
+            
+            # Connect media status changed to initialize timestamp when media is loaded
+            def media_status_changed(status, idx=i):
+                if status == QMediaPlayer.MediaStatus.LoadedMedia:
+                    self.update_timestamp_display(idx, self.players[idx].position())
+            
+            player.mediaStatusChanged.connect(media_status_changed)
 
         self.video_grid.setRowStretch(0, 1)
         self.video_grid.setRowStretch(1, 1)
@@ -175,6 +196,11 @@ class TeslaCamViewer(QMainWindow):
         self.timeline.setMinimum(0)
         self.timeline.setMaximum(1000)  # Will be updated with actual duration
         
+        # Create status bar with timestamp
+        self.timestamp_label = QLabel("Timestamp: --:--:--")
+        self.statusBar().addPermanentWidget(self.timestamp_label)
+        self.statusBar().showMessage("Ready")
+        
         # Time label
         self.time_label = QLabel("00:00 / 00:00")
         
@@ -188,6 +214,29 @@ class TeslaCamViewer(QMainWindow):
         refresh_btn = QPushButton("🔄 Refresh Events")
         refresh_btn.clicked.connect(lambda: self.scan_for_events(self.current_folder) if self.current_folder else None)
         folder_export_layout.addWidget(refresh_btn)
+        
+        # Add timestamp controls
+        timestamp_controls = QHBoxLayout()
+        self.timestamp_checkbox = QCheckBox("Show Timestamp")
+        self.timestamp_checkbox.setChecked(True)
+        self.timestamp_checkbox.toggled.connect(self.toggle_timestamp_display)
+        
+        self.timestamp_format_combo = QComboBox()
+        self.timestamp_format_combo.addItems([
+            "MM/dd/yyyy hh:mm:ss AP",  # Default format first
+            "hh:mm:ss AP",             # 12-hour time with AM/PM
+            "yyyy-MM-dd hh:mm:ss",
+            "ddd MMM d yyyy hh:mm:ss"
+        ])
+        self.timestamp_format_combo.currentTextChanged.connect(self.update_timestamp_format)
+        
+        timestamp_controls.addWidget(QLabel("Timestamp:"))
+        timestamp_controls.addWidget(self.timestamp_checkbox)
+        timestamp_controls.addWidget(QLabel("Format:"))
+        timestamp_controls.addWidget(self.timestamp_format_combo)
+        timestamp_controls.addStretch()
+        
+        self.layout.insertLayout(2, timestamp_controls)  # Add below the folder selection
         
         self.sync_timer = QTimer()  # Keeps videos in sync during playback
         self.sync_timer.timeout.connect(self.sync_playback)
@@ -341,10 +390,97 @@ class TeslaCamViewer(QMainWindow):
     
     def toggle_play_pause(self):
         """Toggle between play and pause states"""
-        if any(p.playbackState() == QMediaPlayer.PlaybackState.PlayingState for p in self.players if p.source()):
+        if self.players[0].playbackState() == QMediaPlayer.PlaybackState.PlayingState:
             self.pause_all()
         else:
             self.play_all()
+            
+    def update_timestamp_display(self, widget_index, position):
+        """Update the timestamp display in the UI"""
+        if not hasattr(self, 'timestamp_label'):
+            return
+            
+        if not self.show_timestamp or not hasattr(self, 'clip_data') or not any(self.clip_data.values()):
+            self.timestamp_label.setText("Event Time: --:--:--")
+            return
+            
+        try:
+            # Get the first video file from the first camera to extract the base timestamp
+            first_cam = next((cam for cam in self.clip_data if self.clip_data[cam]['files']), None)
+            if not first_cam or not self.clip_data[first_cam]['files']:
+                return
+                
+            first_file = self.clip_data[first_cam]['files'][0]  # First file of the first camera with files
+            
+            # Extract the filename without path
+            import os
+            from datetime import datetime, timedelta
+            
+            # Get the base filename without path
+            base_name = os.path.basename(first_file)
+            
+            # Check if this is a combined file (e.g., front_combined.mp4)
+            if '_combined.mp4' in base_name:
+                # For combined files, we need to get the original files to extract the timestamp
+                original_files = [f for f in os.listdir(os.path.dirname(first_file)) 
+                                if f.endswith('.mp4') and not f.endswith('_combined.mp4')]
+                if not original_files:
+                    return
+                base_name = original_files[0]  # Use the first original file for timestamp
+            
+            # Extract the timestamp part (format: YYYY-MM-DD_HH-MM-SS)
+            # Example: 2025-05-10_14-05-26-front.mp4
+            try:
+                # Extract the full timestamp part (first 19 characters: YYYY-MM-DD_HH-MM-SS)
+                timestamp_str = base_name[:19]
+                
+                # Parse the timestamp
+                base_dt = datetime.strptime(timestamp_str, "%Y-%m-%d_%H-%M-%S")
+                
+                # Add the current position in the video to get the actual timestamp
+                current_dt = base_dt + timedelta(milliseconds=position)
+                
+                # Format the timestamp based on the selected format
+                format_map = {
+                    "MM/dd/yyyy hh:mm:ss AP": "%m/%d/%Y %I:%M:%S %p",  # 05/10/2025 02:05:26 PM
+                    "hh:mm:ss AP": "%I:%M %p",  # 02:05 PM
+                    "yyyy-MM-dd hh:mm:ss": "%Y-%m-%d %H:%M:%S",  # 2025-05-10 14:05:26
+                    "ddd MMM d yyyy hh:mm:ss": "%a %b %d %Y %I:%M:%S"  # Fri May 10 2025 02:05:26
+                }
+                
+                # Get the Python strftime format string, defaulting to the first format if not found
+                py_format = format_map.get(self.timestamp_format, "%Y-%m-%d %H:%M:%S")
+                timestamp = current_dt.strftime(py_format)
+                
+                # Update the timestamp label if it exists
+                if hasattr(self, 'timestamp_label'):
+                    self.timestamp_label.setText(f"Event Time: {timestamp}")
+                    
+            except ValueError as e:
+                # If timestamp parsing fails, show the position in seconds
+                print(f"Error parsing timestamp from {base_name}: {e}")
+                if hasattr(self, 'timestamp_label'):
+                    self.timestamp_label.setText(f"Position: {position/1000:.1f}s")
+                    
+        except Exception as e:
+            print(f"Error updating timestamp: {e}")
+            if hasattr(self, 'timestamp_label'):
+                self.timestamp_label.setText(f"Position: {position/1000:.1f}s")
+    def toggle_timestamp_display(self, show):
+        """Toggle timestamp display on all video widgets."""
+        self.show_timestamp = show
+        for widget in self.video_widgets:
+            widget.show_timestamp = show
+
+    def update_timestamp_format(self, format_str):
+        """Update the timestamp format"""
+        self.timestamp_format = format_str
+        # Force update of all timestamps for all players with media
+        for i, player in enumerate(self.players):
+            if player.source() and player.playbackState() != QMediaPlayer.PlaybackState.StoppedState:
+                self.update_timestamp_display(i, player.position())
+                # Force a repaint of the widget
+                self.video_widgets[i].update()
     
     def play_all(self):
         """Start or resume playback at current speed"""
