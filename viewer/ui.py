@@ -139,11 +139,11 @@ class TeslaCamViewer(QMainWindow):
         self.frame_back_btn.clicked.connect(self.frame_back)
         self.frame_forward_btn.clicked.connect(self.frame_forward)
         
-        # Add widgets to layout
-        control_layout.addWidget(self.speed_label)
+        # Add widgets to layout in logical order
         control_layout.addWidget(self.slower_btn)
         control_layout.addWidget(self.play_pause_btn)  # Single play/pause button
         control_layout.addWidget(self.faster_btn)
+        control_layout.addWidget(self.speed_label)
         control_layout.addWidget(self.speed_display)
         control_layout.addWidget(self.frame_back_btn)
         control_layout.addWidget(self.frame_forward_btn)
