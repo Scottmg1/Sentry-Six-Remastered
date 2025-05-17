@@ -1,14 +1,17 @@
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QLabel, QPushButton, QFileDialog, QGridLayout, QHBoxLayout, 
-                            QInputDialog, QMessageBox, QSlider, QComboBox, QRadioButton, QButtonGroup, QApplication,
+                            QInputDialog, QMessageBox, QComboBox, QRadioButton, QButtonGroup, QApplication,
                             QListWidget, QListWidgetItem, QDockWidget, QMainWindow, QStyle, QStyleOptionSlider)
+from .event_timeline import EventTimeline
 from PyQt6.QtMultimedia import QMediaPlayer, QAudioOutput
 from PyQt6.QtMultimediaWidgets import QVideoWidget
-from PyQt6.QtCore import Qt, QUrl, QTimer, QEvent, QRect, QPoint
-from PyQt6.QtGui import QKeyEvent, QPainter, QColor, QPen
+from PyQt6.QtCore import Qt, QUrl, QTimer, QEvent
+from PyQt6.QtGui import QKeyEvent
 import os
 import subprocess
 import traceback
 import tempfile
+import json
+import datetime
 
 # TeslaCamViewer provides a PyQt6-based GUI to view and export TeslaCam multi-camera footage.
 class TeslaCamViewer(QMainWindow):
@@ -33,6 +36,7 @@ class TeslaCamViewer(QMainWindow):
     def __init__(self):
         super().__init__()  # Initialize the QMainWindow
         self.temp_dir = None
+        self.event_positions = []  # Initialize event positions list
         # Track clip information for each camera
         self.clip_data = {
             cam: {
@@ -151,23 +155,20 @@ class TeslaCamViewer(QMainWindow):
         control_layout.addStretch()
         self.layout.addLayout(control_layout)
 
-        # Time label + scrubber
-        self.slider_layout = QHBoxLayout()
+        # Timeline
+        self.timeline = EventTimeline()
+        self.timeline.positionChanged.connect(self.seek_videos)
+        self.timeline.setMinimum(0)
+        self.timeline.setMaximum(1000)  # Will be updated with actual duration
+        
+        # Time label
         self.time_label = QLabel("00:00 / 00:00")
         
-        # Create custom timeline slider with event indicators
-        self.scrubber = TimelineSlider(Qt.Orientation.Horizontal)
-        self.scrubber.setRange(0, 1000)
-        self.scrubber.sliderMoved.connect(self.seek_all)
-        
-        # Store event positions (in milliseconds)
-        self.event_positions = []
-        
-        self.slider_layout.addWidget(self.time_label)
-        self.slider_layout.addWidget(self.scrubber)
-        self.layout.addLayout(self.slider_layout)
-
-        # Layout is already set on central widget
+        # Layout for timeline and time label
+        timeline_layout = QHBoxLayout()
+        timeline_layout.addWidget(self.time_label, 0)
+        timeline_layout.addWidget(self.timeline, 1)  # Timeline takes remaining space
+        self.layout.addLayout(timeline_layout)
 
         # Add a button to refresh events
         refresh_btn = QPushButton("🔄 Refresh Events")
@@ -263,7 +264,6 @@ class TeslaCamViewer(QMainWindow):
                     widget.hide()
 
     def format_time(self, ms):
-        """Format milliseconds as MM:SS"""
         seconds = ms // 1000
         mins = seconds // 60
         secs = seconds % 60
@@ -275,20 +275,14 @@ class TeslaCamViewer(QMainWindow):
                 duration = p.duration()
                 if duration > 0:
                     position = p.position()
-                    # Only update if the duration has changed significantly
-                    if abs(self.scrubber.maximum() - duration) > 1000:  # 1 second threshold
-                        self.scrubber.setMaximum(duration)
-                    self.scrubber.setValue(position)
+                    self.timeline.setMaximum(duration)
+                    self.timeline.setValue(position)
                     self.time_label.setText(f"{self.format_time(position)} / {self.format_time(duration)}")
                     break
 
-    def seek_all(self, value):
-        # Update the time label immediately for better responsiveness
-        self.time_label.setText(f"{self.format_time(value)} / {self.format_time(self.scrubber.maximum())}")
-        
-        # Only update player position if it's a significant change
+    def seek_videos(self, value):
         for player in self.players:
-            if player.source() and abs(player.position() - value) > 33:  # Only update if change > 33ms
+            if player.source():
                 player.setPosition(value)
 
     def play_all(self):
@@ -364,93 +358,34 @@ class TeslaCamViewer(QMainWindow):
         """Scan the selected folder for event JSON files and populate the events list"""
         self.events_list.clear()
         self.events = []
-        self.event_positions = []  # Reset event positions
         
         for root, _, files in os.walk(folder):
             for file in files:
                 if file == "event.json":
                     try:
                         with open(os.path.join(root, file), 'r') as f:
-                            event_data = eval(f.read())
+                            event_data = json.load(f)
                             if 'timestamp' in event_data:
                                 self.events.append({
                                     'path': os.path.join(root, file),
-                                    'data': event_data
+                                    'data': event_data,
+                                    'folder': os.path.basename(os.path.dirname(os.path.join(root, file)))
                                 })
                     except Exception as e:
-                        print(f"Error reading {file}: {e}")
+                        print(f"Error reading event file {file}: {e}")
         
         # Sort events by timestamp
         self.events.sort(key=lambda x: x['data'].get('timestamp', ''))
         
-        # Add events to the list widget and collect their positions
+        # Add events to the list widget
         for event in self.events:
-            event_time = event['data'].get('timestamp', '')
+            event_time = event['data'].get('timestamp', 'Unknown Time')
             reason = event['data'].get('reason', 'Unknown Event').replace('_', ' ').title()
             city = event['data'].get('city', 'Unknown Location')
             item_text = f"{event_time} - {reason} - {city}"
             item = QListWidgetItem(item_text)
             item.setData(Qt.ItemDataRole.UserRole, event)
             self.events_list.addItem(item)
-            
-            # Calculate position for the event on the timeline
-            try:
-                # If we have clip data, calculate the exact position
-                if hasattr(self, 'clip_data') and 'front' in self.clip_data and self.clip_data['front']['files']:
-                    # Use the first camera as reference for timeline
-                    event_pos = self._calculate_event_position(event_time, 'front')
-                    if event_pos is not None:
-                        self.event_positions.append(event_pos)
-            except Exception as e:
-                print(f"Error calculating event position: {e}")
-        
-        # Update the slider with event positions
-        if hasattr(self, 'scrubber'):
-            self.scrubber.set_event_positions(self.event_positions)
-    
-    def _calculate_event_position(self, event_time_str, cam):
-        """Calculate the position of an event on the timeline in milliseconds"""
-        from datetime import datetime
-        
-        try:
-            # Parse the event timestamp
-            event_time = datetime.strptime(event_time_str, "%Y-%m-%dT%H:%M:%S")
-            
-            # Get the list of clips for this camera
-            clips = self.clip_data[cam]['files']
-            if not clips:
-                return None
-                
-            # Find which clip contains our event
-            for i, clip_path in enumerate(clips):
-                try:
-                    clip_time = datetime.strptime(os.path.basename(clip_path).split('_')[1], "%Y-%m-%d_%H-%M-%S")
-                    next_clip_time = None
-                    
-                    # Get the next clip's time if it exists
-                    if i + 1 < len(clips):
-                        next_clip_path = clips[i + 1]
-                        next_clip_time = datetime.strptime(os.path.basename(next_clip_path).split('_')[1], "%Y-%m-%d_%H-%M-%S")
-                    
-                    # If this is the last clip or the event is before the next clip
-                    if next_clip_time is None or event_time < next_clip_time:
-                        # Calculate the position in the timeline
-                        clip_start_ms = self.clip_data[cam]['offsets'][i] * 1000  # Convert to ms
-                        event_offset = (event_time - clip_time).total_seconds() * 1000  # Convert to ms
-                        event_pos = int(clip_start_ms + event_offset)
-                        
-                        # Ensure the position is within the total duration
-                        total_duration = self.clip_data[cam]['offsets'][-1] * 1000
-                        return min(event_pos, total_duration - 10000)  # 10 seconds before end if needed
-                        
-                except (IndexError, ValueError) as e:
-                    print(f"Error processing clip {clip_path}: {e}")
-                    continue
-                    
-        except Exception as e:
-            print(f"Error calculating event position: {e}")
-            
-        return None
     
     def _on_media_loaded(self, status, player_index, seek_time=0):
         """Callback when media is loaded, seeks to specified time and pauses"""
@@ -466,109 +401,6 @@ class TeslaCamViewer(QMainWindow):
                 self.players[player_index].mediaStatusChanged.disconnect()
             except:
                 pass
-    
-    def _update_event_positions(self):
-        """Update event positions based on current clip data"""
-        if not hasattr(self, 'events') or not hasattr(self, 'clip_data'):
-            return
-            
-        self.event_positions = []
-        
-        for event in self.events:
-            event_time = event['data'].get('timestamp')
-            if not event_time:
-                continue
-                
-            # Calculate position for the event on the timeline
-            event_pos = self._calculate_event_position(event_time, 'front')  # Use front camera as reference
-            if event_pos is not None:
-                self.event_positions.append(event_pos)
-        
-        # Update the slider with new event positions
-        if hasattr(self, 'scrubber'):
-            self.scrubber.set_event_positions(self.event_positions)
-
-
-class TimelineSlider(QSlider):
-    """Custom slider that displays event markers on the timeline"""
-    def __init__(self, orientation, parent=None):
-        super().__init__(orientation, parent)
-        self.event_positions = []
-        self.setStyleSheet("""
-            QSlider::add-page:horizontal {
-                background: #3a3a3a;
-                height: 4px;
-                border-radius: 2px;
-            }
-            QSlider::sub-page:horizontal {
-                background: #505050;
-                height: 4px;
-                border-radius: 2px;
-            }
-            QSlider::groove:horizontal {
-                background: transparent;
-                height: 4px;
-            }
-            QSlider::handle:horizontal {
-                background: #a0a0a0;
-                width: 14px;
-                margin: -5px 0;
-                border-radius: 7px;
-            }
-        """)
-    
-    def set_event_positions(self, positions):
-        """Set the positions of event markers (in milliseconds)"""
-        self.event_positions = sorted(positions)
-        self.update()
-    
-    def paintEvent(self, event):
-        """Custom paint event to draw event markers"""
-        super().paintEvent(event)
-        
-        if not self.event_positions or self.maximum() <= 0:
-            return
-            
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        
-        # Get the slider dimensions
-        opt = QStyleOptionSlider()
-        self.initStyleOption(opt)
-        
-        # Calculate the available width for the slider
-        available_width = self.width() - self.style()->pixelMetric(QStyle.PixelMetric.PM_SliderLength, opt, self)
-        slider_start = self.style()->sliderPositionFromValue(self.minimum(), self.maximum(), self.minimum(), 
-                                                           available_width, opt.upsideDown) + 1
-        slider_end = self.style()->sliderPositionFromValue(self.minimum(), self.maximum(), self.maximum(), 
-                                                         available_width, opt.upsideDown) + 1
-        slider_width = slider_end - slider_start
-        
-        # Draw event markers
-        marker_height = 12
-        marker_width = 2
-        marker_y = (self.height() - marker_height) // 2
-        
-        painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(QColor(255, 0, 0, 200))  # Semi-transparent red
-        
-        for pos in self.event_positions:
-            # Calculate the x position of the marker
-            x = slider_start + (pos / self.maximum()) * slider_width
-            
-            # Only draw if the marker is within the visible range
-            if slider_start <= x <= slider_end:
-                # Draw a small triangle pointing up
-                points = [
-                    QPoint(x - 3, marker_y + marker_height),  # Bottom left
-                    QPoint(x + 3, marker_y + marker_height),  # Bottom right
-                    QPoint(x, marker_y)  # Top center
-                ]
-                painter.drawPolygon(points)
-                
-                # Draw a vertical line under the triangle
-                painter.drawRect(int(x - marker_width//2), marker_y + marker_height - 2, 
-                               marker_width, 4)
     
     def _find_clip_position(self, event_time_str, cam):
         """Find the position in the combined video for a given timestamp"""
@@ -655,8 +487,15 @@ class TimelineSlider(QSlider):
         """Jump to the selected event in all visible cameras using the combined timeline"""
         event = item.data(Qt.ItemDataRole.UserRole)
         if not event:
-            print("DEBUG: No event data found in the selected item")
             return
+            
+        # Highlight the selected event on the timeline
+        if hasattr(self, 'events') and event in self.events:
+            event_index = self.events.index(event)
+            self.timeline.set_highlighted_event(event_index)
+            
+            # Ensure the timeline is visible
+            self.timeline.setFocus()
         
         from datetime import datetime, timedelta
         from PyQt6.QtCore import QTimer, QUrl
@@ -852,10 +691,18 @@ class TimelineSlider(QSlider):
             import traceback
             traceback.print_exc()
     
-    def update_timeline(self, time_ms):
-        """Update the timeline UI to show current position"""
+    def update_timeline(self, position):
+        # Update timeline position without triggering seek_videos
+        self.timeline.blockSignals(True)
+        self.timeline.setValue(position)
+        self.timeline.blockSignals(False)
+        
+        # Update time label
+        self.update_time_label(position)
+
+    def update_time_label(self, position):
         # Convert time to seconds for display
-        seconds = time_ms / 1000
+        seconds = position / 1000
         minutes = int(seconds // 60)
         seconds = int(seconds % 60)
         time_str = f"{minutes:02d}:{seconds:02d}"
@@ -863,11 +710,242 @@ class TimelineSlider(QSlider):
         # Update the time label if it exists
         if hasattr(self, 'time_label'):
             self.time_label.setText(time_str)
+
+    def load_events(self, folder):
+        """Load events from the specified folder."""
+        print(f"\n[UI] Loading events from folder: {folder}")
+        self.events = []
+        self.events_list.clear()
         
+        if not folder or not os.path.isdir(folder):
+            print(f"[UI] Invalid folder: {folder}")
+            self.update_events_on_timeline()
+            return
+            
+        events_file = os.path.join(folder, 'event.json')
+        if not os.path.isfile(events_file):
+            print(f"[UI] No event.json found in {folder}")
+            self.update_events_on_timeline()
+            return
+            
+        try:
+            print(f"[UI] Loading events from {events_file}")
+            with open(events_file, 'r') as f:
+                event_data = json.load(f)
+                
+                # Handle both single event and list of events
+                if isinstance(event_data, dict):
+                    self.events = [event_data]
+                elif isinstance(event_data, list):
+                    self.events = event_data
+                else:
+                    print(f"[UI] Unexpected event data format: {type(event_data)}")
+                    self.events = []
+                
+                print(f"[UI] Loaded {len(self.events)} raw events")
+                
+                # Process each event
+                event_times = []
+                for i, event in enumerate(self.events):
+                    try:
+                        # Handle both direct event objects and wrapped events with 'data' key
+                        event_obj = event.get('data', event) if isinstance(event, dict) else event
+                        
+                        # Extract timestamp
+                        timestamp_str = event_obj.get('timestamp')
+                        if not timestamp_str:
+                            print(f"[UI] Event {i} has no timestamp")
+                            continue
+                            
+                        # Convert timestamp to datetime for display
+                        try:
+                            event_time = datetime.datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
+                            event_time_ms = int(event_time.timestamp() * 1000)
+                            event_times.append(event_time_ms)
+                            
+                            # Format time for display
+                            time_str = event_time.strftime("%H:%M:%S")
+                            event_type = event_obj.get('reason', 'event').replace('_', ' ').title()
+                            location = event_obj.get('city', 'Unknown Location')
+                            
+                            # Add to list widget
+                            item_text = f"{time_str} - {event_type} - {location}"
+                            item = QListWidgetItem(item_text)
+                            item.setData(Qt.ItemDataRole.UserRole, event)  # Store full event data
+                            self.events_list.addItem(item)
+                            
+                            print(f"[UI] Added event {i+1}: {item_text}")
+                            
+                        except (ValueError, TypeError) as e:
+                            print(f"[UI] Error parsing timestamp for event {i}: {timestamp_str} - {e}")
+                            
+                    except Exception as e:
+                        print(f"[UI] Error processing event {i}: {e}")
+                        import traceback
+                        traceback.print_exc()
+                
+                # Update the timeline with the event times
+                print(f"[UI] Found {len(event_times)} valid events with timestamps")
+                self.update_events_on_timeline()
+                
+        except Exception as e:
+            print(f"[UI] Error loading events: {e}")
+            import traceback
+            traceback.print_exc()
+            self.events = []
+            self.update_events_on_timeline()
+
+    def update_events_on_timeline(self):
+        """Update the timeline with the current events."""
+        print("\n[UI] ====== update_events_on_timeline called ======")
+        print(f"[UI] Current events count: {len(self.events) if hasattr(self, 'events') else 'N/A'}")
+        
+        # Ensure we have a valid timeline reference
+        if not hasattr(self, 'timeline'):
+            print("[UI] ERROR: Timeline widget not found!")
+            return
+            
+        # Get current timeline range for debugging
+        timeline_min = self.timeline.minimum()
+        timeline_max = self.timeline.maximum()
+        print(f"[UI] Current timeline range: {timeline_min}ms to {timeline_max}ms (duration: {(timeline_max - timeline_min)/1000:.2f}s)")
+        
+        # Debug: Print first few events if they exist
+        if hasattr(self, 'events') and self.events:
+            print("[UI] First 3 events:")
+            for i, event in enumerate(self.events[:3]):
+                event_obj = event.get('data', event) if isinstance(event, dict) else event
+                print(f"  Event {i+1}: {event_obj.get('timestamp')} - {event_obj.get('reason')} - {event_obj.get('city', 'N/A')}")
+        else:
+            print("[UI] No events found to display on timeline")
+        
+        # If we have no events or the events list is empty, create some test events
+        if not hasattr(self, 'events') or not self.events:
+            print("[UI] No events found, adding test events for debugging")
+            # Add test events at 10%, 30%, 50%, 70%, and 90% of the timeline
+            duration = timeline_max - timeline_min
+            if duration <= 1000:  # If duration is too small (less than 1 second)
+                print("[UI] Invalid duration for test events, using default range")
+                timeline_min = 0
+                timeline_max = 60000  # Default to 1 minute
+                duration = timeline_max - timeline_min
+                self.timeline.setMinimum(timeline_min)
+                self.timeline.setMaximum(timeline_max)
+            
+            # Create test events at 10%, 30%, 50%, 70%, and 90% of the timeline
+            test_events = [
+                timeline_min + int(duration * 0.1),
+                timeline_min + int(duration * 0.3),
+                timeline_min + int(duration * 0.5),
+                timeline_min + int(duration * 0.7),
+                timeline_min + int(duration * 0.9)
+            ]
+            print(f"[UI] Adding test events at: {test_events}")
+            self.timeline.set_events(test_events)
+            return
+            
+        # Process real events from the events list
+        event_times = []
+        for i, event in enumerate(self.events):
+            try:
+                # Handle both direct event objects and wrapped events with 'data' key
+                event_obj = event.get('data', event) if isinstance(event, dict) else event
+                
+                # Get the event time
+                timestamp_str = event_obj.get('timestamp')
+                if not timestamp_str:
+                    print(f"[UI] Event {i} has no timestamp")
+                    continue
+                
+                # Convert timestamp to milliseconds since epoch
+                try:
+                    event_time = datetime.datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
+                    event_time_ms = int(event_time.timestamp() * 1000)
+                    event_times.append(event_time_ms)
+                    
+                    # Debug output for first few events
+                    if i < 5:
+                        time_str = event_time.strftime("%H:%M:%S")
+                        print(f"[UI] Event {i+1}: time={time_str} ({event_time_ms}ms)")
+                        
+                except (ValueError, TypeError) as e:
+                    print(f"[UI] Error parsing timestamp for event {i}: {timestamp_str} - {e}")
+                    
+            except Exception as e:
+                print(f"[UI] Error processing event {i}: {e}")
+                import traceback
+                traceback.print_exc()
+        
+        # If we found valid events, update the timeline
+        if event_times:
+            print(f"[UI] Found {len(event_times)} valid events with timestamps")
+            
+            # Sort events by time
+            event_times.sort()
+            
+            # Get video duration if available
+            video_duration = self.total_duration if hasattr(self, 'total_duration') and self.total_duration > 0 else 0
+            
+            # Calculate timeline range based on events and video duration
+            min_time = min(event_times)
+            max_time = max(event_times)
+            
+            # If we have video duration, ensure it's included in the range
+            if video_duration > 0:
+                min_time = min(min_time, 0)  # Start from 0 if video starts at 0
+                max_time = max(max_time, video_duration)
+            
+            # Add padding (10% or 5 seconds, whichever is larger)
+            duration = max_time - min_time
+            padding = max(5000, int(duration * 0.1)) if duration > 0 else 5000
+            timeline_min = max(0, min_time - padding)
+            timeline_max = max_time + padding
+            
+            # If we have video duration, ensure the timeline extends at least to the end of the video
+            if video_duration > 0 and timeline_max < video_duration + 2000:  # Add 2 seconds after video ends
+                timeline_max = video_duration + 2000
+            
+            # Ensure we have a reasonable minimum range
+            if timeline_max - timeline_min < 10000:  # At least 10 seconds
+                timeline_center = (timeline_min + timeline_max) // 2
+                timeline_min = max(0, timeline_center - 5000)
+                timeline_max = timeline_center + 5000
+                
+            print(f"[UI] Setting timeline range: {timeline_min}ms to {timeline_max}ms ({(timeline_max-timeline_min)/1000:.1f}s)")
+            print(f"[UI] Video duration: {self.total_duration}ms" if hasattr(self, 'total_duration') and self.total_duration > 0 else "[UI] No video duration available")
+            
+            # Update the timeline range
+            self.timeline.setMinimum(int(timeline_min))
+            self.timeline.setMaximum(int(timeline_max))
+            self.timeline.set_events(event_times)
+            
+            # Update the timeline's current position
+            current_pos = self.timeline.value()
+            if current_pos < timeline_min or current_pos > timeline_max:
+                self.timeline.setValue(int(timeline_min))
+                
+            # Update the time label
+            self.update_time_label(self.timeline.value())
+            
+            # Debug: Print first few event positions
+            print("[UI] First 3 event positions (ms):")
+            for i, t in enumerate(event_times[:3]):
+                print(f"  Event {i+1}: {t}ms ({(t-timeline_min)/1000:.1f}s from start, {t/1000:.1f}s total)")
+            
+            # Debug: Print events that fall after video duration
+            if hasattr(self, 'total_duration') and self.total_duration > 0:
+                post_video_events = [t for t in event_times if t > self.total_duration]
+                if post_video_events:
+                    print(f"[UI] Found {len(post_video_events)} events after video end (video ends at {self.total_duration/1000:.1f}s):")
+                    for t in post_video_events:
+                        print(f"  - {t/1000:.1f}s ({t-self.total_duration:.0f}ms after video end)")
+        else:
+            print("[UI] No valid events found to display on timeline")
+
         # Update the seek bar if it exists
         if hasattr(self, 'seek_bar'):
             # Make sure we don't try to set a value outside the valid range
-            value = min(max(0, time_ms), self.total_duration)
+            value = min(max(0, self.timeline.value()), self.total_duration)
             self.seek_bar.setValue(value)
     
     def select_folder(self):
@@ -877,8 +955,6 @@ class TimelineSlider(QSlider):
                 return
                 
             self.current_folder = folder
-            
-            # First scan for events to populate the events list
             self.scan_for_events(folder)
 
             files = sorted(os.listdir(folder))
@@ -890,53 +966,49 @@ class TimelineSlider(QSlider):
                     if cam in file and file.endswith(".mp4"):
                         grouped[cam].append(os.path.join(folder, file))
 
-            # Process each camera's files
-            for cam, files in grouped.items():
-                if not files:
-                    continue
+            self.temp_dir = tempfile.mkdtemp()
+
+            # Initialize clip_data for each camera
+            for cam in cam_keywords:
+                self.clip_data[cam] = {
+                    'offsets': [0],  # Start times of each clip in seconds
+                    'durations': [],  # Duration of each clip in seconds
+                    'files': []       # Paths to each clip file
+                }
+                
+                if grouped[cam]:
+                    # Sort clips by name (which should be in chronological order)
+                    sorted_clips = sorted(grouped[cam])
                     
-                # Sort files by timestamp in filename
-                files.sort(key=lambda x: os.path.basename(x).split('_')[1])
-                
-                # Store file information
-                self.clip_data[cam]['files'] = files
-                self.clip_data[cam]['durations'] = [self.get_clip_duration(f) for f in files]
-                
-                # Calculate offsets (cumulative durations)
-                self.clip_data[cam]['offsets'] = [0]  # Start at 0
-                for duration in self.clip_data[cam]['durations'][:-1]:  # All but last duration
-                    self.clip_data[cam]['offsets'].append(self.clip_data[cam]['offsets'][-1] + duration)
-                
-                # Create a temporary combined video for this camera
-                if self.temp_dir is None:
-                    self.temp_dir = tempfile.mkdtemp(prefix="sentrysix_")
-                
-                # Create a file list for ffmpeg
-                list_path = os.path.join(self.temp_dir, f"{cam}_list.txt")
-                with open(list_path, 'w') as f:
-                    for file in files:
-                        f.write(f"file '{os.path.abspath(file)}'\n")
-                
-                # Combine videos using ffmpeg
-                output_path = os.path.join(self.temp_dir, f"{cam}_combined.mp4")
-                if not os.path.exists(output_path):
+                    # Populate clip_data with file paths and calculate durations/offsets
+                    for clip in sorted_clips:
+                        duration = self.get_clip_duration(clip)
+                        self.clip_data[cam]['durations'].append(duration)
+                        self.clip_data[cam]['files'].append(clip)
+                        # Next clip starts where this one ends
+                        self.clip_data[cam]['offsets'].append(self.clip_data[cam]['offsets'][-1] + duration)
+            
+            # Now create the combined videos
+            for i, cam in enumerate(cam_keywords):
+                if grouped[cam]:
+                    txt_path = os.path.join(self.temp_dir, f"{cam}_list.txt")
+                    output_path = os.path.join(self.temp_dir, f"{cam}_combined.mp4")
+                    with open(txt_path, 'w') as f:
+                        for clip in sorted(grouped[cam]):
+                            fixed_clip = clip.replace('\\', '/')
+                            f.write(f"file '{fixed_clip}'\n")
                     subprocess.run([
-                        'ffmpeg', '-y', '-f', 'concat', '-safe', '0',
-                        '-i', list_path, '-c', 'copy', output_path
-                    ], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-                
-                # Update the source for this camera
-                i = cam_keywords.index(cam)
-                self.sources[i] = output_path
-                
-                # Set the total duration for the timeline
-                if cam == "front" and self.clip_data[cam]['durations']:
-                    self.total_duration = int(sum(self.clip_data[cam]['durations']) * 1000)  # Convert to ms
-                    if hasattr(self, 'scrubber'):
-                        self.scrubber.setRange(0, self.total_duration)
-                        
-            # After loading all clips, update event positions with the new clip data
-            self._update_event_positions()
+                        "ffmpeg", "-y", "-f", "concat", "-safe", "0",
+                        "-i", txt_path, "-c", "copy", output_path
+                    ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    self.players[i].setSource(QUrl.fromLocalFile(output_path))
+                    self.sources[i] = output_path
+                    
+                    # Set the total duration for the timeline
+                    if cam == "front" and self.clip_data[cam]['durations']:
+                        self.total_duration = int(sum(self.clip_data[cam]['durations']) * 1000)  # Convert to ms
+                        if hasattr(self, 'scrubber'):
+                            self.scrubber.setRange(0, self.total_duration)
         except Exception as e:
             traceback.print_exc()
             QMessageBox.critical(self, "Error", f"Failed to load videos:\n{e}")
