@@ -2,7 +2,11 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QLabel, QPushButton, QFileDia
                             QInputDialog, QMessageBox, QComboBox, QRadioButton, QButtonGroup, QApplication,
                             QListWidget, QListWidgetItem, QDockWidget, QMainWindow, QStyle, QStyleOptionSlider,
                             QCheckBox, QSpinBox, QColorDialog)
-from .event_timeline import EventTimeline
+# Handle both direct execution and package import
+try:
+    from .event_timeline import EventTimeline  # When imported as part of a package
+except ImportError:
+    from event_timeline import EventTimeline  # When run directly
 from PyQt6.QtMultimedia import QMediaPlayer, QAudioOutput
 from PyQt6.QtCore import Qt, QTimer, QUrl, QDateTime, QTime, QEvent, QRect
 from PyQt6.QtGui import QPainter, QColor, QFont, QFontMetrics, QKeyEvent
@@ -1271,7 +1275,8 @@ class TeslaCamViewer(QMainWindow):
                 trimmed_path = os.path.join(output_folder, f"trim_{idx}.mp4")
                 subprocess.run([
                     "ffmpeg", "-y", "-ss", str(start_ms), "-i", self.sources[idx],
-                    "-t", str(duration_ms), "-c:v", "libx264", "-preset", "ultrafast", trimmed_path
+                    "-t", str(duration_ms), "-c:v", "libx264", "-preset", "ultrafast", 
+                    "-r", "30", trimmed_path
                 ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 inputs.append(trimmed_path)
 
@@ -1286,7 +1291,8 @@ class TeslaCamViewer(QMainWindow):
                     subprocess.run([
                         "ffmpeg", "-y", "-i", inputs[0],
                         "-vf", "scale=1920:-2",
-                        "-c:v", "libx264", "-preset", "fast", final_output
+                        "-c:v", "libx264", "-preset", "fast", "-r", "30",
+                        "-pix_fmt", "yuv420p", final_output
                     ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 else:
                     os.rename(inputs[0], final_output)
@@ -1303,7 +1309,8 @@ class TeslaCamViewer(QMainWindow):
 
                 result = subprocess.run([
                     "ffmpeg", "-y", "-i", inputs[1], "-i", inputs[0],
-                    "-filter_complex", scale_filter, "-map", "[v]", final_output
+                    "-filter_complex", scale_filter, "-map", "[v]", "-r", "30",
+                    "-pix_fmt", "yuv420p", final_output
                 ], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
                 print("FFmpeg output (front_back):\n" + result.stderr.decode())
                 QMessageBox.information(self, "Export Complete", f"Exported layout to: {final_output}")
@@ -1316,7 +1323,8 @@ class TeslaCamViewer(QMainWindow):
 
                 subprocess.run([
                     "ffmpeg", "-y", "-i", inputs[0], "-i", inputs[1],
-                    "-filter_complex", scale_filter, "-map", "[v]", final_output
+                    "-filter_complex", scale_filter, "-map", "[v]", "-r", "30",
+                    "-pix_fmt", "yuv420p", final_output
                 ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 QMessageBox.information(self, "Export Complete", f"Exported layout to: {final_output}")
             elif mode == "All Cameras (3x2)":
@@ -1329,7 +1337,7 @@ class TeslaCamViewer(QMainWindow):
                     "-i", inputs[2],
                     "-filter_complex",
                     "[0:v]scale=-1:938[a];[1:v]scale=-1:938[b];[2:v]scale=-1:938[c];[a][b][c]hstack=inputs=3[v]",
-                    "-map", "[v]", top
+                    "-map", "[v]", "-r", "30", "-pix_fmt", "yuv420p", top
                 ], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
                 print("FFmpeg output (row_top):" + result_top.stderr.decode())
                 result_mid = subprocess.run([
@@ -1339,7 +1347,7 @@ class TeslaCamViewer(QMainWindow):
                     "-i", inputs[5],
                     "-filter_complex",
                     "[0:v]scale=-1:938[a];[1:v]scale=-1:938[b];[2:v]scale=-1:938[c];[a][b][c]hstack=inputs=3[v]",
-                    "-map", "[v]", mid
+                    "-map", "[v]", "-r", "30", "-pix_fmt", "yuv420p", mid
                 ], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
                 print("FFmpeg output (row_mid):" + result_mid.stderr.decode())
                  
@@ -1352,14 +1360,15 @@ class TeslaCamViewer(QMainWindow):
                         "ffmpeg", "-y", "-i", top, "-i", mid,
                         "-filter_complex",
                         "[0:v][1:v]vstack=inputs=2[stack];[stack]scale=1920:-2[v]",
-                        "-map", "[v]", final_output
+                        "-map", "[v]", "-r", "30", "-pix_fmt", "yuv420p", final_output
                     ], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
                     print("FFmpeg output (mobile):\n" + result_scaled.stderr.decode())
                     QMessageBox.information(self, "Export Complete", f"Exported mobile-friendly layout to: {final_output}")
                 else:
                     result_full = subprocess.run([
                         "ffmpeg", "-y", "-i", top, "-i", mid,
-                        "-filter_complex", "[0:v][1:v]vstack=inputs=2[v]", "-map", "[v]", final_output
+                        "-filter_complex", "[0:v][1:v]vstack=inputs=2[v]", "-map", "[v]", 
+                        "-r", "30", "-pix_fmt", "yuv420p", final_output
                     ], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
                     print("FFmpeg output (full):\n" + result_full.stderr.decode())
                     QMessageBox.information(self, "Export Complete", f"Exported full-resolution layout to: {final_output}")
