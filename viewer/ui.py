@@ -1,7 +1,7 @@
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QLabel, QPushButton, QFileDialog, QGridLayout, QHBoxLayout, 
                             QInputDialog, QMessageBox, QComboBox, QRadioButton, QButtonGroup, QApplication,
                             QListWidget, QListWidgetItem, QDockWidget, QMainWindow, QStyle, QStyleOptionSlider,
-                            QCheckBox, QSpinBox, QColorDialog)
+                            QCheckBox, QSpinBox, QColorDialog, QSizePolicy)
 from PyQt6.QtMultimediaWidgets import QVideoWidget
 # Handle both direct execution and package import
 try:
@@ -10,7 +10,7 @@ except ImportError:
     from custom_timeline import CustomTimeline  # When run directly
 from PyQt6.QtMultimedia import QMediaPlayer, QAudioOutput
 from PyQt6.QtCore import Qt, QTimer, QUrl, QDateTime, QTime, QEvent, QRect
-from PyQt6.QtGui import QPainter, QColor, QFont, QFontMetrics, QKeyEvent
+from PyQt6.QtGui import QPainter, QColor, QFont, QFontMetrics, QKeyEvent, QResizeEvent
 import os
 import subprocess
 import traceback
@@ -22,6 +22,13 @@ import datetime
 class TimestampVideoWidget(QVideoWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.setStyleSheet("background-color: black;")
+        self.setAspectRatioMode(Qt.AspectRatioMode.KeepAspectRatio)
+        
+    def resizeEvent(self, event: QResizeEvent) -> None:
+        super().resizeEvent(event)
+        # Force update the widget to ensure proper scaling
+        self.update()
 
 class TeslaCamViewer(QMainWindow):
     def closeEvent(self, event):
@@ -196,14 +203,7 @@ class TeslaCamViewer(QMainWindow):
         control_layout.addStretch()
         self.layout.addLayout(control_layout)
 
-        # Create old timeline for compatibility (hidden)
-        self.old_timeline = EventTimeline()
-        self.old_timeline.positionChanged.connect(self.seek_videos)
-        self.old_timeline.setMinimum(0)
-        self.old_timeline.setMaximum(1000)  # Will be updated with actual duration
-        self.old_timeline.hide()
-        
-        # Create new custom timeline
+        # Create the custom timeline
         self.timeline = CustomTimeline()
         self.timeline.setMinimum(0)
         self.timeline.setMaximum(1000)  # Will be updated with actual duration
@@ -327,10 +327,35 @@ class TeslaCamViewer(QMainWindow):
             self.video_grid.setColumnStretch(1, 1)
             self.video_grid.setColumnStretch(2, 0)
         elif mode == "Single View (1x1)":
+            # Clear the grid first
+            for i in reversed(range(self.video_grid.count())):
+                widget = self.video_grid.itemAt(i).widget()
+                if widget:
+                    widget.setParent(None)
+            
+            # Configure grid layout to fill available space
+            self.video_grid.setRowStretch(0, 0)  # No stretch for top
+            self.video_grid.setRowStretch(1, 1)  # Main content row
+            self.video_grid.setRowStretch(2, 0)  # No stretch for bottom
+            self.video_grid.setColumnStretch(0, 0)  # No stretch for left
+            self.video_grid.setColumnStretch(1, 1)  # Main content column
+            self.video_grid.setColumnStretch(2, 0)  # No stretch for right
+            
+            # Show and add the selected camera to fill the grid
             index = self.selected_single_view_index
             for i, widget in enumerate(self.video_widgets):
                 if i == index:
                     widget.show()
+                    # Add to fill the grid cell
+                    self.video_grid.addWidget(widget, 1, 1)
+                    # Set size policy to expand and maintain aspect ratio
+                    widget.setSizePolicy(QSizePolicy.Policy.Expanding, 
+                                      QSizePolicy.Policy.Expanding)
+                else:
+                    widget.hide()
+            
+            # Show camera selection buttons
+            self.single_view_container.show()
 
     def timeline_pressed(self):
         """Handle timeline slider press."""
@@ -495,9 +520,7 @@ class TeslaCamViewer(QMainWindow):
                 if duration > 0:
                     position = p.position()
                     self.timeline.setMaximum(duration)
-                    self.old_timeline.setMaximum(duration)  # Update old timeline for compatibility
                     self.timeline.setValue(position)
-                    self.old_timeline.setValue(position)  # Update old timeline for compatibility
                     self.time_label.setText(f"{self.format_time(position)} / {self.format_time(duration)}")
                     break
                     
