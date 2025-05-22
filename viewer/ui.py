@@ -378,8 +378,6 @@ class TeslaCamViewer(QMainWindow):
     def custom_timeline_position_changed(self, position):
         """Handle custom timeline position change."""
         self.update_position_display(position)
-        # Update the old timeline for compatibility
-        self.old_timeline.setValue(position)
         # Update video position
         self.set_video_position(position)
     
@@ -899,8 +897,9 @@ class TeslaCamViewer(QMainWindow):
         try:
             event = item.data(Qt.ItemDataRole.UserRole)
             if not event:
+                self._auto_jump_in_progress = False
                 return
-            
+                
             # Highlight the selected event on the timeline
             if hasattr(self, 'events') and event in self.events:
                 event_index = self.events.index(event)
@@ -912,6 +911,206 @@ class TeslaCamViewer(QMainWindow):
             # Store current play state to restore it after seeking
             was_playing = any(p.playbackState() == QMediaPlayer.PlaybackState.PlayingState 
                             for p in self.players if p.source())
+            
+            from datetime import datetime, timedelta
+            from PyQt6.QtCore import QTimer, QUrl
+            
+            # Get the event timestamp (assuming it's in the format '2023-01-01T12:00:00')
+            event_time_str = event['data']['timestamp']
+            event_dir = os.path.dirname(event['path'])
+            
+            print(f"\n=== DEBUG: Processing event ===")
+            print(f"Event time: {event_time_str}")
+            print(f"Event directory: {event_dir}")
+            print(f"Event data: {event['data']}")
+            
+            # Store the event data for timeline display
+            self.event_positions.append({
+                'timestamp': event_time_str,
+                'reason': event['data'].get('reason', 'unknown'),
+                'data': event['data']
+            })
+            
+            # Parse the event time
+            try:
+                event_dt = datetime.strptime(event_time_str, "%Y-%m-%dT%H:%M:%S")
+                print(f"Parsed event time: {event_dt}")
+            except Exception as e:
+                print(f"ERROR parsing event time {event_time_str}: {e}")
+                self._auto_jump_in_progress = False
+                return
+                
+            # Find the first clip to get the start time of the recording session
+            first_clip_time = None
+            for camera in self.clip_data.values():
+                if camera['files']:
+                    first_clip_path = camera['files'][0]
+                    first_clip_name = os.path.basename(first_clip_path)
+                    try:
+                        # Extract timestamp from first clip
+                        date_part = first_clip_name.split('_')[0]
+                        time_part = first_clip_name.split('_')[1].split('-')[:3]
+                        first_clip_dt = datetime.strptime(
+                            f"{date_part}_{'-'.join(time_part)}", 
+                            "%Y-%m-%d_%H-%M-%S"
+                        )
+                        if first_clip_time is None or first_clip_dt < first_clip_time:
+                            first_clip_time = first_clip_dt
+                    except Exception as e:
+                        print(f"Error parsing first clip time: {e}")
+            
+            if first_clip_time is None:
+                print("ERROR: Could not determine recording start time")
+                self._auto_jump_in_progress = False
+                return
+                
+            # Calculate the time offset from the start of the recording
+            time_since_start = (event_dt - first_clip_time).total_seconds()
+            
+            # Jump to 30 seconds before the event time
+            target_time = max(0, time_since_start - 30)  # 30 seconds before event
+            print(f"Original event time: {time_since_start:.2f}s")
+            print(f"Jumping to 30 seconds before event: {target_time:.2f}s")
+            time_since_start = target_time
+            
+            # Get the total duration of the recording session
+            total_duration = 0
+            for cam in self.clip_data.values():
+                if cam['durations']:
+                    total_duration = max(total_duration, sum(cam['durations']))
+            
+            # Add a small buffer (1 second) to account for rounding errors
+            total_duration += 1.0
+            
+            # Make sure we don't go before the start
+            if time_since_start < 0:
+                print(f"Adjusting to start of recording (can't go before 0)")
+                time_since_start = 0
+                
+            # Make sure we don't go past the end (with some tolerance)
+            if time_since_start > total_duration:
+                time_diff = time_since_start - total_duration
+                max_allowed_diff = 5  # Only allow small adjustments past the end
+                
+                if time_diff < max_allowed_diff:
+                    print(f"Adjusting to end of recording (within {max_allowed_diff}s tolerance)")
+                    time_since_start = total_duration - 1.0  # 1 second before end
+                else:
+                    print(f"Event too far after recording end (>{max_allowed_diff}s)")
+                    self._auto_jump_in_progress = False
+                    return
+            
+            # Get the current layout mode
+            layout_mode = self.layout_selector.currentText()
+            
+            # For each camera in the current layout, seek to the event time
+            for cam_idx, camera_keyword in enumerate(["front", "left_repeater", "right_repeater", "back", "left_pillar", "right_pillar"]):
+                if camera_keyword not in self.clip_data or not self.clip_data[camera_keyword]['files']:
+                    continue
+                    
+                # Check if combined video exists for this camera
+                combined_path = os.path.join(os.path.dirname(self.clip_data[camera_keyword]['files'][0]), f"combined_{camera_keyword}.mp4")
+                if os.path.exists(combined_path):
+                    # Create a lambda for the media status changed signal
+                    def create_lambda(i, path, time):
+                        return lambda status: self._on_media_loaded(status, i, int(time * 1000))
+                    
+                    # Disconnect any existing connections
+                    try:
+                        self.players[cam_idx].mediaStatusChanged.disconnect()
+                    except:
+                        pass
+                    
+                    # Connect the new handler
+                    self.players[cam_idx].mediaStatusChanged.connect(create_lambda(cam_idx, combined_path, time_since_start))
+                    
+                    # Load the combined clip
+                    self.players[cam_idx].setSource(QUrl.fromLocalFile(combined_path))
+                    self.sources[cam_idx] = combined_path
+                    
+                    # Start playback after seeking is complete
+                    def seek_and_play():
+                        self.seek_videos(time_since_start * 1000)  # Convert to milliseconds
+                        if was_playing:  # If it was playing before seeking, resume playback
+                            self.play_all()
+                        else:  # Otherwise, just pause to show the frame
+                            self.pause_all()
+                        self._auto_jump_in_progress = False  # Reset the flag after seeking is complete
+                    
+                    QTimer.singleShot(100, seek_and_play)
+                    
+                    # Update the timeline with event markers
+                    QTimer.singleShot(500, self.update_events_on_timeline)
+                else:
+                    # Fall back to individual clips if combined video doesn't exist
+                    current_time = 0
+                    found_clip = None
+                    clip_start_time = 0
+                    
+                    for clip_path in self.clip_data[camera_keyword]['files']:
+                        try:
+                            clip_duration = self.get_clip_duration(clip_path)
+                            clip_end_time = current_time + clip_duration
+                            
+                            # Check if this clip contains the target time
+                            if current_time <= time_since_start < clip_end_time:
+                                found_clip = clip_path
+                                clip_start_time = current_time
+                                time_in_clip = time_since_start - clip_start_time
+                                break
+                                
+                            current_time = clip_end_time
+                        except Exception as e:
+                            print(f"Error processing clip {clip_path}: {e}")
+                    
+                    if found_clip:
+                        # Create a lambda for the media status changed signal
+                        def create_lambda(i, path, time):
+                            return lambda status: self._on_media_loaded(status, i, int(time * 1000))
+                        
+                        # Disconnect any existing connections
+                        try:
+                            self.players[cam_idx].mediaStatusChanged.disconnect()
+                        except:
+                            pass
+                        
+                        # Connect the new handler
+                        self.players[cam_idx].mediaStatusChanged.connect(create_lambda(cam_idx, found_clip, time_in_clip))
+                        
+                        # Load the clip
+                        self.players[cam_idx].setSource(QUrl.fromLocalFile(found_clip))
+                        self.sources[cam_idx] = found_clip
+                        
+                        # Start playback after seeking is complete
+                        def seek_and_play():
+                            self.seek_videos(time_in_clip * 1000)  # Convert to milliseconds
+                            if was_playing:  # If it was playing before seeking, resume playback
+                                self.play_all()
+                            else:  # Otherwise, just pause to show the frame
+                                self.pause_all()
+                            self._auto_jump_in_progress = False  # Reset the flag after seeking is complete
+                        
+                        QTimer.singleShot(100, seek_and_play)
+                        
+                        # Update the timeline with event markers
+                        QTimer.singleShot(500, self.update_events_on_timeline)
+                    else:
+                        print(f"No clip found for time {time_since_start}s in {camera_keyword}")
+                        
+            # Update the timeline position
+            if hasattr(self, 'timeline'):
+                target_position = int(time_since_start * 1000)  # Convert to milliseconds
+                self.timeline.setValue(target_position)
+                self.update_position_display(target_position)
+                
+        except Exception as e:
+            print(f"Error in jump_to_event: {e}")
+            import traceback
+            traceback.print_exc()
+            self._auto_jump_in_progress = False
+        finally:
+            # Always ensure the flag is reset
+            self._auto_jump_in_progress = False
             
             from datetime import datetime, timedelta
             from PyQt6.QtCore import QTimer, QUrl
@@ -1183,23 +1382,35 @@ class TeslaCamViewer(QMainWindow):
                         self.players[cam_idx].setSource(QUrl.fromLocalFile(found_clip))
                         self.sources[cam_idx] = found_clip
                         
-                        # Play briefly to ensure it loads
-                        self.players[cam_idx].play()
-                        QTimer.singleShot(100, lambda idx=cam_idx: self.players[idx].pause())
-            
-            # Update the timeline position
-            self.update_timeline(int(time_since_start * 1000))
-            
-            # Start playing all videos in sync
-            self.play_all()
-            
-        except Exception as e:
-            print(f"Error in jump_to_event: {e}")
-            import traceback
-            traceback.print_exc()
-        finally:
-            # Reset the flag when we're done
-            self._auto_jump_in_progress = False
+                        # Block timeline signals to prevent recursive updates
+                        if hasattr(self, 'timeline'):
+                            self.timeline.blockSignals(True)
+                            
+                        try:
+                            # Jump to the calculated position
+                            target_position = int(time_since_start * 1000)  # Convert to milliseconds
+                            self.seek_videos(target_position)
+                            
+                            # Update the timeline position
+                            if hasattr(self, 'timeline'):
+                                self.timeline.setValue(target_position)
+                                self.timeline_dragging = False  # Reset dragging state
+                                
+                                # Force update the position display
+                                self.update_position_display(target_position)
+                            
+                            # Restore play state if needed
+                            if was_playing:
+                                self.play_all()
+                                
+                        except Exception as e:
+                            print(f"Error jumping to event: {e}")
+                            traceback.print_exc()
+                        finally:
+                            # Always reset the flag and unblock signals, even if an error occurred
+                            self._auto_jump_in_progress = False
+                            if hasattr(self, 'timeline'):
+                                self.timeline.blockSignals(False)
     
     def update_timeline(self, position):
         # Update timeline position without triggering seek_videos
