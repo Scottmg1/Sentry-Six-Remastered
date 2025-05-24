@@ -1,5 +1,5 @@
 from PyQt6.QtWidgets import QWidget, QToolTip
-from PyQt6.QtCore import Qt, QRect, QSize, pyqtSignal, QPoint
+from PyQt6.QtCore import Qt, QRect, QSize, pyqtSignal, pyqtSlot, QPoint
 from PyQt6.QtGui import QPainter, QColor, QPen, QBrush, QFont, QLinearGradient
 import datetime
 
@@ -86,15 +86,37 @@ class CustomTimeline(QWidget):
             self._event_data = event_data
         else:
             self._event_data = [{'reason': 'unknown'} for _ in range(len(self._events))]
-        print(f"[CustomTimeline] set_events called with {len(self._events)} events: {self._events}")
-        for i, event in enumerate(self._events):
-            print(f"[CustomTimeline] Event {i}: {event}ms, data: {self._event_data[i] if i < len(self._event_data) else {}}")
+        
+        # Only update if events have actually changed
+        if hasattr(self, '_last_events') and self._last_events == event_times:
+            return
+            
+        self._last_events = event_times.copy() if event_times else []
         self._hovered_event_index = -1
+        self.update()
+        
+    def set_event_positions(self, positions):
+        """Set the positions of event markers as a list of values from minimum() to maximum()
+        
+        This is a compatibility method to match the old TimelineSlider API.
+        """
+        if not positions:
+            self._events = []
+            self._event_data = []
+            self.update()
+            return
+            
+        # Convert the positions to the internal format (milliseconds)
+        min_val = self.minimum()
+        max_val = self.maximum()
+        range_val = max(1, max_val - min_val)
+        
+        # Convert positions to milliseconds based on the current range
+        self._events = [int(min_val + pos * range_val) for pos in positions]
+        self._event_data = [{'reason': 'event'} for _ in self._events]
         self.update()
     
     def paintEvent(self, event):
-        print('[DEBUG] paintEvent called')
-        print(f'[DEBUG] Events for paint: {self._events}')
         """Paint the timeline and event markers."""
         # Use direct initialization with the widget as parameter
         painter = QPainter(self)
@@ -177,7 +199,7 @@ class CustomTimeline(QWidget):
                             pos_ratio = 0.85
                     else:
                         pos_ratio = 0.85
-                    print(f"[DEBUG] Using position ratio of {pos_ratio:.2f} for adjusted event {i} (15sec before end)")
+                    # Debug print removed for performance
                 else:
                     pos_ratio = (clamped_event_time - self._minimum) / (self._maximum - self._minimum)
                 
@@ -209,10 +231,7 @@ class CustomTimeline(QWidget):
                 else:
                     color = self._event_colors['default']
                     
-                # For adjusted events, print debug info
-                if is_adjusted:
-                    print(f"[DEBUG] Event {i} is adjusted: {is_adjusted}")
-                    print(f"[DEBUG] Using color: {color.name()}")
+                # Debug info for adjusted events has been removed
                 
                 # Highlight the hovered or selected event
                 marker_w = marker_width
@@ -276,7 +295,7 @@ class CustomTimeline(QWidget):
                 else:
                     painter.setPen(QPen(Qt.GlobalColor.black, 1))
                 
-                print(f"[DEBUG] Drawing marker {i} at x={pos_x}, points={[(p.x(), p.y()) for p in points]}, color={color.name()}")
+                # Drawing marker at position
                 painter.setBrush(color)
                 
                 # Draw the polygon for all marker types
@@ -310,7 +329,7 @@ class CustomTimeline(QWidget):
             
             painter.setPen(QPen(Qt.GlobalColor.red, 1))
             painter.setBrush(QColor(255, 0, 0, 180))
-            print(f"[DEBUG] Drawing fallback marker at center x={pos_x}, points={[(p.x(), p.y()) for p in points]}")
+            # Drawing fallback marker at center
             
             # Draw the polygon directly
             painter.drawPolygon(points)
@@ -357,6 +376,16 @@ class CustomTimeline(QWidget):
             self._pressed = False
             self._update_position_from_mouse(event.pos())
             self.update()
+    
+    def mouseDoubleClickEvent(self, event):
+        """Handle mouse double click events to jump to events."""
+        if event.button() == Qt.MouseButton.LeftButton:
+            # Check if we're clicking on an event
+            if 0 <= self._hovered_event_index < len(self._events):
+                # Emit the position of the clicked event
+                event_time = self._events[self._hovered_event_index]
+                self.positionChanged.emit(event_time)
+                self.update()
     
     def _update_position_from_mouse(self, pos):
         """Update the timeline position based on mouse position."""
