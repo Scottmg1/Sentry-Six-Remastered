@@ -266,19 +266,28 @@ class TeslaCamViewer(QMainWindow):
         self.update_layout()
 
     def update_layout(self):
+        # First, hide all video widgets and remove them from the layout
+        for widget in self.video_widgets:
+            widget.setParent(None)
+            widget.hide()
+            
+        # Clear the layout completely
+        while self.video_grid.count() > 0:
+            item = self.video_grid.takeAt(0)
+            if item.widget():
+                item.widget().setParent(None)
+            del item
+            
         # Reset all video widget sizes to prevent layout corruption
         for widget in self.video_widgets:
             widget.setMinimumSize(1, 1)
             widget.setMaximumSize(16777215, 16777215)
-        # Always ensure all widgets are visible before changing layout
-        for widget in self.video_widgets:
-            widget.setVisible(True)
-        for i in reversed(range(self.video_grid.count())):
-            widget = self.video_grid.itemAt(i).widget()
-            if widget:
-                self.video_grid.removeWidget(widget)
-                widget.setParent(None)
-                widget.hide()
+            
+        # Clear any existing layout properties
+        for i in range(self.video_grid.rowCount()):
+            self.video_grid.setRowStretch(i, 0)
+        for i in range(self.video_grid.columnCount()):
+            self.video_grid.setColumnStretch(i, 0)
 
         mode = self.layout_selector.currentText()
         if hasattr(self, 'single_view_container'):
@@ -327,11 +336,7 @@ class TeslaCamViewer(QMainWindow):
             self.video_grid.setColumnStretch(1, 1)
             self.video_grid.setColumnStretch(2, 0)
         elif mode == "Single View (1x1)":
-            # Clear the grid first
-            for i in reversed(range(self.video_grid.count())):
-                widget = self.video_grid.itemAt(i).widget()
-                if widget:
-                    widget.setParent(None)
+            # Clear the grid first - already done at the start of the method
             
             # Configure grid layout to fill available space
             self.video_grid.setRowStretch(0, 0)  # No stretch for top
