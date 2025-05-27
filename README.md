@@ -51,7 +51,7 @@ pip install -r requirements.txt
 
 ## 🧪 Usage
 
-1. **Launch main.py**
+1. Launch **main.py**
 2. Click **“Select RecentClips Folder”** 
 3. Click the **Date** dropdown and select the date you want to view.
 
@@ -60,16 +60,6 @@ pip install -r requirements.txt
 ## 🔒 License
 
 MIT License — See [LICENSE](LICENSE) file
-
----
-
-## 🚧 Roadmap / Ideas
-
-- [ ] Add support for event.json GPS metadata
-- [ ] Option to export overlays with labels (Front, Left Repeater, etc.)
-- [ ] GIF or frame sequence exports
-- [ ] Drag and drop Tesla folders
-- [ ] Add Model Y juniper Front Bumper Camera. (if they ever add it sentry???)
 
 ---
 
