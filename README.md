@@ -1,69 +1,89 @@
 # SentrySix Remastered
 
-SentrySix-Remastered is a multi-camera TeslaCam viewer built with Python and PyQt6 with the help of Google AIStudio's Gemini 2.5 Pro Model and original SentrySix by ChadR23 (https://github.com/ChadR23/Sentry-Six)
+SentrySix Remastered is a modern, feature-rich viewer and exporter for your Tesla Sentry and Dashcam footage, built with Python and PyQt6. It provides a fluid, intuitive interface to navigate, review, and export your clips with powerful tools not found in other viewers.
 
----
+This project was remastered and significantly enhanced through a collaboration between Scott and Google's Gemini 2.5 Pro, building upon the excellent foundation of the original SentrySix by ChadR23.
 
-## 🚗 Features
+![SentrySix UI Overview](https://github.com/user-attachments/assets/3b73e2cc-c788-4ef0-aa20-1c4b183a0cb7)
 
--  **6-Camera Playback** — View front, back, repeater, and pillar footage in a synchronized grid
--  **Zoom & Pan** - Zoom in to a camera view by hovering over the camera you want to zoom and using your scroll wheel.
--  **Adjustable Playback Speed** - Adjust your playback speed of your clips from 0.5x all the way to 4x
--  **Frame Forward/Backward & 15 Second Skip Forward/Backward** You can click the FR to adjust the frame displayed to capture the perfect moment of a shot you need. (Like a license plate.) Or skip at 15 second intervals.
--  **Real-Time Timestamps** — Time synced from Tesla’s clip names
--  **Toggle Cameras Shown** - Toggle between having 1-6 Camera Views shown at a time. With an option to reset the layout to the original 6 Camera Layout
--  **Go to Timestamp with Preview** - Enter a 24 hour time you wish to go to and press OK. Before confirming the time you would like to go to you'll get a preview of the front camera at that set timestamp.
+## 🚀 Features
 
----
+-   **Synchronized 6-Camera Playback**: Watch footage from the front, back, repeaters, and pillar cameras, all perfectly in sync.
+-   **Interactive Event Markers**: Automatically displays icons on the timeline for **Sentry**, **Honk**, and **User-saved** events.
+    -   🖱️ **Click to Seek**: Instantly jump to any event. Sentry and User events jump 10 seconds prior to give you context.
+    -   🖼️ **Hover to Preview**: Hover over an event icon to see the official `thumb.png` and the reason for the event in a tooltip.
+-   **Visual Clip Exporting**:
+    -   🚩 **Draggable Markers**: Set your export start and end points with draggable red and green markers directly on the timeline for frame-perfect trimming.
+    -   ✨ **Live Scrubbing Preview**: Get an instant visual preview in the main video grid as you drag the markers.
+-   **Flexible Layout Control**: Use the simple checkboxes in the toolbar to instantly toggle the visibility of any combination of cameras.
+-   **High-Quality Exports**:
+    -   Choose between **Full Resolution** for archival quality or a **Mobile-Friendly** 1080p version for easy sharing.
+    -   The exported clip intelligently stitches together the camera views based on your selected layout.
+-   **Advanced Playback Controls**:
+    -   **Zoom & Pan**: Dynamically zoom and pan any camera view with your mouse wheel and by dragging.
+    -   **Variable Speed**: Adjust playback speed from 0.25x to 4x.
+    -   **Frame-by-Frame**: Step through footage one frame at a time to find the perfect shot.
+    -   **15-Second Skip**: Quickly jump forward or backward in 15-second intervals.
+-   **Go To Timestamp**: Jump to a precise time in the day's footage with a simple dialog that even shows a thumbnail preview.
 
-## 📸 Layout & Photos
+## 📸 Layouts & UI
 
-- **All Cameras (3x2)**
-  > Front / Back / Repeaters / Pillars in a grid layout
-  ![Camera Overview](https://github.com/user-attachments/assets/3b73e2cc-c788-4ef0-aa20-1c4b183a0cb7)
+| Feature | Screenshot |
+| :--- | :--- |
+| **Event Markers & Tooltip** | ![Event Markers & Tooltip](Screenshots/even_Markers.png) |
+| **Draggable Export Markers** | ![Draggable Export Marker](Screenshots/export_markers.png) |
+| **All Camera View** | ![All Camera View](Screenshots/all_camera_view.png) |
+| **Go To Time Dialog** | ![Timestamp Preview](Screenshots/go_to_time.png) |
 
-- **Single Camera View**
-  ![Single Camera](https://github.com/user-attachments/assets/727c7a3c-e5e7-4734-b6e6-66ae355e435d)
+## 📋 Requirements
 
-- **Timestamp & Preview**
-  > Enter a timestamp and see a preview
-  ![Timestamp Preview](https://github.com/user-attachments/assets/00c88db2-dc54-4dbc-9787-c7a2e06b8c4c)
+-   Python 3.10+
+-   PyQt6
+-   FFmpeg (must be in your system's PATH)
 
-- **Playback Speed Adjustment**
-  > Adjust your playback speed.
-  ![Playback Options](https://github.com/user-attachments/assets/78b513bb-b064-4e4d-8099-d87876778ff0)
+Install all Python dependencies with:
 
-
----
-
-## 🛠 Requirements
-
-- Python 3.10+
-- PyQt6
-- FFmpeg (must be in system PATH)
-
-Install dependencies:
 ```bash
 pip install -r requirements.txt
 ```
 
----
+## 🛠️ Usage
 
-## 🧪 Usage
+1.  Launch the application by running **main.py**.
+2.  Click **“Select Clips Folder”** and navigate to your `TeslaCam` folder (which contains `SavedClips` and/or `SentryClips`).
+3.  Click the **Date** dropdown and select the date you want to review.
+4.  Use the playback controls, event markers, and timeline to find your desired footage.
+5.  To export:
+    -   Move the timeline scrubber to your desired start point and click **Set Start**.
+    -   Move to your desired end point and click **Set End**.
+    -   Fine-tune by dragging the green and red markers on the timeline.
+    -   Click **Export Clip** and choose your resolution.
 
-1. Launch **main.py**
-2. Click **“Select RecentClips Folder”** 
-3. Click the **Date** dropdown and select the date you want to view.
+## ⚠️ Disclaimer
 
----
+SentrySix is an open-source utility provided as-is, with no warranties or guarantees. By using this software, you accept that you are doing so at your own risk. The developers are not responsible for any data loss, system behavior, or other unexpected issues that may arise.
 
-## 🔒 License
+It is always recommended to have a backup of your important TeslaCam footage before performing any file operations.
 
-MIT License — See [LICENSE](LICENSE) file
+## 🗺️ Roadmap
 
----
+This project is actively developed. Here are some ideas for the future:
 
-## 🙌 Credits
+-   [ ] Display GPS data from `event.json` on a map widget.
+-   [ ] Option to burn-in camera name labels (e.g., "Front", "Left Repeater") on exported videos.
+-   [ ] Support for exporting clips as GIFs or image sequences.
+-   [ ] Drag-and-drop support for clip folders.
+-   [ ] Add Model Y (Juniper) front bumper camera support if/when it's used for Sentry/Dashcam.
 
-Built with ❤️ by Chad — Inspired by TeslaCam’s incredible capture system
-Remastered with Google AIStudio and Gemini 2.5 Pro by Scott
+## 🙌 Contributing
+
+Contributions are welcome! Whether it's reporting a bug, suggesting a feature, or writing code, your help is appreciated. Please feel free to open an issue or submit a pull request on the project's GitHub repository.
+
+## 📜 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## ❤️ Credits
+
+-   **Original Concept & Code:** ChadR23
+-   **Remaster & Feature Development:** A collaborative effort between Scott and Google's Gemini 2.5 Pro AI.
