@@ -4,7 +4,7 @@ SentrySix Remastered is a modern, feature-rich viewer and exporter for your Tesl
 
 This project was remastered and significantly enhanced through a collaboration between Scott and Google's Gemini 2.5 Pro, building upon the excellent foundation of the original SentrySix by ChadR23.
 
-![SentrySix UI Overview](https://github.com/user-attachments/assets/3b73e2cc-c788-4ef0-aa20-1c4b183a0cb7)
+![SentrySix UI Overview](Screenshots/all_camera_view.png)
 
 ## 🚀 Features
 
