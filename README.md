@@ -1,6 +1,6 @@
-# SentrySix Remastered
+# SentrySix 
 
-SentrySix Remastered is a modern, feature-rich viewer and exporter for your Tesla Sentry and Dashcam footage, built with Python and PyQt6. It provides a fluid, intuitive interface to navigate, review, and export your clips with powerful tools not found in other viewers.
+SentrySix  is a modern, feature-rich viewer and exporter for your Tesla Sentry and Dashcam footage, built with Python and PyQt6. It provides a fluid, intuitive interface to navigate, review, and export your clips with powerful tools not found in other viewers.
 
 This project was remastered and significantly enhanced through a collaboration between Scott and Google's Gemini 2.5 Pro, building upon the excellent foundation of the original SentrySix by ChadR23.
 
