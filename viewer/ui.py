@@ -21,8 +21,33 @@ from . import utils
 from . import widgets
 from . import workers
 
+
+class WelcomeDialog(QDialog):
+    """Simple first-time welcome dialog prompting for TeslaCam folder."""
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Welcome to Sentry-Six")
+        self.setModal(True)
+        layout = QVBoxLayout(self)
+        layout.addWidget(QLabel("It looks like this is your first time running Sentry-Six.\nPlease choose your TeslaCam clips folder to get started."))
+        self.choose_btn = QPushButton("Select Clips Folder")
+        layout.addWidget(self.choose_btn)
+        self.dont_show_cb = QCheckBox("Don't show this again")
+        layout.addWidget(self.dont_show_cb)
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        layout.addWidget(buttons)
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        self.choose_btn.clicked.connect(self._choose_folder)
+        self.selected_folder = None
+
+    def _choose_folder(self):
+        folder = QFileDialog.getExistingDirectory(self, "Select TeslaCam Folder")
+        if folder:
+            self.selected_folder = folder
+
 class TeslaCamViewer(QWidget):
-    def __init__(self):
+    def __init__(self, show_welcome: bool = True):
         super().__init__()
         self.settings = QSettings()
         self.camera_name_to_index = {"front":0, "left_repeater":1, "right_repeater":2, "back":3, "left_pillar":4, "right_pillar":5}
@@ -62,7 +87,25 @@ class TeslaCamViewer(QWidget):
         self.position_update_timer.timeout.connect(self.update_slider_and_time_display)
         
         self.load_settings()
+
+        # First-time onboarding dialog
+        if show_welcome:
+            self._maybe_show_welcome_dialog()
         self.update_layout()
+
+
+    def _maybe_show_welcome_dialog(self):
+        if self.root_clips_path is not None and self.settings.value("welcome_seen", False, type=bool):
+            return
+        dlg = WelcomeDialog(self)
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            if dlg.selected_folder:
+                self._apply_root_folder(dlg.selected_folder)
+            if dlg.dont_show_cb.isChecked() or dlg.selected_folder:
+                self.settings.setValue("welcome_seen", True)
+        else:
+            if dlg.dont_show_cb.isChecked():
+                self.settings.setValue("welcome_seen", True)
 
     def _create_top_controls(self):
         top_controls_layout = QHBoxLayout()
@@ -258,13 +301,19 @@ class TeslaCamViewer(QWidget):
         if self.date_selector.currentIndex() >= 0: self.load_selected_date_videos()
         else: self.clear_all_players()
 
-    def select_root_folder(self): 
-        folder = QFileDialog.getExistingDirectory(self, "Select Clips Root", self.root_clips_path or os.path.expanduser("~"))
+    def _apply_root_folder(self, folder):
+        """Set root clips folder and refresh date selector."""
         if folder and os.path.isdir(folder):
-            self.root_clips_path = folder; self.clear_all_players()
+            self.root_clips_path = folder
+            self.clear_all_players()
             if not self.repopulate_date_selector_from_path(folder):
                 QMessageBox.information(self, "No Dates", "No date folders found.")
-            else: self.date_selector.setCurrentIndex(-1)
+            else:
+                self.date_selector.setCurrentIndex(-1)
+
+    def select_root_folder(self): 
+        folder = QFileDialog.getExistingDirectory(self, "Select Clips Root", self.root_clips_path or os.path.expanduser("~"))
+        self._apply_root_folder(folder)
 
     def repopulate_date_selector_from_path(self, folder_path):
         self.date_selector.blockSignals(True); self.date_selector.clear(); self.date_selector.setEnabled(False)

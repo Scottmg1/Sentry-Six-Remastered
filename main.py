@@ -3,6 +3,8 @@ import os
 
 # Set to True for detailed logs, False to hide console output
 DEBUG = True
+# Show first-time welcome dialog (folder picker)
+SHOW_WELCOME = True
 
 if not DEBUG:
     # Redirect stdout and stderr to devnull to hide console output on Windows
@@ -35,9 +37,8 @@ def main():
         print(f"Warning: Could not read stylesheet {style_path}: {e}")
 
     # Create and show the main window
-    viewer = TeslaCamViewer()
+    viewer = TeslaCamViewer(show_welcome=SHOW_WELCOME)
     viewer.show()
-    
     # Start the application event loop
     sys.exit(app.exec())
 
