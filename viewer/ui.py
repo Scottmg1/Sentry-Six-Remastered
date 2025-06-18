@@ -21,6 +21,12 @@ import subprocess
 import tempfile
 import shutil
 import math 
+from dataclasses import dataclass
+
+@dataclass
+class PlaybackState:
+    clip_indices: list[int]
+    segment_start_ms: int
 
 try:
     import __main__
@@ -88,6 +94,8 @@ class ExportWorker(QObject):
 class ExportScrubber(QSlider):
     export_marker_moved = pyqtSignal(str, int); event_marker_clicked = pyqtSignal(object)
     event_marker_hovered = pyqtSignal(object, QPoint)
+    drag_started = pyqtSignal()
+    drag_finished = pyqtSignal()
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs); self.start_ms, self.end_ms, self.dragging_marker = None, None, None
@@ -143,8 +151,8 @@ class ExportScrubber(QSlider):
 
         if self.start_ms is not None and self.end_ms is not None:
             start_px, end_px = self._value_to_pixel(self.start_ms), self._value_to_pixel(self.end_ms)
-            if abs(pos_x - start_px) < 10: self.dragging_marker = 'start'; self.setSliderDown(True); return
-            if abs(pos_x - end_px) < 10: self.dragging_marker = 'end'; self.setSliderDown(True); return
+            if abs(pos_x - start_px) < 10: self.dragging_marker = 'start'; self.drag_started.emit(); self.setSliderDown(True); return
+            if abs(pos_x - end_px) < 10: self.dragging_marker = 'end'; self.drag_started.emit(); self.setSliderDown(True); return
         
         super().mousePressEvent(event)
 
@@ -167,8 +175,12 @@ class ExportScrubber(QSlider):
         super().mouseMoveEvent(event)
 
     def mouseReleaseEvent(self, event: QMouseEvent):
-        if self.dragging_marker: self.dragging_marker = None; self.setSliderDown(False)
-        else: super().mouseReleaseEvent(event)
+        if self.dragging_marker:
+            self.dragging_marker = None
+            self.drag_finished.emit()
+            self.setSliderDown(False)
+        else:
+            super().mouseReleaseEvent(event)
 
 class EventToolTip(QWidget):
     def __init__(self, parent=None):
@@ -250,6 +262,15 @@ class TeslaCamViewer(QWidget):
         self.camera_index_to_name = {v:k for k,v in self.camera_name_to_index.items()}
         self.filename_pattern = re.compile(r"(\d{4}-\d{2}-\d{2})_(\d{2}-\d{2}-\d{2})-(front|left_repeater|right_repeater|back|left_pillar|right_pillar)\.mp4")
         
+        self.daily_clip_collections=[[] for _ in range(6)]; self.export_start_ms = None; self.export_end_ms = None
+        self.root_clips_path=None; self.first_timestamp_of_day=None
+        self.is_daily_view_active=False; self.temp_thumbnail_file=None; self.go_to_time_dialog_instance=None
+        self.event_tooltip = EventToolTip(self); self.tooltip_timer = QTimer(self); self.tooltip_timer.setSingleShot(True)
+        self.export_thread = None; self.export_worker = None; self.files_to_cleanup_after_export = []
+        self.last_text_update_time = 0
+        self.playback_state = PlaybackState(clip_indices=[-1]*6, segment_start_ms=0)
+        self.was_playing_before_scrub = False
+
         self.setWindowTitle("TeslaCam Viewer"); self.setMinimumSize(1280,720); self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.layout = QVBoxLayout(self); self.layout.setSpacing(8); self.layout.setContentsMargins(8,8,8,8)
 
@@ -283,11 +304,11 @@ class TeslaCamViewer(QWidget):
             self.video_player_item_widgets.append(VideoPlayerItemWidget(i, self))
 
         control_layout = QHBoxLayout(); control_layout.setSpacing(8); control_layout.addStretch()
-        self.skip_bwd_15_btn=QPushButton("« 15s"); self.skip_bwd_15_btn.clicked.connect(lambda: self.seek_all_global(self.scrubber.value()-15000))
+        self.skip_bwd_15_btn=QPushButton("« 15s"); self.skip_bwd_15_btn.clicked.connect(lambda: self.seek_all_global(self.scrubber.value()-15000, True))
         self.frame_back_btn=QPushButton("⏪ FR"); self.frame_back_btn.clicked.connect(lambda: self.frame_action(-33))
         self.play_btn=QPushButton("▶️ Play"); self.play_btn.clicked.connect(self.toggle_play_pause_all)
         self.frame_forward_btn=QPushButton("FR ⏩"); self.frame_forward_btn.clicked.connect(lambda: self.frame_action(33))
-        self.skip_fwd_15_btn=QPushButton("15s »"); self.skip_fwd_15_btn.clicked.connect(lambda: self.seek_all_global(self.scrubber.value()+15000))
+        self.skip_fwd_15_btn=QPushButton("15s »"); self.skip_fwd_15_btn.clicked.connect(lambda: self.seek_all_global(self.scrubber.value()+15000, True))
         for btn in [self.skip_bwd_15_btn,self.frame_back_btn,self.play_btn,self.frame_forward_btn,self.skip_fwd_15_btn]: control_layout.addWidget(btn)
         control_layout.addSpacing(20)
         self.mark_start_btn = QPushButton("Set Start"); self.mark_start_btn.clicked.connect(self.mark_start_time); control_layout.addWidget(self.mark_start_btn)
@@ -304,22 +325,17 @@ class TeslaCamViewer(QWidget):
         self.slider_layout = QHBoxLayout(); self.time_label = QLabel("MM/DD/YYYY hh:mm:ss (Clip: 00:00 / 00:00)")
         self.scrubber = ExportScrubber(Qt.Orientation.Horizontal)
         self.scrubber.setRange(0,1000)
-        # --- FIX: Connect sliderMoved for live scrubbing ---
         self.scrubber.sliderMoved.connect(self.seek_all_global)
+        self.scrubber.sliderPressed.connect(self._handle_scrubber_press)
         self.scrubber.sliderReleased.connect(self.handle_scrubber_release)
         self.scrubber.export_marker_moved.connect(self.handle_marker_drag); self.scrubber.event_marker_clicked.connect(self.handle_event_click)
         self.scrubber.event_marker_hovered.connect(self.handle_event_hover)
+        self.scrubber.drag_started.connect(self._handle_scrubber_press)
+        self.scrubber.drag_finished.connect(self.handle_scrubber_release)
         self.slider_layout.addWidget(self.time_label); self.slider_layout.addWidget(self.scrubber,1); self.layout.addLayout(self.slider_layout); self.setLayout(self.layout)
         
         self.position_update_timer = QTimer(self); self.position_update_timer.setInterval(300); self.position_update_timer.timeout.connect(self.update_slider_and_time_display)
         self.preload_timer = QTimer(self); self.preload_timer.setInterval(500); self.preload_timer.timeout.connect(self._preload_next_segment)
-        self.daily_clip_collections=[[] for _ in range(6)]; self.current_clip_indices=[-1]*6; self.export_start_ms = None; self.export_end_ms = None
-        self.root_clips_path=None; self.first_timestamp_of_day=None
-        self.is_daily_view_active=False; self.temp_thumbnail_file=None; self.go_to_time_dialog_instance=None
-        self.event_tooltip = EventToolTip(self); self.tooltip_timer = QTimer(self); self.tooltip_timer.setSingleShot(True)
-        self.export_thread = None; self.export_worker = None; self.files_to_cleanup_after_export = []
-        self.last_text_update_time = 0
-        self.current_segment_start_ms = 0
         
         self.load_settings(); self.update_layout()
 
@@ -474,14 +490,19 @@ class TeslaCamViewer(QWidget):
     def frame_action(self, offset_ms): 
         self.pause_all(); [p.setPosition(p.position() + offset_ms) for p in self.get_active_players() if p.source() and p.source().isValid()]; self.update_slider_and_time_display()
 
-    def handle_scrubber_release(self): 
-        if self.is_daily_view_active:
-            was_playing = self.play_btn.text() == "⏸️ Pause"
-            self.seek_all_global(self.scrubber.value(), from_user=True)
-            if was_playing: self.play_all()
+    def _handle_scrubber_press(self):
+        if not self.is_daily_view_active: return
+        self.was_playing_before_scrub = self.play_btn.text() == "⏸️ Pause"
+        self.pause_all()
 
-    def seek_all_global(self, global_ms, from_user=False):
+    def handle_scrubber_release(self):
+        self.seek_all_global(self.scrubber.value())
+        if self.was_playing_before_scrub: self.play_all()
+        self.was_playing_before_scrub = False
+
+    def seek_all_global(self, global_ms):
         if not self.is_daily_view_active or not self.first_timestamp_of_day: return
+        
         target_dt = self.first_timestamp_of_day + timedelta(milliseconds=max(0, global_ms))
         front_clips = self.daily_clip_collections[self.camera_name_to_index["front"]]
         if not front_clips: return
@@ -499,16 +520,12 @@ class TeslaCamViewer(QWidget):
         m = self.filename_pattern.match(os.path.basename(front_clips[target_seg_idx])); s_dt = datetime.strptime(f"{m.group(1)} {m.group(2).replace('-' , ':')}", "%Y-%m-%d %H:%M:%S")
         pos_in_seg_ms = int((target_dt - s_dt).total_seconds() * 1000)
         
-        was_playing = self.play_btn.text() == "⏸️ Pause"
-        if from_user: self.pause_all()
-        
-        if target_seg_idx != self.current_clip_indices[0]:
+        if target_seg_idx != self.playback_state.clip_indices[0]:
             self._load_and_set_segment(target_seg_idx, pos_in_seg_ms)
         else:
             for p in self.get_active_players(): p.setPosition(pos_in_seg_ms)
         
         self.update_slider_and_time_display()
-        if was_playing and from_user: QTimer.singleShot(100, self.play_all)
 
 
     def mark_start_time(self):
@@ -528,13 +545,13 @@ class TeslaCamViewer(QWidget):
     def handle_marker_drag(self, marker_type, value):
         if marker_type == 'start': self.export_start_ms = value
         elif marker_type == 'end': self.export_end_ms = value
-        self.update_export_ui(); self.seek_all_global(value, from_user=True)
+        self.update_export_ui(); self.seek_all_global(value)
 
     def handle_event_click(self, event_data):
         seek_ms = event_data['ms_in_timeline']
         if 'sentry' in event_data['reason'] or 'user_interaction' in event_data['reason']:
             seek_ms -= 10000 
-        self.seek_all_global(max(0, seek_ms), from_user=True)
+        self.seek_all_global(max(0, seek_ms))
 
     def handle_event_hover(self, event_data, global_pos):
         self.tooltip_timer.stop()
@@ -669,7 +686,7 @@ class TeslaCamViewer(QWidget):
                 return
 
             current_pos = ref_player.position()
-            global_position = min(self.current_segment_start_ms + current_pos, self.scrubber.maximum())
+            global_position = min(self.playback_state.segment_start_ms + current_pos, self.scrubber.maximum())
             
             if not self.scrubber.isSliderDown(): 
                 self.scrubber.blockSignals(True); self.scrubber.setValue(global_position); self.scrubber.blockSignals(False)
@@ -688,7 +705,8 @@ class TeslaCamViewer(QWidget):
         self.preload_timer.stop()
         for p_set in [self.players_a, self.players_b]:
             for p in p_set: p.stop(); p.setSource(QUrl())
-        self.current_clip_indices=[-1]*6; self.is_daily_view_active=False
+        self.playback_state = PlaybackState(clip_indices=[-1]*6, segment_start_ms=0)
+        self.is_daily_view_active=False
         self.time_label.setText("MM/DD/YYYY HH:MM:SS (Clip: 00:00 / 00:00)")
         self.scrubber.setValue(0); self.scrubber.setMaximum(1000)
         self.play_btn.setText("▶️ Play"); self.speed_selector.setCurrentText("1x") 
@@ -702,10 +720,9 @@ class TeslaCamViewer(QWidget):
         front_clips = self.daily_clip_collections[self.camera_name_to_index["front"]]
         m = self.filename_pattern.match(os.path.basename(front_clips[segment_index]))
         s_dt = datetime.strptime(f"{m.group(1)} {m.group(2).replace('-' , ':')}", "%Y-%m-%d %H:%M:%S")
-        self.current_segment_start_ms = int((s_dt - self.first_timestamp_of_day).total_seconds() * 1000)
+        self.playback_state = PlaybackState(clip_indices=[segment_index]*6, segment_start_ms=int((s_dt - self.first_timestamp_of_day).total_seconds() * 1000))
 
         for i in range(6):
-            self.current_clip_indices[i] = segment_index
             self._load_next_clip_for_player_set(active_players, i)
             active_players[i].setPosition(position_ms)
             active_players[i].setVideoOutput(self.video_player_item_widgets[i].video_item)
@@ -714,7 +731,7 @@ class TeslaCamViewer(QWidget):
 
     def _preload_next_segment(self):
         if not self.is_daily_view_active: return
-        next_segment_index = self.current_clip_indices[0] + 1
+        next_segment_index = self.playback_state.clip_indices[0] + 1
         if next_segment_index >= len(self.daily_clip_collections[0]): return
         
         inactive_players = self.get_inactive_players()
@@ -728,7 +745,7 @@ class TeslaCamViewer(QWidget):
             self._load_next_clip_for_player_set(inactive_players, i, next_segment_index)
 
     def _load_next_clip_for_player_set(self, player_set, player_index, force_index=None):
-        idx_to_load = force_index if force_index is not None else self.current_clip_indices[player_index]
+        idx_to_load = force_index if force_index is not None else self.playback_state.clip_indices[player_index]
         clips = self.daily_clip_collections[player_index]
         if 0 <= idx_to_load < len(clips):
             player_set[player_index].setSource(QUrl.fromLocalFile(clips[idx_to_load]))
@@ -746,29 +763,30 @@ class TeslaCamViewer(QWidget):
     def _swap_player_sets(self):
         if DEBUG_UI: print(f"--- Swapping player sets. New active set: {'b' if self.active_player_set == 'a' else 'a'} ---")
         was_playing = self.play_btn.text() == "⏸️ Pause"
-        self.pause_all() 
         [p.stop() for p in self.get_active_players()]
         
         next_active_set = self.get_inactive_players()
         if not next_active_set[0].source().isValid():
-            self.scrubber.setValue(self.scrubber.maximum()); return
+            self.scrubber.setValue(self.scrubber.maximum()); self.pause_all(); return
 
         self.active_player_set = 'b' if self.active_player_set == 'a' else 'a'
         active_players = self.get_active_players()
         
-        self.current_clip_indices = [idx + 1 for idx in self.current_clip_indices]
-        next_segment_index = self.current_clip_indices[0]
+        next_segment_index = self.playback_state.clip_indices[0] + 1
+        self.playback_state.clip_indices = [next_segment_index] * 6
         
         front_clips = self.daily_clip_collections[self.camera_name_to_index["front"]]
         m = self.filename_pattern.match(os.path.basename(front_clips[next_segment_index]))
         s_dt = datetime.strptime(f"{m.group(1)} {m.group(2).replace('-' , ':')}", "%Y-%m-%d %H:%M:%S")
-        self.current_segment_start_ms = int((s_dt - self.first_timestamp_of_day).total_seconds() * 1000)
+        self.playback_state.segment_start_ms = int((s_dt - self.first_timestamp_of_day).total_seconds() * 1000)
 
         for i in range(6):
             active_players[i].setVideoOutput(self.video_player_item_widgets[i].video_item)
             active_players[i].setPosition(0)
         
         if was_playing: self.play_all()
+        # Preload the *next* next segment
+        self._preload_next_segment()
 
     def update_layout(self):
         while self.video_grid.count():
