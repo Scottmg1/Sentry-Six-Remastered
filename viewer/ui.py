@@ -5,6 +5,7 @@ import traceback
 import tempfile
 import math
 import re
+import subprocess
 from datetime import datetime, timedelta
 
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QLabel, QPushButton, QFileDialog,
@@ -454,7 +455,6 @@ class TeslaCamViewer(QWidget):
 
     def _build_ffmpeg_command(self, output_path, is_mobile):
         start_dt = self.first_timestamp_of_day + timedelta(milliseconds=self.export_start_ms)
-        end_dt = self.first_timestamp_of_day + timedelta(milliseconds=self.export_end_ms)
         duration = (self.export_end_ms - self.export_start_ms) / 1000.0
         
         inputs, temp_files = [], []
@@ -462,37 +462,70 @@ class TeslaCamViewer(QWidget):
         
         for p_idx in self.ordered_visible_player_indices:
             if not self.daily_clip_collections[p_idx]: continue
-            clips_in_range = [(p, s_dt) for p in self.daily_clip_collections[p_idx] if (m:=utils.filename_pattern.match(os.path.basename(p))) and (s_dt:=datetime.strptime(f"{m.group(1)} {m.group(2).replace('-' , ':')}", "%Y-%m-%d %H:%M:%S")) < end_dt and s_dt + timedelta(seconds=60) > start_dt]
+            clips_in_range = [(p, s_dt) for p in self.daily_clip_collections[p_idx] if (m:=utils.filename_pattern.match(os.path.basename(p))) and (s_dt:=datetime.strptime(f"{m.group(1)} {m.group(2).replace('-' , ':')}", "%Y-%m-%d %H:%M:%S")) < start_dt + timedelta(seconds=duration) and s_dt + timedelta(seconds=60) > start_dt]
             if not clips_in_range: continue
             
             fd, path = tempfile.mkstemp(suffix=".txt", text=True); temp_files.append(path)
-            with os.fdopen(fd, 'w') as f: [f.write(f"file '{os.path.abspath(p)}'\n") for p, _ in clips_in_range]
+            with os.fdopen(fd, 'w') as f:
+                [f.write(f"file '{os.path.abspath(p)}'\n") for p, _ in clips_in_range]
             inputs.append({"p_idx": p_idx, "path": path, "offset": max(0, (start_dt - clips_in_range[0][1]).total_seconds())})
 
         if not inputs: return None
 
-        cmd = [utils.FFMPEG_PATH, "-y"]; filter_complex = []; stream_maps = []
+        cmd = [utils.FFMPEG_PATH, "-y"]
+        initial_filters = []
+        stream_maps = []
         
         for i, stream_data in enumerate(inputs):
             cmd.extend(["-f", "concat", "-safe", "0", "-ss", str(stream_data["offset"]), "-i", stream_data["path"]])
-            
             is_front = stream_data["p_idx"] == front_cam_idx
-            scale_filter = "scale=1448:938" if is_front else ""
-            filter_complex.append(f"[{i}:v]setpts=PTS-STARTPTS{',' if scale_filter else ''}{scale_filter}[v{i}]")
+            scale_filter = ",scale=1448:938" if is_front else ""
+            initial_filters.append(f"[{i}:v]setpts=PTS-STARTPTS{scale_filter}[v{i}]")
             stream_maps.append(f"[v{i}]")
         
+        main_processing_chain = []
         num_streams = len(inputs)
-        cols = 1 if num_streams == 1 else 2 if num_streams in [2, 4] else 3
-        w, h = (1448, 938)
-        layout = '|'.join([f"{c*w}_{r*h}" for i in range(num_streams) for r, c in [divmod(i, cols)]])
-        filter_complex.append(f"{''.join(stream_maps)}xstack=inputs={num_streams}:layout={layout}[final_v]")
-        
-        v_map = "[final_v]"
+        last_output_tag = "[v0]"
+
+        if num_streams > 1:
+            cols = 2 if num_streams in [2, 4] else 3
+            w, h = (1448, 938)
+            layout = '|'.join([f"{c*w}_{r*h}" for i in range(num_streams) for r, c in [divmod(i, cols)]])
+            main_processing_chain.append(f"{''.join(stream_maps)}xstack=inputs={num_streams}:layout={layout}")
+            last_output_tag = ""
+        else:
+            w, h, cols = 1448, 938, 1
+
+        start_time_unix = start_dt.timestamp()
+        basetime_us = int(start_time_unix * 1_000_000)
+
+        drawtext_filter = (
+            "drawtext="
+            "font='Arial':"
+            f"expansion=strftime:basetime={basetime_us}:"
+            "text='%m/%d/%Y %I\\:%M\\:%S %p':"
+            "fontcolor=white:fontsize=36:box=1:boxcolor=black@0.4:boxborderw=5:"
+            "x=(w-text_w)/2:y=h-th-10"
+        )
+        main_processing_chain.append(f"{last_output_tag}{drawtext_filter}")
+
         if is_mobile:
-            tw = w * cols; th = h * math.ceil(num_streams/cols); mw = int(1080 * (tw/th)) // 2 * 2
-            filter_complex.append(f"[final_v]scale={mw}:1080[mobile_v]"); v_map = "[mobile_v]"
+            total_width = w * cols
+            total_height = h * math.ceil(num_streams / cols)
+            mobile_width = int(1080 * (total_width / total_height)) // 2 * 2
+            main_processing_chain.append(f"scale={mobile_width}:1080")
         
-        cmd.extend(["-filter_complex", ",".join(filter_complex), "-map", v_map])
+        # Chain all main processing filters together with commas
+        chained_processing = ",".join(main_processing_chain)
+        
+        # Add the final output tag to the end of the chain
+        final_video_stream = "[final_v]"
+        chained_processing += final_video_stream
+
+        # Join the initial setup chains and the main chain with a semicolon
+        full_filter_complex = ";".join(initial_filters + [chained_processing])
+        
+        cmd.extend(["-filter_complex", full_filter_complex, "-map", final_video_stream])
         
         audio_stream_idx = next((i for i, data in enumerate(inputs) if data["p_idx"] == front_cam_idx), -1)
         if audio_stream_idx != -1: cmd.extend(["-map", f"{audio_stream_idx}:a?"])
