@@ -22,12 +22,6 @@ FFMPEG_FOUND = False
 
 filename_pattern = re.compile(r"(\d{4}-\d{2}-\d{2})_(\d{2}-\d{2}-\d{2})-(front|left_repeater|right_repeater|back|left_pillar|right_pillar)\.mp4")
 
-# --- Dataclasses ---
-@dataclass
-class PlaybackState:
-    clip_indices: list[int]
-    segment_start_ms: int
-
 # --- FFmpeg Functions ---
 def find_ffmpeg():
     global FFMPEG_PATH, FFPROBE_PATH, FFMPEG_FOUND

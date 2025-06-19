@@ -20,6 +20,8 @@ from PyQt6.QtGui import QPixmap, QAction, QKeySequence
 from . import utils
 from . import widgets
 from . import workers
+from .state import AppState, PlaybackState, ExportState
+from .ffmpeg_builder import FFmpegCommandBuilder
 
 
 class WelcomeDialog(QDialog):
@@ -50,14 +52,10 @@ class TeslaCamViewer(QWidget):
     def __init__(self, show_welcome: bool = True):
         super().__init__()
         self.settings = QSettings()
+        self.app_state = AppState()
         self.camera_name_to_index = {"front":0, "left_repeater":1, "right_repeater":2, "back":3, "left_pillar":4, "right_pillar":5}
         self.camera_index_to_name = {v: k for k, v in self.camera_name_to_index.items()}
 
-        self.daily_clip_collections = [[] for _ in range(6)]
-        self.export_start_ms, self.export_end_ms = None, None
-        self.root_clips_path = None
-        self.first_timestamp_of_day = None
-        self.is_daily_view_active = False
         self.go_to_time_dialog_instance = None
         self.event_tooltip = widgets.EventToolTip(self)
         self.tooltip_timer = QTimer(self)
@@ -65,7 +63,6 @@ class TeslaCamViewer(QWidget):
         self.export_thread, self.export_worker = None, None
         self.files_to_cleanup_after_export = []
         self.last_text_update_time = 0
-        self.playback_state = utils.PlaybackState(clip_indices=[-1]*6, segment_start_ms=0)
         self.was_playing_before_scrub = False
 
         self.setWindowTitle("TeslaCam Viewer")
@@ -96,7 +93,7 @@ class TeslaCamViewer(QWidget):
 
 
     def _maybe_show_welcome_dialog(self):
-        if self.root_clips_path is not None and self.settings.value("welcome_seen", False, type=bool):
+        if self.app_state.root_clips_path is not None and self.settings.value("welcome_seen", False, type=bool):
             return
         dlg = WelcomeDialog(self)
         if dlg.exec() == QDialog.DialogCode.Accepted:
@@ -277,12 +274,16 @@ class TeslaCamViewer(QWidget):
         self.update_layout_from_visibility_change()
         last_folder = self.settings.value("lastRootFolder", "", type=str)
         if last_folder and os.path.isdir(last_folder):
-            self.root_clips_path = last_folder; self.repopulate_date_selector_from_path(last_folder); self.date_selector.setCurrentIndex(-1)
-        if not self.is_daily_view_active: self.clear_all_players()
+            self.app_state.root_clips_path = last_folder
+            self.repopulate_date_selector_from_path(last_folder)
+            self.date_selector.setCurrentIndex(-1)
+        if not self.app_state.is_daily_view_active: self.clear_all_players()
 
     def save_settings(self):
-        self.settings.setValue("windowGeometry", self.saveGeometry()); self.settings.setValue("lastRootFolder", self.root_clips_path or "")
-        self.settings.setValue("lastSpeedText", self.speed_selector.currentText()); self.settings.setValue("cameraVisibility", [str(cb.isChecked()).lower() for cb in self.camera_visibility_checkboxes])
+        self.settings.setValue("windowGeometry", self.saveGeometry())
+        self.settings.setValue("lastRootFolder", self.app_state.root_clips_path or "")
+        self.settings.setValue("lastSpeedText", self.speed_selector.currentText())
+        self.settings.setValue("cameraVisibility", [str(cb.isChecked()).lower() for cb in self.camera_visibility_checkboxes])
 
     def closeEvent(self, event): 
         self.save_settings()
@@ -294,11 +295,21 @@ class TeslaCamViewer(QWidget):
 
     def load_selected_date_videos(self):
         selected_date_str = self.date_selector.currentData()
-        if not self.root_clips_path or not selected_date_str: return
-        self.clear_all_players(); self.is_daily_view_active = True
-        raw_files = {cam_idx: [] for cam_idx in range(6)}; all_ts = []; events = []
+        # The check for root_clips_path must happen *after* clearing players, so we check again.
+        if not self.app_state.root_clips_path or not selected_date_str:
+             # This call is safe because the bug is fixed in clear_all_players
+            self.clear_all_players()
+            return
+
+        self.clear_all_players()
+        if not self.app_state.root_clips_path: return # Return if path was cleared and not restored
+
+        self.app_state.is_daily_view_active = True
+        raw_files = {cam_idx: [] for cam_idx in range(6)}
+        all_ts = []
+        events = []
         try:
-            potential_folders = [p for p in [os.path.join(self.root_clips_path, d) for d in os.listdir(self.root_clips_path)] if os.path.isdir(p) and os.path.basename(p).startswith(selected_date_str)]
+            potential_folders = [p for p in [os.path.join(self.app_state.root_clips_path, d) for d in os.listdir(self.app_state.root_clips_path)] if os.path.isdir(p) and os.path.basename(p).startswith(selected_date_str)]
             if not potential_folders:
                 QMessageBox.warning(self, "No Data", f"No folders found for {selected_date_str}"); self.clear_all_players(); return
             
@@ -308,27 +319,32 @@ class TeslaCamViewer(QWidget):
                     if m:
                         try:
                             ts = datetime.strptime(f"{m.group(1)} {m.group(2).replace('-',':')}", "%Y-%m-%d %H:%M:%S")
-                            cam_idx = self.camera_name_to_index[m.group(3)]; raw_files[cam_idx].append((os.path.join(folder, filename), ts)); all_ts.append(ts)
+                            cam_idx = self.camera_name_to_index[m.group(3)]
+                            raw_files[cam_idx].append((os.path.join(folder, filename), ts))
+                            all_ts.append(ts)
                         except (ValueError, KeyError): pass
                     elif filename == "event.json":
                         try:
                             with open(os.path.join(folder, filename), 'r') as f: data = json.load(f)
-                            data['timestamp_dt'] = datetime.fromisoformat(data['timestamp']); data['folder_path'] = folder; events.append(data)
+                            data['timestamp_dt'] = datetime.fromisoformat(data['timestamp'])
+                            data['folder_path'] = folder
+                            events.append(data)
                         except (json.JSONDecodeError, KeyError, ValueError): pass
 
             if not all_ts:
                 QMessageBox.warning(self, "No Videos", f"No valid video files found for {selected_date_str}."); self.clear_all_players(); return
             
-            self.first_timestamp_of_day, last_ts = min(all_ts), max(all_ts)
+            self.app_state.first_timestamp_of_day, last_ts = min(all_ts), max(all_ts)
             last_clip_path = next((f[0] for files in raw_files.values() for f in files if f[1] == last_ts), None)
-            total_duration = int((last_ts - self.first_timestamp_of_day).total_seconds() * 1000) + utils.get_video_duration_ms(last_clip_path)
+            total_duration = int((last_ts - self.app_state.first_timestamp_of_day).total_seconds() * 1000) + utils.get_video_duration_ms(last_clip_path)
             self.scrubber.setRange(0, total_duration)
             
-            for evt in events: evt['ms_in_timeline'] = (evt['timestamp_dt'] - self.first_timestamp_of_day).total_seconds() * 1000
+            for evt in events: evt['ms_in_timeline'] = (evt['timestamp_dt'] - self.app_state.first_timestamp_of_day).total_seconds() * 1000
             self.scrubber.set_events(events)
 
             for i in range(6):
-                raw_files[i].sort(key=lambda x: x[1]); self.daily_clip_collections[i] = [f[0] for f in raw_files[i]]
+                raw_files[i].sort(key=lambda x: x[1])
+                self.app_state.daily_clip_collections[i] = [f[0] for f in raw_files[i]]
 
             self._load_and_set_segment(0)
             self.update_layout()
@@ -336,13 +352,16 @@ class TeslaCamViewer(QWidget):
             QMessageBox.critical(self, "Error", f"Error loading date videos: {e}"); traceback.print_exc(); self.clear_all_players()
 
     def handle_date_selection_change(self):
-        if self.date_selector.currentIndex() >= 0: self.load_selected_date_videos()
-        else: self.clear_all_players()
+        if self.date_selector.currentIndex() >= 0:
+            self.load_selected_date_videos()
+        else:
+            self.clear_all_players()
+
 
     def _apply_root_folder(self, folder):
         """Set root clips folder and refresh date selector."""
         if folder and os.path.isdir(folder):
-            self.root_clips_path = folder
+            self.app_state.root_clips_path = folder
             self.clear_all_players()
             if not self.repopulate_date_selector_from_path(folder):
                 QMessageBox.information(self, "No Dates", "No date folders found.")
@@ -350,7 +369,7 @@ class TeslaCamViewer(QWidget):
                 self.date_selector.setCurrentIndex(-1)
 
     def select_root_folder(self): 
-        folder = QFileDialog.getExistingDirectory(self, "Select Clips Root", self.root_clips_path or os.path.expanduser("~"))
+        folder = QFileDialog.getExistingDirectory(self, "Select Clips Root", self.app_state.root_clips_path or os.path.expanduser("~"))
         self._apply_root_folder(folder)
 
     def repopulate_date_selector_from_path(self, folder_path):
@@ -382,25 +401,25 @@ class TeslaCamViewer(QWidget):
                 except OSError: pass
             
     def show_go_to_time_dialog(self):
-        if not self.is_daily_view_active:
+        if not self.app_state.is_daily_view_active:
             QMessageBox.warning(self, "Action Required", "Please load a date before using 'Go to Time'."); return
         current_date_display = self.date_selector.currentText()
         current_date_data = self.date_selector.currentData()
-        self.go_to_time_dialog_instance = widgets.GoToTimeDialog(self, current_date_display, self.first_timestamp_of_day, self.daily_clip_collections, self.camera_name_to_index["front"])
+        self.go_to_time_dialog_instance = widgets.GoToTimeDialog(self, current_date_display, self.app_state.first_timestamp_of_day, self.app_state.daily_clip_collections, self.camera_name_to_index["front"])
         self.go_to_time_dialog_instance.request_thumbnail.connect(self.generate_and_set_thumbnail)
         if self.go_to_time_dialog_instance.exec():
             time_str = self.go_to_time_dialog_instance.get_time_string().strip()
             if not time_str: return
             try: target_dt = datetime.strptime(f"{current_date_data} {time_str}", "%Y-%m-%d %H:%M:%S")
             except (ValueError, TypeError): QMessageBox.warning(self,"Invalid Time","Please use HH:MM:SS format."); return
-            if self.first_timestamp_of_day:
-                global_ms = (target_dt - self.first_timestamp_of_day).total_seconds()*1000
+            if self.app_state.first_timestamp_of_day:
+                global_ms = (target_dt - self.app_state.first_timestamp_of_day).total_seconds()*1000
                 if 0 <= global_ms <= self.scrubber.maximum(): self.seek_all_global(int(global_ms))
                 else: QMessageBox.information(self,"Out of Range","The specified time is outside the range of the current day's clips.")
         self.go_to_time_dialog_instance = None
     
     def toggle_play_pause_all(self):
-        if not self.is_daily_view_active: return
+        if not self.app_state.is_daily_view_active: return
         if any(p.playbackState() == QMediaPlayer.PlaybackState.PlayingState for p in self.get_active_players()): self.pause_all()
         else: self.play_all()
 
@@ -416,11 +435,11 @@ class TeslaCamViewer(QWidget):
         self.play_btn.setText("▶️ Play"); [p.pause() for p in self.get_active_players()]; self.position_update_timer.stop(); self.update_slider_and_time_display()
     
     def frame_action(self, offset_ms): 
-        if not self.is_daily_view_active: return
+        if not self.app_state.is_daily_view_active: return
         self.pause_all(); [p.setPosition(p.position() + offset_ms) for p in self.get_active_players() if p.source() and p.source().isValid()]; self.update_slider_and_time_display()
 
     def _handle_scrubber_press(self):
-        if not self.is_daily_view_active: return
+        if not self.app_state.is_daily_view_active: return
         self.was_playing_before_scrub = self.play_btn.text() == "⏸️ Pause"
         self.pause_all()
 
@@ -431,10 +450,10 @@ class TeslaCamViewer(QWidget):
         self.was_playing_before_scrub = False
 
     def seek_all_global(self, global_ms):
-        if not self.is_daily_view_active or not self.first_timestamp_of_day: return
+        if not self.app_state.is_daily_view_active or not self.app_state.first_timestamp_of_day: return
         
-        target_dt = self.first_timestamp_of_day + timedelta(milliseconds=max(0, global_ms))
-        front_clips = self.daily_clip_collections[self.camera_name_to_index["front"]]
+        target_dt = self.app_state.first_timestamp_of_day + timedelta(milliseconds=max(0, global_ms))
+        front_clips = self.app_state.daily_clip_collections[self.camera_name_to_index["front"]]
         if not front_clips: return
         
         target_seg_idx = -1
@@ -444,13 +463,13 @@ class TeslaCamViewer(QWidget):
                 s_dt = datetime.strptime(f"{m.group(1)} {m.group(2).replace('-' , ':')}", "%Y-%m-%d %H:%M:%S")
                 if s_dt <= target_dt < s_dt + timedelta(seconds=60):
                     target_seg_idx = i; break
-        if target_seg_idx == -1 and target_dt >= self.first_timestamp_of_day: target_seg_idx = len(front_clips) - 1
+        if target_seg_idx == -1 and target_dt >= self.app_state.first_timestamp_of_day: target_seg_idx = len(front_clips) - 1
         if target_seg_idx == -1: return
         
         m = utils.filename_pattern.match(os.path.basename(front_clips[target_seg_idx])); s_dt = datetime.strptime(f"{m.group(1)} {m.group(2).replace('-' , ':')}", "%Y-%m-%d %H:%M:%S")
         pos_in_seg_ms = int((target_dt - s_dt).total_seconds() * 1000)
         
-        if target_seg_idx != self.playback_state.clip_indices[0]:
+        if target_seg_idx != self.app_state.playback_state.clip_indices[0]:
             self._load_and_set_segment(target_seg_idx, pos_in_seg_ms)
         else:
             for p in self.get_active_players(): p.setPosition(pos_in_seg_ms)
@@ -458,22 +477,22 @@ class TeslaCamViewer(QWidget):
         self.update_slider_and_time_display()
 
     def mark_start_time(self):
-        if not self.is_daily_view_active: return
-        self.export_start_ms = self.scrubber.value()
-        if self.export_end_ms is not None and self.export_start_ms >= self.export_end_ms:
-            self.export_end_ms = self.export_start_ms + 1000 
+        if not self.app_state.is_daily_view_active: return
+        self.app_state.export_state.start_ms = self.scrubber.value()
+        if self.app_state.export_state.end_ms is not None and self.app_state.export_state.start_ms >= self.app_state.export_state.end_ms:
+            self.app_state.export_state.end_ms = self.app_state.export_state.start_ms + 1000 
         self.update_export_ui()
 
     def mark_end_time(self):
-        if not self.is_daily_view_active: return
-        self.export_end_ms = self.scrubber.value()
-        if self.export_start_ms is not None and self.export_end_ms <= self.export_start_ms:
-            self.export_start_ms = self.export_end_ms - 1000
+        if not self.app_state.is_daily_view_active: return
+        self.app_state.export_state.end_ms = self.scrubber.value()
+        if self.app_state.export_state.start_ms is not None and self.app_state.export_state.end_ms <= self.app_state.export_state.start_ms:
+            self.app_state.export_state.start_ms = self.app_state.export_state.end_ms - 1000
         self.update_export_ui()
 
     def handle_marker_drag(self, marker_type, value):
-        if marker_type == 'start': self.export_start_ms = value
-        elif marker_type == 'end': self.export_end_ms = value
+        if marker_type == 'start': self.app_state.export_state.start_ms = value
+        elif marker_type == 'end': self.app_state.export_state.end_ms = value
         self.update_export_ui(); self.seek_all_global(value)
 
     def handle_event_click(self, event_data):
@@ -502,12 +521,12 @@ class TeslaCamViewer(QWidget):
         self.event_tooltip.update_content(event_data['reason'], pixmap)
 
     def update_export_ui(self):
-        self.start_time_label.setText(f"Start: {utils.format_time(self.export_start_ms)}")
-        self.end_time_label.setText(f"End: {utils.format_time(self.export_end_ms)}")
-        self.scrubber.set_export_range(self.export_start_ms, self.export_end_ms)
+        self.start_time_label.setText(f"Start: {utils.format_time(self.app_state.export_state.start_ms)}")
+        self.end_time_label.setText(f"End: {utils.format_time(self.app_state.export_state.end_ms)}")
+        self.scrubber.set_export_range(self.app_state.export_state.start_ms, self.app_state.export_state.end_ms)
 
     def show_export_dialog(self):
-        if not all([utils.FFMPEG_FOUND, self.is_daily_view_active, self.export_start_ms is not None, self.export_end_ms is not None]):
+        if not all([utils.FFMPEG_FOUND, self.app_state.is_daily_view_active, self.app_state.export_state.start_ms is not None, self.app_state.export_state.end_ms is not None]):
             QMessageBox.warning(self, "Export Error", "Please load clips and set both a start and end time before exporting."); return
         dialog = QDialog(self); dialog.setWindowTitle("Export Options"); layout = QVBoxLayout(dialog)
         layout.addWidget(QLabel("Select export quality:")); full_res_rb = QRadioButton("Full Resolution"); mobile_rb = QRadioButton("Mobile Friendly - 1080p")
@@ -543,85 +562,14 @@ class TeslaCamViewer(QWidget):
         self.export_thread, self.export_worker = None, None
 
     def _build_ffmpeg_command(self, output_path, is_mobile):
-        start_dt = self.first_timestamp_of_day + timedelta(milliseconds=self.export_start_ms)
-        duration = (self.export_end_ms - self.export_start_ms) / 1000.0
-        
-        inputs, temp_files = [], []
-        front_cam_idx = self.camera_name_to_index["front"]
-        
-        for p_idx in self.ordered_visible_player_indices:
-            if not self.daily_clip_collections[p_idx]: continue
-            clips_in_range = [(p, s_dt) for p in self.daily_clip_collections[p_idx] if (m:=utils.filename_pattern.match(os.path.basename(p))) and (s_dt:=datetime.strptime(f"{m.group(1)} {m.group(2).replace('-' , ':')}", "%Y-%m-%d %H:%M:%S")) < start_dt + timedelta(seconds=duration) and s_dt + timedelta(seconds=60) > start_dt]
-            if not clips_in_range: continue
-            
-            fd, path = tempfile.mkstemp(suffix=".txt", text=True); temp_files.append(path)
-            with os.fdopen(fd, 'w') as f:
-                [f.write(f"file '{os.path.abspath(p)}'\n") for p, _ in clips_in_range]
-            inputs.append({"p_idx": p_idx, "path": path, "offset": max(0, (start_dt - clips_in_range[0][1]).total_seconds())})
-
-        if not inputs: return None
-
-        cmd = [utils.FFMPEG_PATH, "-y"]
-        initial_filters = []
-        stream_maps = []
-        
-        for i, stream_data in enumerate(inputs):
-            cmd.extend(["-f", "concat", "-safe", "0", "-ss", str(stream_data["offset"]), "-i", stream_data["path"]])
-            is_front = stream_data["p_idx"] == front_cam_idx
-            scale_filter = ",scale=1448:938" if is_front else ""
-            initial_filters.append(f"[{i}:v]setpts=PTS-STARTPTS{scale_filter}[v{i}]")
-            stream_maps.append(f"[v{i}]")
-        
-        main_processing_chain = []
-        num_streams = len(inputs)
-        last_output_tag = "[v0]"
-
-        if num_streams > 1:
-            cols = 2 if num_streams in [2, 4] else 3
-            w, h = (1448, 938)
-            layout = '|'.join([f"{c*w}_{r*h}" for i in range(num_streams) for r, c in [divmod(i, cols)]])
-            main_processing_chain.append(f"{''.join(stream_maps)}xstack=inputs={num_streams}:layout={layout}")
-            last_output_tag = ""
-        else:
-            w, h, cols = 1448, 938, 1
-
-        start_time_unix = start_dt.timestamp()
-        basetime_us = int(start_time_unix * 1_000_000)
-
-        drawtext_filter = (
-            "drawtext="
-            "font='Arial':"
-            f"expansion=strftime:basetime={basetime_us}:"
-            "text='%m/%d/%Y %I\\:%M\\:%S %p':"
-            "fontcolor=white:fontsize=36:box=1:boxcolor=black@0.4:boxborderw=5:"
-            "x=(w-text_w)/2:y=h-th-10"
+        builder = FFmpegCommandBuilder(
+            app_state=self.app_state,
+            ordered_visible_indices=self.ordered_visible_player_indices,
+            camera_map=self.camera_name_to_index,
+            is_mobile=is_mobile,
+            output_path=output_path
         )
-        main_processing_chain.append(f"{last_output_tag}{drawtext_filter}")
-
-        if is_mobile:
-            total_width = w * cols
-            total_height = h * math.ceil(num_streams / cols)
-            mobile_width = int(1080 * (total_width / total_height)) // 2 * 2
-            main_processing_chain.append(f"scale={mobile_width}:1080")
-        
-        # Chain all main processing filters together with commas
-        chained_processing = ",".join(main_processing_chain)
-        
-        # Add the final output tag to the end of the chain
-        final_video_stream = "[final_v]"
-        chained_processing += final_video_stream
-
-        # Join the initial setup chains and the main chain with a semicolon
-        full_filter_complex = ";".join(initial_filters + [chained_processing])
-        
-        cmd.extend(["-filter_complex", full_filter_complex, "-map", final_video_stream])
-        
-        audio_stream_idx = next((i for i, data in enumerate(inputs) if data["p_idx"] == front_cam_idx), -1)
-        if audio_stream_idx != -1: cmd.extend(["-map", f"{audio_stream_idx}:a?"])
-        
-        v_codec = ["-c:v", "libx264", "-preset", "fast", "-crf", "23"] if is_mobile else ["-c:v", "libx264", "-preset", "medium", "-crf", "18"]
-        cmd.extend(["-t", str(duration), *v_codec, "-c:a", "aac", "-b:a", "128k", output_path])
-        return cmd, temp_files
+        return builder.build()
     
     def set_playback_speed(self, speed_text):
         rate = self.playback_rates.get(speed_text,1.0)
@@ -630,7 +578,7 @@ class TeslaCamViewer(QWidget):
 
     def update_slider_and_time_display(self):
         try:
-            if not self.is_daily_view_active or not self.first_timestamp_of_day: return
+            if not self.app_state.is_daily_view_active or not self.app_state.first_timestamp_of_day: return
             
             ref_player = self.get_active_players()[self.camera_name_to_index["front"]]
             if not (ref_player.source() and ref_player.source().isValid()):
@@ -643,7 +591,7 @@ class TeslaCamViewer(QWidget):
                 return
 
             current_pos = ref_player.position()
-            global_position = min(self.playback_state.segment_start_ms + current_pos, self.scrubber.maximum())
+            global_position = min(self.app_state.playback_state.segment_start_ms + current_pos, self.scrubber.maximum())
             
             if not self.scrubber.isSliderDown(): 
                 self.scrubber.blockSignals(True); self.scrubber.setValue(global_position); self.scrubber.blockSignals(False)
@@ -651,7 +599,7 @@ class TeslaCamViewer(QWidget):
             current_time = time.time()
             if current_time - self.last_text_update_time > 1 or self.play_btn.text() == "▶️ Play":
                 clip_duration = ref_player.duration()
-                global_time = self.first_timestamp_of_day + timedelta(milliseconds=global_position)
+                global_time = self.app_state.first_timestamp_of_day + timedelta(milliseconds=global_position)
                 self.time_label.setText(f"{global_time.strftime('%m/%d/%Y %I:%M:%S %p')} (Clip: {utils.format_time(current_pos)} / {utils.format_time(clip_duration if clip_duration > 0 else 0)})")
                 self.last_text_update_time = current_time
         
@@ -662,22 +610,28 @@ class TeslaCamViewer(QWidget):
         self.position_update_timer.stop()
         for p_set in [self.players_a, self.players_b]:
             for p in p_set: p.stop(); p.setSource(QUrl())
-        self.playback_state = utils.PlaybackState(clip_indices=[-1]*6, segment_start_ms=0)
-        self.is_daily_view_active=False
+        
+        # *** THE FIX IS HERE ***
+        # Preserve the root path, but reset everything else for the new day.
+        root_path = self.app_state.root_clips_path
+        self.app_state = AppState()
+        self.app_state.root_clips_path = root_path
+        
         self.time_label.setText("MM/DD/YYYY HH:MM:SS (Clip: 00:00 / 00:00)")
         self.scrubber.setValue(0); self.scrubber.setMaximum(1000)
         self.play_btn.setText("▶️ Play"); self.speed_selector.setCurrentText("1x") 
-        self.export_start_ms = None; self.export_end_ms = None
         self.scrubber.set_events([]); self.update_export_ui()
 
     def _load_and_set_segment(self, segment_index, position_ms=0):
         self.active_player_set = 'a'
         active_players = self.get_active_players()
         
-        front_clips = self.daily_clip_collections[self.camera_name_to_index["front"]]
+        front_clips = self.app_state.daily_clip_collections[self.camera_name_to_index["front"]]
         m = utils.filename_pattern.match(os.path.basename(front_clips[segment_index]))
         s_dt = datetime.strptime(f"{m.group(1)} {m.group(2).replace('-' , ':')}", "%Y-%m-%d %H:%M:%S")
-        self.playback_state = utils.PlaybackState(clip_indices=[segment_index]*6, segment_start_ms=int((s_dt - self.first_timestamp_of_day).total_seconds() * 1000))
+        
+        segment_start_ms = int((s_dt - self.app_state.first_timestamp_of_day).total_seconds() * 1000)
+        self.app_state.playback_state = PlaybackState(clip_indices=[segment_index]*6, segment_start_ms=segment_start_ms)
 
         for i in range(6):
             self._load_next_clip_for_player_set(active_players, i)
@@ -686,15 +640,15 @@ class TeslaCamViewer(QWidget):
         self._preload_next_segment()
 
     def _preload_next_segment(self):
-        if not self.is_daily_view_active: return
-        next_segment_index = self.playback_state.clip_indices[0] + 1
+        if not self.app_state.is_daily_view_active: return
+        next_segment_index = self.app_state.playback_state.clip_indices[0] + 1
         front_cam_idx = self.camera_name_to_index["front"]
-        if next_segment_index >= len(self.daily_clip_collections[front_cam_idx]): return
+        if next_segment_index >= len(self.app_state.daily_clip_collections[front_cam_idx]): return
         
         inactive_players = self.get_inactive_players()
         if inactive_players[front_cam_idx].source().isValid():
             path = inactive_players[front_cam_idx].source().path()
-            if os.path.basename(path) == os.path.basename(self.daily_clip_collections[front_cam_idx][next_segment_index]):
+            if os.path.basename(path) == os.path.basename(self.app_state.daily_clip_collections[front_cam_idx][next_segment_index]):
                 return
         
         if utils.DEBUG_UI: print(f"--- Preloading segment {next_segment_index} ---")
@@ -702,8 +656,8 @@ class TeslaCamViewer(QWidget):
             self._load_next_clip_for_player_set(inactive_players, i, next_segment_index)
 
     def _load_next_clip_for_player_set(self, player_set, player_index, force_index=None):
-        idx_to_load = force_index if force_index is not None else self.playback_state.clip_indices[player_index]
-        clips = self.daily_clip_collections[player_index]
+        idx_to_load = force_index if force_index is not None else self.app_state.playback_state.clip_indices[player_index]
+        clips = self.app_state.daily_clip_collections[player_index]
         if 0 <= idx_to_load < len(clips):
             player_set[player_index].setSource(QUrl.fromLocalFile(clips[idx_to_load]))
         else: player_set[player_index].setSource(QUrl())
@@ -727,18 +681,17 @@ class TeslaCamViewer(QWidget):
         active_players = self.get_active_players()
         active_video_items = self.get_active_video_items()
         
-        next_segment_index = self.playback_state.clip_indices[0] + 1
+        next_segment_index = self.app_state.playback_state.clip_indices[0] + 1
         front_cam_idx = self.camera_name_to_index["front"]
         
-        if next_segment_index >= len(self.daily_clip_collections[front_cam_idx]):
+        if next_segment_index >= len(self.app_state.daily_clip_collections[front_cam_idx]):
             self.pause_all(); return
         
-        self.playback_state.clip_indices = [next_segment_index] * 6
-        
-        front_clips = self.daily_clip_collections[front_cam_idx]
+        front_clips = self.app_state.daily_clip_collections[front_cam_idx]
         m = utils.filename_pattern.match(os.path.basename(front_clips[next_segment_index]))
         s_dt = datetime.strptime(f"{m.group(1)} {m.group(2).replace('-' , ':')}", "%Y-%m-%d %H:%M:%S")
-        self.playback_state.segment_start_ms = int((s_dt - self.first_timestamp_of_day).total_seconds() * 1000)
+        segment_start_ms = int((s_dt - self.app_state.first_timestamp_of_day).total_seconds() * 1000)
+        self.app_state.playback_state = PlaybackState(clip_indices=[next_segment_index] * 6, segment_start_ms=segment_start_ms)
 
         for i in range(6):
             self.video_player_item_widgets[i].set_video_item(active_video_items[i])
