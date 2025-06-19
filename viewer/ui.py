@@ -15,7 +15,7 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QLabel, QPushButton, QFileDia
 from PyQt6.QtMultimedia import QMediaPlayer, QAudioOutput
 from PyQt6.QtMultimediaWidgets import QGraphicsVideoItem
 from PyQt6.QtCore import Qt, QUrl, QTimer, QSettings, QThread
-from PyQt6.QtGui import QPixmap
+from PyQt6.QtGui import QPixmap, QAction, QKeySequence
 
 from . import utils
 from . import widgets
@@ -80,6 +80,7 @@ class TeslaCamViewer(QWidget):
         self._create_players_and_items()
         self._create_playback_controls()
         self._create_scrubber()
+        self._create_actions_and_shortcuts()
 
         self.setLayout(self.layout)
         
@@ -216,6 +217,43 @@ class TeslaCamViewer(QWidget):
         self.slider_layout.addWidget(self.time_label)
         self.slider_layout.addWidget(self.scrubber, 1)
         self.layout.addLayout(self.slider_layout)
+
+    def _create_actions_and_shortcuts(self):
+        # Play/Pause Action
+        play_pause_action = QAction("Play/Pause", self)
+        play_pause_action.setShortcut(QKeySequence(Qt.Key.Key_Space))
+        play_pause_action.triggered.connect(self.toggle_play_pause_all)
+        self.addAction(play_pause_action)
+
+        # Frame Back Action
+        frame_back_action = QAction("Frame Back", self)
+        frame_back_action.setShortcut(QKeySequence(Qt.Key.Key_Left))
+        frame_back_action.triggered.connect(lambda: self.frame_action(-33))
+        self.addAction(frame_back_action)
+
+        # Frame Forward Action
+        frame_forward_action = QAction("Frame Forward", self)
+        frame_forward_action.setShortcut(QKeySequence(Qt.Key.Key_Right))
+        frame_forward_action.triggered.connect(lambda: self.frame_action(33))
+        self.addAction(frame_forward_action)
+
+        # Mark Start Action
+        mark_start_action = QAction("Mark Start", self)
+        mark_start_action.setShortcut(QKeySequence(Qt.Key.Key_M))
+        mark_start_action.triggered.connect(self.mark_start_time)
+        self.addAction(mark_start_action)
+
+        # Mark End Action
+        mark_end_action = QAction("Mark End", self)
+        mark_end_action.setShortcut(QKeySequence(Qt.Key.Key_N))
+        mark_end_action.triggered.connect(self.mark_end_time)
+        self.addAction(mark_end_action)
+
+        # Export Action
+        export_action = QAction("Export", self)
+        export_action.setShortcut(QKeySequence(Qt.Key.Key_E))
+        export_action.triggered.connect(self.show_export_dialog)
+        self.addAction(export_action)
 
     def get_active_players(self): return self.players_a if self.active_player_set == 'a' else self.players_b
     def get_inactive_players(self): return self.players_b if self.active_player_set == 'a' else self.players_a
@@ -362,6 +400,7 @@ class TeslaCamViewer(QWidget):
         self.go_to_time_dialog_instance = None
     
     def toggle_play_pause_all(self):
+        if not self.is_daily_view_active: return
         if any(p.playbackState() == QMediaPlayer.PlaybackState.PlayingState for p in self.get_active_players()): self.pause_all()
         else: self.play_all()
 
@@ -377,6 +416,7 @@ class TeslaCamViewer(QWidget):
         self.play_btn.setText("▶️ Play"); [p.pause() for p in self.get_active_players()]; self.position_update_timer.stop(); self.update_slider_and_time_display()
     
     def frame_action(self, offset_ms): 
+        if not self.is_daily_view_active: return
         self.pause_all(); [p.setPosition(p.position() + offset_ms) for p in self.get_active_players() if p.source() and p.source().isValid()]; self.update_slider_and_time_display()
 
     def _handle_scrubber_press(self):
