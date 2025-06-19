@@ -167,11 +167,13 @@ class TeslaCamViewer(QWidget):
     def _create_playback_controls(self):
         control_layout = QHBoxLayout(); control_layout.setSpacing(8); control_layout.addStretch()
         
-        self.skip_bwd_15_btn = QPushButton("« 15s"); self.skip_bwd_15_btn.clicked.connect(lambda: self.seek_all_global(self.scrubber.value() - 15000))
+        # *** CHANGE IS HERE ***
+        # The lambdas now pass `restore_play_state=True` to the seek function.
+        self.skip_bwd_15_btn = QPushButton("« 15s"); self.skip_bwd_15_btn.clicked.connect(lambda: self.seek_all_global(self.scrubber.value() - 15000, restore_play_state=True))
         self.frame_back_btn = QPushButton("⏪ FR"); self.frame_back_btn.clicked.connect(lambda: self.frame_action(-33))
         self.play_btn = QPushButton("▶️ Play"); self.play_btn.clicked.connect(self.toggle_play_pause_all)
         self.frame_forward_btn = QPushButton("FR ⏩"); self.frame_forward_btn.clicked.connect(lambda: self.frame_action(33))
-        self.skip_fwd_15_btn = QPushButton("15s »"); self.skip_fwd_15_btn.clicked.connect(lambda: self.seek_all_global(self.scrubber.value() + 15000))
+        self.skip_fwd_15_btn = QPushButton("15s »"); self.skip_fwd_15_btn.clicked.connect(lambda: self.seek_all_global(self.scrubber.value() + 15000, restore_play_state=True))
         
         for btn in [self.skip_bwd_15_btn, self.frame_back_btn, self.play_btn, self.frame_forward_btn, self.skip_fwd_15_btn]:
             control_layout.addWidget(btn)
@@ -447,9 +449,13 @@ class TeslaCamViewer(QWidget):
             self.play_all()
         self.was_playing_before_scrub = False
 
-    def seek_all_global(self, global_ms):
+    def seek_all_global(self, global_ms, restore_play_state=False):
         if not self.app_state.is_daily_view_active or not self.app_state.first_timestamp_of_day: return
         
+        was_playing = self.play_btn.text() == "⏸️ Pause"
+        if restore_play_state and was_playing:
+            self.pause_all()
+
         target_dt = self.app_state.first_timestamp_of_day + timedelta(milliseconds=max(0, global_ms))
         front_clips = self.app_state.daily_clip_collections[self.camera_name_to_index["front"]]
         if not front_clips: return
@@ -473,6 +479,9 @@ class TeslaCamViewer(QWidget):
             for p in self.get_active_players(): p.setPosition(pos_in_seg_ms)
         
         self.update_slider_and_time_display()
+
+        if restore_play_state and was_playing:
+            self.play_all()
 
     def mark_start_time(self):
         if not self.app_state.is_daily_view_active: return
@@ -542,7 +551,6 @@ class TeslaCamViewer(QWidget):
         
         ffmpeg_cmd, self.files_to_cleanup_after_export, duration_s = result
         
-        # Configure the progress dialog for a percentage bar
         self.progress_dialog = QProgressDialog("Preparing export...", "Cancel", 0, 100, self)
         self.progress_dialog.setWindowModality(Qt.WindowModality.WindowModal)
         self.progress_dialog.setWindowTitle("Exporting")
@@ -552,7 +560,6 @@ class TeslaCamViewer(QWidget):
         self.export_thread = QThread()
         self.export_worker.moveToThread(self.export_thread)
         
-        # Connect signals to slots
         self.export_thread.started.connect(self.export_worker.run)
         self.export_worker.finished.connect(self.on_export_finished)
         self.export_worker.progress.connect(self.progress_dialog.setLabelText)
