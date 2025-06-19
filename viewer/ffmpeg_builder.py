@@ -15,17 +15,17 @@ class FFmpegCommandBuilder:
         self.output_path = output_path
         self.temp_files = []
 
-    def build(self) -> tuple[list[str] | None, list[str]]:
-        """Builds the FFmpeg command list and returns it along with temp files to be cleaned up."""
+    def build(self) -> tuple[list[str] | None, list[str], float]:
+        """Builds the FFmpeg command list and returns it, temp files, and the duration in seconds."""
         if not self.app_state.first_timestamp_of_day or self.app_state.export_state.start_ms is None or self.app_state.export_state.end_ms is None:
-            return None, []
+            return None, [], 0.0
 
         start_dt = self.app_state.first_timestamp_of_day + timedelta(milliseconds=self.app_state.export_state.start_ms)
         duration = (self.app_state.export_state.end_ms - self.app_state.export_state.start_ms) / 1000.0
         
         inputs = self._create_input_streams(start_dt, duration)
         if not inputs:
-            return None, []
+            return None, [], 0.0
 
         cmd = [utils.FFMPEG_PATH, "-y"]
         initial_filters = []
@@ -36,17 +36,12 @@ class FFmpegCommandBuilder:
         for i, stream_data in enumerate(inputs):
             cmd.extend(["-f", "concat", "-safe", "0", "-ss", str(stream_data["offset"]), "-i", stream_data["path"]])
             
-            # *** THE FIX IS HERE ***
-            # Force every input stream to a uniform resolution before stacking.
-            # This corrects issues where FFmpeg's concat demuxer misinterprets
-            # the resolution of some streams (e.g., the front camera).
             scale_filter = ",scale=1448:938"
             initial_filters.append(f"[{i}:v]setpts=PTS-STARTPTS{scale_filter}[v{i}]")
             stream_maps.append(f"[v{i}]")
         
         main_processing_chain = []
         num_streams = len(inputs)
-        # Use the corrected, uniform dimensions for layout calculations.
         w, h = (1448, 938) 
         
         if num_streams > 1:
@@ -88,7 +83,7 @@ class FFmpegCommandBuilder:
         v_codec = ["-c:v", "libx264", "-preset", "fast", "-crf", "23"] if self.is_mobile else ["-c:v", "libx264", "-preset", "medium", "-crf", "18"]
         cmd.extend(["-t", str(duration), *v_codec, "-c:a", "aac", "-b:a", "128k", self.output_path])
         
-        return cmd, self.temp_files
+        return cmd, self.temp_files, duration
 
     def _create_input_streams(self, start_dt, duration):
         inputs = []
@@ -107,7 +102,6 @@ class FFmpegCommandBuilder:
             if not clips_in_range:
                 continue
             
-            # Using 'with' ensures the file descriptor is closed properly
             fd, path = tempfile.mkstemp(suffix=".txt", text=True)
             with os.fdopen(fd, 'w') as f:
                 for p, _ in clips_in_range:

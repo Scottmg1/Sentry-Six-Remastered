@@ -295,14 +295,12 @@ class TeslaCamViewer(QWidget):
 
     def load_selected_date_videos(self):
         selected_date_str = self.date_selector.currentData()
-        # The check for root_clips_path must happen *after* clearing players, so we check again.
-        if not self.app_state.root_clips_path or not selected_date_str:
-             # This call is safe because the bug is fixed in clear_all_players
+        if not selected_date_str:
             self.clear_all_players()
             return
 
         self.clear_all_players()
-        if not self.app_state.root_clips_path: return # Return if path was cleared and not restored
+        if not self.app_state.root_clips_path: return
 
         self.app_state.is_daily_view_active = True
         raw_files = {cam_idx: [] for cam_idx in range(6)}
@@ -539,22 +537,44 @@ class TeslaCamViewer(QWidget):
     def start_export(self, output_path, is_mobile):
         self.pause_all()
         result = self._build_ffmpeg_command(output_path, is_mobile)
-        if not result:
+        if not result or not result[0]:
             QMessageBox.critical(self, "Export Failed", "Could not generate FFmpeg command. No visible cameras or clips found for the selected range."); return
         
-        ffmpeg_cmd, self.files_to_cleanup_after_export = result
-        self.progress_dialog = QProgressDialog("Preparing export...", "Cancel", 0, 0, self); self.progress_dialog.setWindowModality(Qt.WindowModality.WindowModal); self.progress_dialog.setWindowTitle("Exporting"); self.progress_dialog.show()
+        ffmpeg_cmd, self.files_to_cleanup_after_export, duration_s = result
         
-        self.export_worker = workers.ExportWorker(ffmpeg_cmd); self.export_thread = QThread(); self.export_worker.moveToThread(self.export_thread)
-        self.export_thread.started.connect(self.export_worker.run); self.export_worker.finished.connect(self.on_export_finished)
-        self.export_worker.progress.connect(self.progress_dialog.setLabelText); self.progress_dialog.canceled.connect(self.export_worker.stop)
+        # Configure the progress dialog for a percentage bar
+        self.progress_dialog = QProgressDialog("Preparing export...", "Cancel", 0, 100, self)
+        self.progress_dialog.setWindowModality(Qt.WindowModality.WindowModal)
+        self.progress_dialog.setWindowTitle("Exporting")
+        self.progress_dialog.show()
+        
+        self.export_worker = workers.ExportWorker(ffmpeg_cmd, duration_s)
+        self.export_thread = QThread()
+        self.export_worker.moveToThread(self.export_thread)
+        
+        # Connect signals to slots
+        self.export_thread.started.connect(self.export_worker.run)
+        self.export_worker.finished.connect(self.on_export_finished)
+        self.export_worker.progress.connect(self.progress_dialog.setLabelText)
+        self.export_worker.progress_value.connect(self.progress_dialog.setValue)
+        self.progress_dialog.canceled.connect(self.export_worker.stop)
+        
         self.export_thread.start()
 
     def on_export_finished(self, success, message):
+        if success:
+            self.progress_dialog.setValue(100)
         self.progress_dialog.close()
-        if self.export_thread: self.export_thread.quit(); self.export_thread.wait()
-        if success: QMessageBox.information(self, "Export Complete", message)
-        else: QMessageBox.critical(self, "Export Failed", message)
+        
+        if self.export_thread:
+            self.export_thread.quit()
+            self.export_thread.wait()
+
+        if success:
+            QMessageBox.information(self, "Export Complete", message)
+        else:
+            QMessageBox.critical(self, "Export Failed", message)
+            
         for path in self.files_to_cleanup_after_export:
             try: os.remove(path)
             except OSError as e: print(f"Error removing temp file {path}: {e}")
@@ -611,8 +631,6 @@ class TeslaCamViewer(QWidget):
         for p_set in [self.players_a, self.players_b]:
             for p in p_set: p.stop(); p.setSource(QUrl())
         
-        # *** THE FIX IS HERE ***
-        # Preserve the root path, but reset everything else for the new day.
         root_path = self.app_state.root_clips_path
         self.app_state = AppState()
         self.app_state.root_clips_path = root_path
