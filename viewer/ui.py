@@ -65,6 +65,10 @@ class TeslaCamViewer(QWidget):
         self.last_text_update_time = 0
         self.was_playing_before_scrub = False
 
+        # State for robustly handling seeks to unloaded clips
+        self.pending_seek_position = -1
+        self.players_awaiting_seek = set()
+
         self.setWindowTitle("TeslaCam Viewer")
         self.setMinimumSize(1280, 720)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
@@ -167,8 +171,6 @@ class TeslaCamViewer(QWidget):
     def _create_playback_controls(self):
         control_layout = QHBoxLayout(); control_layout.setSpacing(8); control_layout.addStretch()
         
-        # *** CHANGE IS HERE ***
-        # The lambdas now pass `restore_play_state=True` to the seek function.
         self.skip_bwd_15_btn = QPushButton("« 15s"); self.skip_bwd_15_btn.clicked.connect(lambda: self.seek_all_global(self.scrubber.value() - 15000, restore_play_state=True))
         self.frame_back_btn = QPushButton("⏪ FR"); self.frame_back_btn.clicked.connect(lambda: self.frame_action(-33))
         self.play_btn = QPushButton("▶️ Play"); self.play_btn.clicked.connect(self.toggle_play_pause_all)
@@ -453,29 +455,39 @@ class TeslaCamViewer(QWidget):
         if not self.app_state.is_daily_view_active or not self.app_state.first_timestamp_of_day: return
         
         was_playing = self.play_btn.text() == "⏸️ Pause"
-        if restore_play_state and was_playing:
+        if was_playing:
             self.pause_all()
 
         target_dt = self.app_state.first_timestamp_of_day + timedelta(milliseconds=max(0, global_ms))
         front_clips = self.app_state.daily_clip_collections[self.camera_name_to_index["front"]]
-        if not front_clips: return
+        if not front_clips: 
+            if restore_play_state and was_playing: self.play_all()
+            return
         
         target_seg_idx = -1
-        for i, p in enumerate(front_clips):
-            m = utils.filename_pattern.match(os.path.basename(p))
+        # Find the last segment whose start time is before or at the target time.
+        for i, clip_path in enumerate(front_clips):
+            m = utils.filename_pattern.match(os.path.basename(clip_path))
             if m:
-                s_dt = datetime.strptime(f"{m.group(1)} {m.group(2).replace('-' , ':')}", "%Y-%m-%d %H:%M:%S")
-                if s_dt <= target_dt < s_dt + timedelta(seconds=60):
-                    target_seg_idx = i; break
-        if target_seg_idx == -1 and target_dt >= self.app_state.first_timestamp_of_day: target_seg_idx = len(front_clips) - 1
-        if target_seg_idx == -1: return
+                clip_start_dt = datetime.strptime(f"{m.group(1)} {m.group(2).replace('-', ':')}", "%Y-%m-%d %H:%M:%S")
+                if clip_start_dt <= target_dt:
+                    target_seg_idx = i
+                else:
+                    # Since clips are sorted, we can stop once we pass the target time.
+                    break
         
-        m = utils.filename_pattern.match(os.path.basename(front_clips[target_seg_idx])); s_dt = datetime.strptime(f"{m.group(1)} {m.group(2).replace('-' , ':')}", "%Y-%m-%d %H:%M:%S")
+        if target_seg_idx == -1: 
+            if restore_play_state and was_playing: self.play_all()
+            return
+        
+        m = utils.filename_pattern.match(os.path.basename(front_clips[target_seg_idx]))
+        s_dt = datetime.strptime(f"{m.group(1)} {m.group(2).replace('-' , ':')}", "%Y-%m-%d %H:%M:%S")
         pos_in_seg_ms = int((target_dt - s_dt).total_seconds() * 1000)
         
         if target_seg_idx != self.app_state.playback_state.clip_indices[0]:
             self._load_and_set_segment(target_seg_idx, pos_in_seg_ms)
         else:
+            # If we are in the same segment, we can just seek directly.
             for p in self.get_active_players(): p.setPosition(pos_in_seg_ms)
         
         self.update_slider_and_time_display()
@@ -634,6 +646,8 @@ class TeslaCamViewer(QWidget):
             if utils.DEBUG_UI: print(f"Error in update_slider_and_time_display: {e}"); traceback.print_exc()
     
     def clear_all_players(self): 
+        self.pending_seek_position = -1
+        self.players_awaiting_seek.clear()
         self.position_update_timer.stop()
         for p_set in [self.players_a, self.players_b]:
             for p in p_set: p.stop(); p.setSource(QUrl())
@@ -648,20 +662,54 @@ class TeslaCamViewer(QWidget):
         self.scrubber.set_events([]); self.update_export_ui()
 
     def _load_and_set_segment(self, segment_index, position_ms=0):
+        # Cancel any previous pending seek operation.
+        self.pending_seek_position = -1
+        self.players_awaiting_seek.clear()
+
+        # When seeking, we forcefully switch to player set 'a' as the active one.
+        # This simplifies the logic by providing a consistent state.
         self.active_player_set = 'a'
         active_players = self.get_active_players()
+        active_video_items = self.get_active_video_items()
+
+        # Stop the other player set to prevent it from continuing playback in the background.
+        [p.stop() for p in self.get_inactive_players()]
         
         front_clips = self.app_state.daily_clip_collections[self.camera_name_to_index["front"]]
+        if not (0 <= segment_index < len(front_clips)):
+            if utils.DEBUG_UI: print(f"Segment index {segment_index} out of range. Aborting load.")
+            return
+
         m = utils.filename_pattern.match(os.path.basename(front_clips[segment_index]))
         s_dt = datetime.strptime(f"{m.group(1)} {m.group(2).replace('-' , ':')}", "%Y-%m-%d %H:%M:%S")
         
         segment_start_ms = int((s_dt - self.app_state.first_timestamp_of_day).total_seconds() * 1000)
         self.app_state.playback_state = PlaybackState(clip_indices=[segment_index]*6, segment_start_ms=segment_start_ms)
 
+        # Update the UI to show the new video items immediately.
+        for i in range(6):
+            self.video_player_item_widgets[i].set_video_item(active_video_items[i])
+            
+        # Determine which players will actually be loaded with a video clip.
+        players_to_load = set()
+        for i in range(6):
+            clips = self.app_state.daily_clip_collections[i]
+            if 0 <= segment_index < len(clips):
+                players_to_load.add(active_players[i])
+        
+        if not players_to_load:
+            return
+
+        if utils.DEBUG_UI: print(f"--- Loading segment {segment_index}, preparing pending seek to {position_ms}ms ---")
+        
+        # Set up the pending seek operation. It will be executed in handle_media_status_changed.
+        self.pending_seek_position = position_ms
+        self.players_awaiting_seek = players_to_load
+
+        # Start loading the clips into the active players.
         for i in range(6):
             self._load_next_clip_for_player_set(active_players, i)
-            active_players[i].setPosition(position_ms)
-        
+
         self._preload_next_segment()
 
     def _preload_next_segment(self):
@@ -696,8 +744,30 @@ class TeslaCamViewer(QWidget):
         
         elif status == QMediaPlayer.MediaStatus.LoadedMedia: 
             self.video_player_item_widgets[player_index].fit_video_to_view()
+            
+            # If a seek operation is pending, execute it now that the media is loaded.
+            if self.pending_seek_position != -1 and player_instance in self.players_awaiting_seek:
+                player_instance.setPosition(self.pending_seek_position)
+                self.players_awaiting_seek.remove(player_instance)
+                
+                # If this was the last player we were waiting for, reset the state.
+                if not self.players_awaiting_seek:
+                    if utils.DEBUG_UI: print(f"--- Pending seek to {self.pending_seek_position}ms completed. ---")
+                    self.pending_seek_position = -1
+        
+        elif status == QMediaPlayer.MediaStatus.InvalidMedia:
+            # If a player fails to load, remove it from the await set to avoid getting stuck.
+            if player_instance in self.players_awaiting_seek:
+                self.players_awaiting_seek.remove(player_instance)
+                if not self.players_awaiting_seek and self.pending_seek_position != -1:
+                    if utils.DEBUG_UI: print(f"--- Pending seek to {self.pending_seek_position}ms completed (with invalid media). ---")
+                    self.pending_seek_position = -1
 
     def _swap_player_sets(self):
+        # Cancel any pending seeks before swapping, as they are no longer relevant.
+        self.pending_seek_position = -1
+        self.players_awaiting_seek.clear()
+        
         if utils.DEBUG_UI: print(f"--- Swapping player sets. New active set: {'b' if self.active_player_set == 'a' else 'a'} ---")
         was_playing = self.play_btn.text() == "⏸️ Pause"
         [p.stop() for p in self.get_active_players()]
