@@ -4,6 +4,12 @@ SentrySix  is a modern, feature-rich viewer and exporter for your Tesla Sentry a
 
 This project was remastered and significantly enhanced through a collaboration between Scott and Google's Gemini 2.5 Pro, building upon the excellent foundation of the original SentrySix by ChadR23.
 
+## Community & Support
+
+Have questions, suggestions, or want to connect with other users? Join our official Discord server!
+
+**[Join the TeslaCam Viewer Discord Server](https://discord.com/invite/9qzezvwdnt)**
+
 ![SentrySix UI Overview](Screenshots/All_cams.png)
 
 ## 🚀 Features
