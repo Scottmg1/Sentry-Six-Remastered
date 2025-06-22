@@ -216,7 +216,7 @@ class TeslaCamViewer(QWidget):
         self.scrubber.event_marker_clicked.connect(self.handle_event_click)
         self.scrubber.event_marker_hovered.connect(self.handle_event_hover)
         self.scrubber.drag_started.connect(self._handle_scrubber_press)
-        self.scrubber.drag_finished.connect(self.handle_scrubber_release)
+        self.scrubber.drag_finished.connect(self._handle_marker_drag_finished)
         
         self.slider_layout.addWidget(self.time_label)
         self.slider_layout.addWidget(self.scrubber, 1)
@@ -515,7 +515,14 @@ class TeslaCamViewer(QWidget):
     def handle_marker_drag(self, marker_type, value):
         if marker_type == 'start': self.app_state.export_state.start_ms = value
         elif marker_type == 'end': self.app_state.export_state.end_ms = value
-        self.update_export_ui(); self.seek_all_global(value)
+        self.update_export_ui()
+        self.preview_at_global_ms(value)
+
+    def _handle_marker_drag_finished(self):
+        # When the user releases an export marker, snap the video back to the main scrubber position
+        self.seek_all_global(self.scrubber.value())
+        if self.was_playing_before_scrub:
+            self.play_all()
 
     def handle_event_click(self, event_data):
         seek_ms = event_data['ms_in_timeline']
@@ -654,7 +661,6 @@ class TeslaCamViewer(QWidget):
             self.clip_loader_thread.quit()
             self.clip_loader_thread.wait() # Wait for thread to fully terminate
         
-        # Now it's safe to clear references
         self.clip_loader_thread = None
         self.clip_loader_worker = None
 
@@ -675,6 +681,37 @@ class TeslaCamViewer(QWidget):
         self.scrubber.setValue(0); self.scrubber.setMaximum(1000)
         self.play_btn.setText("▶️ Play"); self.speed_selector.setCurrentText("1x") 
         self.scrubber.set_events([]); self.update_export_ui()
+
+    def preview_at_global_ms(self, global_ms):
+        """Seeks players to a time for previewing without affecting the main timeline."""
+        if not self.app_state.is_daily_view_active or not self.app_state.first_timestamp_of_day:
+            return
+        
+        self.pause_all()
+        target_dt = self.app_state.first_timestamp_of_day + timedelta(milliseconds=max(0, global_ms))
+        front_clips = self.app_state.daily_clip_collections[self.camera_name_to_index["front"]]
+        if not front_clips: return
+        
+        target_seg_idx = -1
+        for i, clip_path in enumerate(front_clips):
+            m = utils.filename_pattern.match(os.path.basename(clip_path))
+            if m:
+                clip_start_dt = datetime.strptime(f"{m.group(1)} {m.group(2).replace('-', ':')}", "%Y-%m-%d %H:%M:%S")
+                if clip_start_dt <= target_dt:
+                    target_seg_idx = i
+                else:
+                    break
+        
+        if target_seg_idx == -1: return
+        
+        m = utils.filename_pattern.match(os.path.basename(front_clips[target_seg_idx]))
+        s_dt = datetime.strptime(f"{m.group(1)} {m.group(2).replace('-' , ':')}", "%Y-%m-%d %H:%M:%S")
+        pos_in_seg_ms = int((target_dt - s_dt).total_seconds() * 1000)
+        
+        if target_seg_idx != self.app_state.playback_state.clip_indices[0]:
+            self._load_and_set_segment(target_seg_idx, pos_in_seg_ms)
+        else:
+            for p in self.get_active_players(): p.setPosition(pos_in_seg_ms)
 
     def _load_and_set_segment(self, segment_index, position_ms=0):
         # Cancel any previous pending seek operation.
