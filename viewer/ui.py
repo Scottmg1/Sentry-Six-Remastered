@@ -20,7 +20,7 @@ from PyQt6.QtGui import QPixmap, QAction, QKeySequence
 from . import utils
 from . import widgets
 from . import workers
-from .state import AppState, PlaybackState, ExportState
+from .state import AppState, PlaybackState, ExportState, TimelineData
 from .ffmpeg_builder import FFmpegCommandBuilder
 
 
@@ -60,7 +60,10 @@ class TeslaCamViewer(QWidget):
         self.event_tooltip = widgets.EventToolTip(self)
         self.tooltip_timer = QTimer(self)
         self.tooltip_timer.setSingleShot(True)
+        
         self.export_thread, self.export_worker = None, None
+        self.clip_loader_thread, self.clip_loader_worker = None, None
+
         self.files_to_cleanup_after_export = []
         self.last_text_update_time = 0
         self.was_playing_before_scrub = False
@@ -269,6 +272,18 @@ class TeslaCamViewer(QWidget):
         self.ordered_visible_player_indices = [self.checkbox_info[i][2] for i, cb in enumerate(self.camera_visibility_checkboxes) if cb.isChecked()]
         self.update_layout(); self.save_settings()
 
+    def set_ui_loading(self, is_loading):
+        """Enable/disable UI elements during async operations."""
+        self.select_folder_btn.setEnabled(not is_loading)
+        self.go_to_time_btn.setEnabled(not is_loading)
+        self.date_selector.setEnabled(not is_loading)
+        if is_loading:
+            self.time_label.setText("Loading clips, please wait...")
+            QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+        else:
+            self.time_label.setText("MM/DD/YYYY hh:mm:ss (Clip: 00:00 / 00:00)")
+            QApplication.restoreOverrideCursor()
+
     def load_settings(self):
         geom = self.settings.value("windowGeometry"); self.restoreGeometry(geom) if geom else self.setGeometry(50, 50, 1600, 950)
         self.speed_selector.setCurrentText(self.settings.value("lastSpeedText", "1x", type=str))
@@ -291,74 +306,62 @@ class TeslaCamViewer(QWidget):
 
     def closeEvent(self, event): 
         self.save_settings()
+        self.clear_all_players() # Safely stop any running workers
         if self.export_thread and self.export_thread.isRunning():
             self.export_worker.stop(); self.export_thread.quit(); self.export_thread.wait()
+        
         for p_set in [self.players_a, self.players_b]:
             for p in p_set: p.setSource(QUrl())
         super().closeEvent(event)
 
-    def load_selected_date_videos(self):
+    def handle_date_selection_change(self):
+        if self.date_selector.currentIndex() < 0:
+            return # Don't clear if nothing is selected
+            
         selected_date_str = self.date_selector.currentData()
-        if not selected_date_str:
+        if not selected_date_str or not self.app_state.root_clips_path:
             self.clear_all_players()
             return
+        
+        self.clear_all_players() # Clean up any previous worker first
+        self.set_ui_loading(True)
 
-        self.clear_all_players()
-        if not self.app_state.root_clips_path: return
+        self.clip_loader_worker = workers.ClipLoaderWorker(
+            self.app_state.root_clips_path, 
+            selected_date_str, 
+            self.camera_name_to_index
+        )
+        self.clip_loader_thread = QThread()
+        self.clip_loader_worker.moveToThread(self.clip_loader_thread)
+
+        self.clip_loader_thread.started.connect(self.clip_loader_worker.run)
+        self.clip_loader_worker.finished.connect(self._on_clips_loaded)
+        self.clip_loader_thread.finished.connect(self.clip_loader_thread.deleteLater)
+        self.clip_loader_worker.finished.connect(self.clip_loader_worker.deleteLater)
+
+        self.clip_loader_thread.start()
+
+    def _on_clips_loaded(self, data: TimelineData):
+        self.set_ui_loading(False)
+
+        if data.error:
+            QMessageBox.warning(self, "Could Not Load Date", data.error)
+            # No need to call clear_all_players here, as it was done before starting
+            return
+        
+        if data.first_timestamp_of_day is None:
+             QMessageBox.warning(self, "No Videos", f"No valid video files found.")
+             return
 
         self.app_state.is_daily_view_active = True
-        raw_files = {cam_idx: [] for cam_idx in range(6)}
-        all_ts = []
-        events = []
-        try:
-            potential_folders = [p for p in [os.path.join(self.app_state.root_clips_path, d) for d in os.listdir(self.app_state.root_clips_path)] if os.path.isdir(p) and os.path.basename(p).startswith(selected_date_str)]
-            if not potential_folders:
-                QMessageBox.warning(self, "No Data", f"No folders found for {selected_date_str}"); self.clear_all_players(); return
-            
-            for folder in potential_folders:
-                for filename in os.listdir(folder):
-                    m = utils.filename_pattern.match(filename)
-                    if m:
-                        try:
-                            ts = datetime.strptime(f"{m.group(1)} {m.group(2).replace('-',':')}", "%Y-%m-%d %H:%M:%S")
-                            cam_idx = self.camera_name_to_index[m.group(3)]
-                            raw_files[cam_idx].append((os.path.join(folder, filename), ts))
-                            all_ts.append(ts)
-                        except (ValueError, KeyError): pass
-                    elif filename == "event.json":
-                        try:
-                            with open(os.path.join(folder, filename), 'r') as f: data = json.load(f)
-                            data['timestamp_dt'] = datetime.fromisoformat(data['timestamp'])
-                            data['folder_path'] = folder
-                            events.append(data)
-                        except (json.JSONDecodeError, KeyError, ValueError): pass
+        self.app_state.first_timestamp_of_day = data.first_timestamp_of_day
+        self.app_state.daily_clip_collections = data.daily_clip_collections
+        
+        self.scrubber.setRange(0, data.total_duration_ms)
+        self.scrubber.set_events(data.events)
 
-            if not all_ts:
-                QMessageBox.warning(self, "No Videos", f"No valid video files found for {selected_date_str}."); self.clear_all_players(); return
-            
-            self.app_state.first_timestamp_of_day, last_ts = min(all_ts), max(all_ts)
-            last_clip_path = next((f[0] for files in raw_files.values() for f in files if f[1] == last_ts), None)
-            total_duration = int((last_ts - self.app_state.first_timestamp_of_day).total_seconds() * 1000) + utils.get_video_duration_ms(last_clip_path)
-            self.scrubber.setRange(0, total_duration)
-            
-            for evt in events: evt['ms_in_timeline'] = (evt['timestamp_dt'] - self.app_state.first_timestamp_of_day).total_seconds() * 1000
-            self.scrubber.set_events(events)
-
-            for i in range(6):
-                raw_files[i].sort(key=lambda x: x[1])
-                self.app_state.daily_clip_collections[i] = [f[0] for f in raw_files[i]]
-
-            self._load_and_set_segment(0)
-            self.update_layout()
-        except Exception as e:
-            QMessageBox.critical(self, "Error", f"Error loading date videos: {e}"); traceback.print_exc(); self.clear_all_players()
-
-    def handle_date_selection_change(self):
-        if self.date_selector.currentIndex() >= 0:
-            self.load_selected_date_videos()
-        else:
-            self.clear_all_players()
-
+        self._load_and_set_segment(0)
+        self.update_layout()
 
     def _apply_root_folder(self, folder):
         """Set root clips folder and refresh date selector."""
@@ -645,7 +648,19 @@ class TeslaCamViewer(QWidget):
         except Exception as e:
             if utils.DEBUG_UI: print(f"Error in update_slider_and_time_display: {e}"); traceback.print_exc()
     
-    def clear_all_players(self): 
+    def clear_all_players(self):
+        if self.clip_loader_thread and self.clip_loader_thread.isRunning():
+            self.clip_loader_worker.stop()
+            self.clip_loader_thread.quit()
+            self.clip_loader_thread.wait() # Wait for thread to fully terminate
+        
+        # Now it's safe to clear references
+        self.clip_loader_thread = None
+        self.clip_loader_worker = None
+
+        if QApplication.overrideCursor() is not None:
+            QApplication.restoreOverrideCursor()
+
         self.pending_seek_position = -1
         self.players_awaiting_seek.clear()
         self.position_update_timer.stop()

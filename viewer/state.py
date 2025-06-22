@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+from datetime import datetime
 
 @dataclass
 class ExportState:
@@ -13,10 +14,19 @@ class PlaybackState:
     segment_start_ms: int = 0
 
 @dataclass
+class TimelineData:
+    """Holds the results of a timeline scan."""
+    daily_clip_collections: list[list[str]]
+    events: list[dict]
+    first_timestamp_of_day: datetime | None
+    total_duration_ms: int
+    error: str | None = None
+
+@dataclass
 class AppState:
     """Holds the primary state for the application."""
     root_clips_path: str | None = None
-    first_timestamp_of_day: object | None = None # datetime object
+    first_timestamp_of_day: datetime | None = None
     is_daily_view_active: bool = False
     daily_clip_collections: list[list[str]] = field(default_factory=lambda: [[] for _ in range(6)])
     
