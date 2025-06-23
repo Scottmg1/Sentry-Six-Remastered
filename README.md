@@ -1,105 +1,95 @@
-# SentrySix (DOWN LOAD THIS BRANCH AT OWN RISK)
-this branh is used to oush new features that might be buggy and have issues I recommend not using this one
+# SentrySix 
 
-SentrySix is a multi-camera TeslaCam viewer and exporter built with Python and PyQt6.
-It supports synchronized playback of all six Tesla cameras and allows users to export custom clips with frame-accurate trimming and layout control.
+SentrySix  is a modern, feature-rich viewer and exporter for your Tesla Sentry and Dashcam footage, built with Python and PyQt6. It provides a fluid, intuitive interface to navigate, review, and export your clips with powerful tools not found in other viewers.
 
----
+This project was remastered and significantly enhanced through a collaboration between Scott and Google's Gemini 2.5 Pro, building upon the excellent foundation of the original SentrySix by ChadR23.
 
-## 🚗 Features
+## Community & Support
 
-- 🔭 **6-Camera Playback** — View front, back, repeater, and pillar footage in a synchronized grid
-- 🎛️ **Selectable Layouts** — Choose from presets like All Cameras, Front & Back, Repeaters, Pillars, or Single View
-- ✂️ **Export Clips** — Trim from any start time and duration, then export the selected layout
-- 📱 **Mobile & Full Res Output** — Choose mobile-optimized resolution or original full quality
-- 🕐 **Real-Time Timestamps** — Overlay running time synced from Tesla’s clip names
-- 🧹 **Auto-Cleanup** — Temporary files are cleaned after export or when the app closes
+Have questions, suggestions, or want to connect with other users? Join our official Discord server!
 
----
+**[Join the TeslaCam Viewer Discord Server](https://discord.com/invite/9qzezvwdnt)**
 
-## 📸 Layout Options
+![SentrySix UI Overview](Screenshots/All_cams.png)
 
-- **All Cameras (3x2)**
-  > Front / Back / Repeaters / Pillars in a grid layout
-  ![All Cameras](Screenshots/All-cameras.png)
+## 🚀 Features
 
+-   **Synchronized 6-Camera Playback**: Watch footage from the front, back, repeaters, and pillar cameras, all perfectly in sync.
+-   **Interactive Event Markers**: Automatically displays icons on the timeline for **Sentry**, **Honk**, and **User-saved** events.
+    -   🖱️ **Click to Seek**: Instantly jump to any event. Sentry and User events jump 10 seconds prior to give you context.
+    -   🖼️ **Hover to Preview**: Hover over an event icon to see the official `thumb.png` and the reason for the event in a tooltip.
+-   **Visual Clip Exporting**:
+    -   🚩 **Draggable Markers**: Set your export start and end points with draggable red and green markers directly on the timeline for frame-perfect trimming.
+    -   ✨ **Live Scrubbing Preview**: Get an instant visual preview in the main video grid as you drag the markers.
+-   **Flexible Layout Control**: Use the simple checkboxes in the toolbar to instantly toggle the visibility of any combination of cameras.
+-   **High-Quality Exports**:
+    -   Choose between **Full Resolution** for archival quality or a **Mobile-Friendly** 1080p version for easy sharing.
+    -   The exported clip intelligently stitches together the camera views based on your selected layout.
+-   **Advanced Playback Controls**:
+    -   **Zoom & Pan**: Dynamically zoom and pan any camera view with your mouse wheel and by dragging.
+    -   **Variable Speed**: Adjust playback speed from 0.25x to 4x.
+    -   **Frame-by-Frame**: Step through footage one frame at a time to find the perfect shot.
+    -   **15-Second Skip**: Quickly jump forward or backward in 15-second intervals.
+-   **Go To Timestamp**: Jump to a precise time in the day's footage with a simple dialog that even shows a thumbnail preview.
 
-- **Front & Back (2x1)**
-  > Side-by-side stitched view for clean event perspective
-  ![Front And Back](Screenshots/Front-Back.png)
+## 📸 Layouts & UI
 
-- **Repeaters (1x2)**
-  > Left and Right side views stacked horizontally
-  ![Rapeaters](Screenshots/Rapeaters.png)
+| Feature | Screenshot |
+| :--- | :--- |
+| **Event Markers & Tooltip** | ![Event Markers & Tooltip](Screenshots/even_Markers.png) |
+| **Draggable Export Markers** | ![Draggable Export Marker](Screenshots/export_markers.png) |
+| **All Camera View** | ![All Camera View](Screenshots/All_cams.png) |
+| **Go To Time Dialog** | ![Timestamp Preview](Screenshots/go_to_time.png) |
 
-- **Pillars (1x2)**
-  > Left and Right interior pillar cams
-  ![Pillers](Screenshots/Pillers.png)
+## 📋 Requirements
 
-- **Single View (1x1)**
-  > Focus on any one camera — Front, Back, Repeater, or Pillar
-  ![Single View](Screenshots/Single-view.png)
+-   Python 3.10+
+-   PyQt6
+-   FFmpeg (must be in your system's PATH)
 
----
+Install all Python dependencies with:
 
-## 🛠 Requirements
-
-- Python 3.10+
-- PyQt6
-- FFmpeg (must be in system PATH)
-
-Install dependencies:
 ```bash
 pip install -r requirements.txt
 ```
 
----
+## 🛠️ Usage
 
-## 🧪 Usage
+1.  Launch the application by running **main.py**.
+2.  Click **“Select Clips Folder”** and navigate to your `TeslaCam` folder (which contains `SavedClips` and/or `SentryClips`).
+3.  Click the **Date** dropdown and select the date you want to review.
+4.  Use the playback controls, event markers, and timeline to find your desired footage.
+5.  To export:
+    -   Move the timeline scrubber to your desired start point and click **Set Start**.
+    -   Move to your desired end point and click **Set End**.
+    -   Fine-tune by dragging the green and red markers on the timeline.
+    -   Click **Export Clip** and choose your resolution.
 
-1. **Launch the app**
-2. Click **“Select TeslaCam Folder”** and point to a folder with your Tesla event clips
-3. Choose a **layout** (e.g., All Cameras, Front & Back...)
-4. Use the playback controls to scrub or sync
-5. Click **“Export Clip”** to trim and export
-6. Select **start time**, **duration**, **output folder**, and **resolution type**
-
----
-
-## 📂 Output Files
-
-- `final_output.mp4` — Full resolution export
-- `final_output_mobile.mp4` — Optimized for mobile playback
-- All `trim_*.mp4` and intermediate files are auto-deleted after export
-
----
 ## ⚠️ Disclaimer
 
-SentrySix is an open-source utility provided as-is, with no warranties or guarantees.
-By using this software, you accept that you are doing so at your own risk.
-The developer is not responsible for any data loss, system behavior, or other unexpected issues that may arise.
+SentrySix is an open-source utility provided as-is, with no warranties or guarantees. By using this software, you accept that you are doing so at your own risk. The developers are not responsible for any data loss, system behavior, or other unexpected issues that may arise.
 
-Please make backups of your TeslaCam footage before using this tool — especially when trimming or exporting.
----
+It is always recommended to have a backup of your important TeslaCam footage before performing any file operations.
 
-## 🔒 License
+## 🗺️ Roadmap
 
-MIT License — See [LICENSE](LICENSE) file
+This project is actively developed. Here are some ideas for the future:
 
----
+-   [ ] Display GPS data from `event.json` on a map widget.
+-   [ ] Option to burn-in camera name labels (e.g., "Front", "Left Repeater") on exported videos.
+-   [ ] Support for exporting clips as GIFs or image sequences.
+-   [ ] Drag-and-drop support for clip folders.
+-   [ ] Add Model Y (Juniper) front bumper camera support if/when it's used for Sentry/Dashcam.
 
-## 🚧 Roadmap / Ideas
+## 🙌 Contributing
 
-- [ ] Add support for event.json GPS metadata
-- [ ] Option to export overlays with labels (Front, Left Repeater, etc.)
-- [ ] GIF or frame sequence exports
-- [ ] Drag and drop Tesla folders
-- [ ] Add Model Y juniper Front Bumper Camera. (if they ever add it sentry???)
+Contributions are welcome! Whether it's reporting a bug, suggesting a feature, or writing code, your help is appreciated. Please feel free to open an issue or submit a pull request on the project's GitHub repository.
 
----
+## 📜 License
 
-## 🙌 Credits
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-Built with ❤️ by Chad — Inspired by TeslaCam’s incredible capture system
+## ❤️ Credits
 
-Logo concept: **SentrySix** ⚡
+-   **Original Concept & Code:** ChadR23
+-   **Remaster & Feature Development:** A collaborative effort between Scott and Google's Gemini 2.5 Pro AI.
