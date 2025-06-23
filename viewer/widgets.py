@@ -5,9 +5,9 @@ from datetime import datetime
 
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QLabel, QPushButton, QDialog, QHBoxLayout,
                              QLineEdit, QSlider, QGraphicsView, QGraphicsScene, QStyle, 
-                             QSizePolicy, QStyleOptionSlider)
-from PyQt6.QtCore import Qt, pyqtSignal, QPoint, QRect, QTimer
-from PyQt6.QtGui import QPixmap, QPainter, QColor, QPen, QTransform, QWheelEvent, QMouseEvent
+                             QSizePolicy, QStyleOptionSlider, QApplication)
+from PyQt6.QtCore import Qt, pyqtSignal, QPoint, QRect, QTimer, QMimeData
+from PyQt6.QtGui import QPixmap, QPainter, QColor, QPen, QTransform, QWheelEvent, QMouseEvent, QDrag
 
 from . import utils
 
@@ -156,11 +156,17 @@ class EventToolTip(QWidget):
             self.thumbnail_label.setText("  No Preview Available")
 
 class VideoPlayerItemWidget(QGraphicsView):
+    MIME_TYPE = "application/x-teslacam-widget-index"
+    swap_requested = pyqtSignal(int, int) # dragged_index, dropped_on_index
+
     def __init__(self, player_index: int, parent=None):
         super().__init__(parent)
         self.player_index = player_index
         self.scene = QGraphicsScene(self)
-        self.video_item = None # Will be set by main UI
+        self.video_item = None
+        self.setAcceptDrops(True)
+        self.is_being_dragged_over = False
+
         self.setRenderHint(QPainter.RenderHint.Antialiasing, True)
         self.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
         self.setDragMode(QGraphicsView.DragMode.ScrollHandDrag)
@@ -171,6 +177,7 @@ class VideoPlayerItemWidget(QGraphicsView):
         self.setMinimumSize(100, 75)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.setObjectName(f"VideoPlayerItemWidget_{player_index}")
+        self.setStyleSheet("QGraphicsView { border: 2px solid #282c34; }")
 
     def set_video_item(self, item):
         if self.video_item:
@@ -200,6 +207,70 @@ class VideoPlayerItemWidget(QGraphicsView):
     def resizeEvent(self, event):
         super().resizeEvent(event)
         self.fit_video_to_view()
+
+    def mousePressEvent(self, event: QMouseEvent):
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.drag_start_position = event.pos()
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event: QMouseEvent):
+        if not (event.buttons() & Qt.MouseButton.LeftButton):
+            return
+        if (event.pos() - self.drag_start_position).manhattanLength() < QApplication.startDragDistance():
+            return
+
+        # Temporarily disable the view's internal drag mode to prevent state conflicts.
+        original_drag_mode = self.dragMode()
+        self.setDragMode(QGraphicsView.DragMode.NoDrag)
+
+        drag = QDrag(self)
+        mime_data = QMimeData()
+        mime_data.setData(self.MIME_TYPE, str(self.player_index).encode())
+        drag.setMimeData(mime_data)
+        
+        pixmap = self.grab()
+        pixmap.setDevicePixelRatio(1.0) # Ensure pixmap size matches widget size
+        painter = QPainter(pixmap)
+        painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_DestinationIn)
+        painter.fillRect(pixmap.rect(), QColor(0, 0, 0, 150))
+        painter.end()
+
+        drag.setPixmap(pixmap)
+        drag.setHotSpot(event.pos())
+        drag.exec(Qt.DropAction.MoveAction)
+
+        # Restore the original drag mode after the operation is complete.
+        self.setDragMode(original_drag_mode)
+    
+    def dragEnterEvent(self, event):
+        if event.mimeData().hasFormat(self.MIME_TYPE):
+            source_index = int(event.mimeData().data(self.MIME_TYPE).data().decode())
+            if source_index != self.player_index:
+                event.acceptProposedAction()
+                self.is_being_dragged_over = True
+                self.setStyleSheet("QGraphicsView { border: 2px solid #61afef; }") # Highlight border
+        else:
+            event.ignore()
+
+    def dragMoveEvent(self, event):
+        """This event is crucial. It's fired as the drag is held over the widget."""
+        if event.mimeData().hasFormat(self.MIME_TYPE):
+            event.acceptProposedAction()
+        else:
+            event.ignore()
+
+    def dragLeaveEvent(self, event):
+        self.is_being_dragged_over = False
+        self.setStyleSheet("QGraphicsView { border: 2px solid #282c34; }") # Reset border
+
+    def dropEvent(self, event):
+        if event.mimeData().hasFormat(self.MIME_TYPE):
+            source_index = int(event.mimeData().data(self.MIME_TYPE).data().decode())
+            if utils.DEBUG_UI:
+                print(f"[Widget {self.player_index}] Drop detected. Emitting swap request: Dragged={source_index}, Dropped On={self.player_index}")
+            self.swap_requested.emit(source_index, self.player_index)
+            event.acceptProposedAction()
+        self.dragLeaveEvent(event) # Reset style after drop
 
 class GoToTimeDialog(QDialog):
     request_thumbnail = pyqtSignal(str, float)

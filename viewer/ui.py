@@ -169,6 +169,7 @@ class TeslaCamViewer(QWidget):
 
             widget = widgets.VideoPlayerItemWidget(i, self)
             widget.set_video_item(self.video_items_a[i])
+            widget.swap_requested.connect(self.handle_widget_swap)
             self.video_player_item_widgets.append(widget)
 
     def _create_playback_controls(self):
@@ -264,13 +265,37 @@ class TeslaCamViewer(QWidget):
     def get_active_video_items(self): return self.video_items_a if self.active_player_set == 'a' else self.video_items_b
         
     def reset_to_default_layout(self):
+        self.settings.remove("cameraOrder") # Remove saved order to reset
         for checkbox in self.camera_visibility_checkboxes:
             checkbox.blockSignals(True); checkbox.setChecked(True); checkbox.blockSignals(False)
         self.update_layout_from_visibility_change()
 
     def update_layout_from_visibility_change(self):
         self.ordered_visible_player_indices = [self.checkbox_info[i][2] for i, cb in enumerate(self.camera_visibility_checkboxes) if cb.isChecked()]
-        self.update_layout(); self.save_settings()
+        self.update_layout()
+        self.save_settings()
+    
+    def handle_widget_swap(self, dragged_index, dropped_on_index):
+        if utils.DEBUG_UI:
+            print(f"[UI] handle_widget_swap received: Dragged={dragged_index}, Dropped On={dropped_on_index}")
+            print(f"[UI] List before swap: {self.ordered_visible_player_indices}")
+        
+        try:
+            drag_pos = self.ordered_visible_player_indices.index(dragged_index)
+            drop_pos = self.ordered_visible_player_indices.index(dropped_on_index)
+            
+            # Swap the items in the list
+            self.ordered_visible_player_indices[drag_pos], self.ordered_visible_player_indices[drop_pos] = \
+                self.ordered_visible_player_indices[drop_pos], self.ordered_visible_player_indices[drag_pos]
+
+            if utils.DEBUG_UI:
+                print(f"[UI] List after swap: {self.ordered_visible_player_indices}")
+                print("[UI] Calling update_layout...")
+
+            self.update_layout()
+            self.save_settings()
+        except ValueError:
+            if utils.DEBUG_UI: print("Error: Tried to swap indices that are not in the visible list.")
 
     def set_ui_loading(self, is_loading):
         """Enable/disable UI elements during async operations."""
@@ -287,22 +312,46 @@ class TeslaCamViewer(QWidget):
     def load_settings(self):
         geom = self.settings.value("windowGeometry"); self.restoreGeometry(geom) if geom else self.setGeometry(50, 50, 1600, 950)
         self.speed_selector.setCurrentText(self.settings.value("lastSpeedText", "1x", type=str))
-        vis_states = self.settings.value("cameraVisibility");
+        
+        # Load visibility first
+        vis_states = self.settings.value("cameraVisibility")
         if vis_states and len(vis_states) == len(self.camera_visibility_checkboxes):
-            for i, cb in enumerate(self.camera_visibility_checkboxes): cb.setChecked(vis_states[i] == 'true')
-        self.update_layout_from_visibility_change()
+            for i, cb in enumerate(self.camera_visibility_checkboxes): 
+                cb.setChecked(vis_states[i] == 'true')
+        
+        # Build the initial ordered list from the checkboxes
+        visible_from_checkboxes = [self.checkbox_info[i][2] for i, cb in enumerate(self.camera_visibility_checkboxes) if cb.isChecked()]
+
+        # Load custom order and validate it
+        saved_order_str = self.settings.value("cameraOrder", type=list)
+        if saved_order_str:
+            saved_order = [int(i) for i in saved_order_str]
+            # Ensure the saved order only contains currently visible cameras
+            validated_order = [idx for idx in saved_order if idx in visible_from_checkboxes]
+            # Add any newly visible cameras (that weren't in the saved order) to the end
+            for idx in visible_from_checkboxes:
+                if idx not in validated_order:
+                    validated_order.append(idx)
+            self.ordered_visible_player_indices = validated_order
+        else:
+            self.ordered_visible_player_indices = visible_from_checkboxes
+
         last_folder = self.settings.value("lastRootFolder", "", type=str)
         if last_folder and os.path.isdir(last_folder):
             self.app_state.root_clips_path = last_folder
             self.repopulate_date_selector_from_path(last_folder)
             self.date_selector.setCurrentIndex(-1)
-        if not self.app_state.is_daily_view_active: self.clear_all_players()
+        
+        if not self.app_state.is_daily_view_active: 
+            self.clear_all_players()
 
     def save_settings(self):
         self.settings.setValue("windowGeometry", self.saveGeometry())
         self.settings.setValue("lastRootFolder", self.app_state.root_clips_path or "")
         self.settings.setValue("lastSpeedText", self.speed_selector.currentText())
         self.settings.setValue("cameraVisibility", [str(cb.isChecked()).lower() for cb in self.camera_visibility_checkboxes])
+        # Save the custom order of visible indices
+        self.settings.setValue("cameraOrder", [str(i) for i in self.ordered_visible_player_indices])
 
     def closeEvent(self, event): 
         self.save_settings()
