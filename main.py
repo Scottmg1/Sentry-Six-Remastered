@@ -1,5 +1,27 @@
 import sys
 import os
+import logging
+
+# Set up logging
+log_dir = os.path.join(os.path.expanduser("~"), ".sentry_six_logs")
+os.makedirs(log_dir, exist_ok=True)
+log_file = os.path.join(log_dir, "sentry_six.log")
+
+logging.basicConfig(
+    level=logging.INFO,  # Change to DEBUG for more detail
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    handlers=[
+        logging.FileHandler(log_file, encoding="utf-8"),
+        logging.StreamHandler()  # Optional: also log to console
+    ]
+)
+
+def log_uncaught_exceptions(exctype, value, tb):
+    import traceback
+    logging.critical("Uncaught exception", exc_info=(exctype, value, tb))
+    # Optionally, show a user-friendly message box here
+
+sys.excepthook = log_uncaught_exceptions
 
 # Set to True for detailed logs, False to hide console output
 DEBUG = True
@@ -13,6 +35,7 @@ if not DEBUG:
     sys.stderr = open(os.devnull, 'w', encoding='utf-8')
 
 from PyQt6.QtWidgets import QApplication
+from PyQt6.QtGui import QIcon
 from viewer.ui import TeslaCamViewer
 from viewer import utils
 
@@ -23,6 +46,9 @@ def main():
     app.setOrganizationName("TeslaCamViewerAdvanced")
     app.setApplicationName("TeslaCamViewerAdvanced")
 
+    # Set application icon
+    app.setWindowIcon(QIcon(os.path.join(os.path.dirname(__file__), 'assets', 'Sentry_six.ico')))
+
     # Create asset files if they don't exist
     utils.setup_assets()
     
@@ -32,9 +58,9 @@ def main():
         with open(style_path, 'r', encoding='utf-8') as f:
             app.setStyleSheet(f.read())
     except FileNotFoundError:
-        print(f"Warning: Stylesheet not found at {style_path}")
+        logging.warning(f"Stylesheet not found at {style_path}")
     except IOError as e:
-        print(f"Warning: Could not read stylesheet {style_path}: {e}")
+        logging.warning(f"Could not read stylesheet {style_path}: {e}")
 
     # Create and show the main window
     viewer = TeslaCamViewer(show_welcome=SHOW_WELCOME)

@@ -72,7 +72,7 @@ class TeslaCamViewer(QWidget):
         self.pending_seek_position = -1
         self.players_awaiting_seek = set()
 
-        self.setWindowTitle("TeslaCam Viewer")
+        self.setWindowTitle("Sentry Six")
         self.setMinimumSize(1280, 720)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self._layout = QVBoxLayout(self)
@@ -118,12 +118,15 @@ class TeslaCamViewer(QWidget):
         self.go_to_time_btn = QPushButton("⏰ Go to Time"); self.go_to_time_btn.clicked.connect(self.show_go_to_time_dialog)
         self.reset_layout_btn = QPushButton("🔄 Reset Layout"); self.reset_layout_btn.clicked.connect(self.reset_to_default_layout)
         
+        self.check_update_btn = QPushButton("Check for Updates"); self.check_update_btn.clicked.connect(self.check_for_updates)
+        
         self.date_selector = QComboBox(); self.date_selector.setEnabled(False)
         self.date_selector.currentIndexChanged.connect(self.handle_date_selection_change)
 
         top_controls_layout.addWidget(self.select_folder_btn)
         top_controls_layout.addWidget(self.go_to_time_btn)
         top_controls_layout.addWidget(self.reset_layout_btn)
+        top_controls_layout.addWidget(self.check_update_btn)
         top_controls_layout.addSpacing(15)
         top_controls_layout.addWidget(QLabel("Date:"))
         top_controls_layout.addWidget(self.date_selector)
@@ -976,3 +979,24 @@ class TeslaCamViewer(QWidget):
             self.video_player_item_widgets[hidden_idx].setVisible(False)
         
         self.video_grid_widget.update()
+
+    def check_for_updates(self):
+        from viewer import updater
+        from PyQt6.QtWidgets import QMessageBox
+        self.set_ui_loading(True)
+        try:
+            url, latest_version = updater.check_for_update()
+            if url:
+                reply = QMessageBox.question(
+                    self, "Update Available",
+                    f"A new version ({latest_version}) is available. Download and install now?",
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+                )
+                if reply == QMessageBox.StandardButton.Yes:
+                    updater.download_and_run_installer(url)
+            else:
+                QMessageBox.information(self, "No Update", "You are running the latest version.")
+        except Exception as e:
+            QMessageBox.warning(self, "Update Error", f"Could not check for updates:\n{e}")
+        finally:
+            self.set_ui_loading(False)
