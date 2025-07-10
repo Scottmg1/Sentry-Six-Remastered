@@ -54,7 +54,10 @@ class ExportScrubber(QSlider):
     def paintEvent(self, event):
         super().paintEvent(event)
         painter = QPainter(self)
-        groove_rect = self.style().subControlRect(QStyle.ComplexControl.CC_Slider, self.get_style_option(), QStyle.SubControl.SC_SliderGroove, self)
+        style = self.style()
+        if style is None:
+            return
+        groove_rect = style.subControlRect(QStyle.ComplexControl.CC_Slider, self.get_style_option(), QStyle.SubControl.SC_SliderGroove, self)
         
         if self.start_ms is not None and self.end_ms is not None:
             start_px = self._value_to_pixel(self.start_ms)
@@ -107,9 +110,9 @@ class ExportScrubber(QSlider):
     def mouseMoveEvent(self, event: QMouseEvent):
         if self.dragging_marker:
             new_value = self._pixel_to_value(event.pos().x())
-            if self.dragging_marker == 'start' and new_value < self.end_ms:
+            if self.dragging_marker == 'start' and self.end_ms is not None and new_value < self.end_ms:
                 self.export_marker_moved.emit('start', new_value)
-            elif self.dragging_marker == 'end' and new_value > self.start_ms:
+            elif self.dragging_marker == 'end' and self.start_ms is not None and new_value > self.start_ms:
                 self.export_marker_moved.emit('end', new_value)
             return
         
@@ -162,7 +165,7 @@ class VideoPlayerItemWidget(QGraphicsView):
     def __init__(self, player_index: int, parent=None):
         super().__init__(parent)
         self.player_index = player_index
-        self.scene = QGraphicsScene(self)
+        self._scene = QGraphicsScene(self)
         self.video_item = None
         self.setAcceptDrops(True)
         self.is_being_dragged_over = False
@@ -180,11 +183,12 @@ class VideoPlayerItemWidget(QGraphicsView):
         self.setStyleSheet("QGraphicsView { border: 2px solid #282c34; }")
 
     def set_video_item(self, item):
-        if self.video_item:
-            self.scene.removeItem(self.video_item)
+        if self.video_item and self._scene:
+            self._scene.removeItem(self.video_item)
         self.video_item = item
-        self.scene.addItem(self.video_item)
-        self.setScene(self.scene)
+        if self._scene and self.video_item:
+            self._scene.addItem(self.video_item)
+        self.setScene(self._scene)
 
     def fit_video_to_view(self):
         if self.video_item and not self.video_item.nativeSize().isEmpty():
@@ -243,34 +247,41 @@ class VideoPlayerItemWidget(QGraphicsView):
         self.setDragMode(original_drag_mode)
     
     def dragEnterEvent(self, event):
-        if event.mimeData().hasFormat(self.MIME_TYPE):
-            source_index = int(event.mimeData().data(self.MIME_TYPE).data().decode())
-            if source_index != self.player_index:
-                event.acceptProposedAction()
-                self.is_being_dragged_over = True
-                self.setStyleSheet("QGraphicsView { border: 2px solid #61afef; }") # Highlight border
-        else:
+        if event is not None and hasattr(event, 'mimeData'):
+            mime_data = event.mimeData()
+            if mime_data is not None and mime_data.hasFormat(self.MIME_TYPE):
+                source_index = int(mime_data.data(self.MIME_TYPE).data().decode())
+                if source_index != self.player_index:
+                    event.acceptProposedAction()
+                    self.is_being_dragged_over = True
+                    self.setStyleSheet("QGraphicsView { border: 2px solid #61afef; }") # Highlight border
+                return
+        if event is not None:
             event.ignore()
 
     def dragMoveEvent(self, event):
-        """This event is crucial. It's fired as the drag is held over the widget."""
-        if event.mimeData().hasFormat(self.MIME_TYPE):
-            event.acceptProposedAction()
-        else:
+        if event is not None and hasattr(event, 'mimeData'):
+            mime_data = event.mimeData()
+            if mime_data is not None and mime_data.hasFormat(self.MIME_TYPE):
+                event.acceptProposedAction()
+                return
+        if event is not None:
             event.ignore()
 
-    def dragLeaveEvent(self, event):
+    def dragLeaveEvent(self, event=None):
         self.is_being_dragged_over = False
         self.setStyleSheet("QGraphicsView { border: 2px solid #282c34; }") # Reset border
 
     def dropEvent(self, event):
-        if event.mimeData().hasFormat(self.MIME_TYPE):
-            source_index = int(event.mimeData().data(self.MIME_TYPE).data().decode())
-            if utils.DEBUG_UI:
-                print(f"[Widget {self.player_index}] Drop detected. Emitting swap request: Dragged={source_index}, Dropped On={self.player_index}")
-            self.swap_requested.emit(source_index, self.player_index)
-            event.acceptProposedAction()
-        self.dragLeaveEvent(event) # Reset style after drop
+        if event is not None and hasattr(event, 'mimeData'):
+            mime_data = event.mimeData()
+            if mime_data is not None and mime_data.hasFormat(self.MIME_TYPE):
+                source_index = int(mime_data.data(self.MIME_TYPE).data().decode())
+                if utils.DEBUG_UI:
+                    print(f"[Widget {self.player_index}] Drop detected. Emitting swap request: Dragged={source_index}, Dropped On={self.player_index}")
+                self.swap_requested.emit(source_index, self.player_index)
+                event.acceptProposedAction()
+        self.dragLeaveEvent() # Reset style after drop
 
 class GoToTimeDialog(QDialog):
     request_thumbnail = pyqtSignal(str, float)
@@ -279,18 +290,18 @@ class GoToTimeDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("Go to Timestamp")
         self.setMinimumWidth(400)
-        self.layout = QVBoxLayout(self)
+        layout = QVBoxLayout(self)
         self.info_label = QLabel(f"Date: {current_date_str}\nEnter time (HH:MM:SS)")
-        self.layout.addWidget(self.info_label)
+        layout.addWidget(self.info_label)
         self.time_input = QLineEdit(self)
         self.time_input.setPlaceholderText("HH:MM:SS")
         self.time_input.textChanged.connect(self.on_time_input_changed)
-        self.layout.addWidget(self.time_input)
+        layout.addWidget(self.time_input)
         self.thumbnail_label = QLabel("Enter time to see preview...")
         self.thumbnail_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.thumbnail_label.setMinimumSize(320, 180)
         self.thumbnail_label.setStyleSheet("border: 1px solid #444; background-color: #222;")
-        self.layout.addWidget(self.thumbnail_label)
+        layout.addWidget(self.thumbnail_label)
         self.buttons_layout = QHBoxLayout()
         self.ok_button = QPushButton("OK")
         self.ok_button.clicked.connect(self.accept)
@@ -298,7 +309,7 @@ class GoToTimeDialog(QDialog):
         self.cancel_button.clicked.connect(self.reject)
         self.buttons_layout.addWidget(self.ok_button)
         self.buttons_layout.addWidget(self.cancel_button)
-        self.layout.addLayout(self.buttons_layout)
+        layout.addLayout(self.buttons_layout)
         if parent:
             self.setStyleSheet(parent.styleSheet())
         
@@ -321,23 +332,29 @@ class GoToTimeDialog(QDialog):
             self.thumbnail_label.setText("Preview N/A (No input/ffmpeg)")
             return
         
-        original_date_str = self.parent().date_selector.currentData()
+        parent = self.parent()
+        original_date_str = None
+        date_selector = getattr(parent, 'date_selector', None)
+        if date_selector is not None:
+            original_date_str = date_selector.currentData()
+        if not original_date_str:
+            self.thumbnail_label.setText("Invalid date for preview")
+            return
         try:
             target_dt = datetime.strptime(f"{original_date_str} {time_str}", "%Y-%m-%d %H:%M:%S")
         except (ValueError, TypeError):
             self.thumbnail_label.setText("Invalid time format for preview")
             return
-
-        if not all([target_dt, self.first_timestamp_of_day_for_thumb, self.daily_clip_collections_for_thumb, self.front_cam_idx_for_thumb is not None]):
+        if not (target_dt and self.first_timestamp_of_day_for_thumb and self.daily_clip_collections_for_thumb is not None and self.front_cam_idx_for_thumb is not None):
             return
-        
-        time_offset_s = (target_dt - self.first_timestamp_of_day_for_thumb).total_seconds()
+        if self.first_timestamp_of_day_for_thumb is None:
+            return
+        time_offset_s = (target_dt - self.first_timestamp_of_day_for_thumb).total_seconds() if target_dt and self.first_timestamp_of_day_for_thumb else 0
         if time_offset_s < 0:
             self.thumbnail_label.setText("Time before day start")
             return
-            
         seg_idx, offset_in_seg = int(time_offset_s // 60), time_offset_s % 60
-        front_clips = self.daily_clip_collections_for_thumb[self.front_cam_idx_for_thumb]
+        front_clips = self.daily_clip_collections_for_thumb[self.front_cam_idx_for_thumb] if self.daily_clip_collections_for_thumb and self.front_cam_idx_for_thumb is not None else None
         if front_clips and 0 <= seg_idx < len(front_clips):
             self.request_thumbnail.emit(front_clips[seg_idx], offset_in_seg)
         else:

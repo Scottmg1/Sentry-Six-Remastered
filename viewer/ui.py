@@ -75,9 +75,9 @@ class TeslaCamViewer(QWidget):
         self.setWindowTitle("TeslaCam Viewer")
         self.setMinimumSize(1280, 720)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
-        self.layout = QVBoxLayout(self)
-        self.layout.setSpacing(8)
-        self.layout.setContentsMargins(8, 8, 8, 8)
+        self._layout = QVBoxLayout(self)
+        self._layout.setSpacing(8)
+        self._layout.setContentsMargins(8, 8, 8, 8)
 
         self._create_top_controls()
         self._create_video_grid()
@@ -86,7 +86,7 @@ class TeslaCamViewer(QWidget):
         self._create_scrubber()
         self._create_actions_and_shortcuts()
 
-        self.setLayout(self.layout)
+        self.setLayout(self._layout)
         
         self.position_update_timer = QTimer(self); self.position_update_timer.setInterval(300)
         self.position_update_timer.timeout.connect(self.update_slider_and_time_display)
@@ -140,13 +140,13 @@ class TeslaCamViewer(QWidget):
             self.camera_visibility_checkboxes.append(cb); top_controls_layout.addWidget(cb)
         
         top_controls_layout.addStretch(1)
-        self.layout.addLayout(top_controls_layout)
+        self._layout.addLayout(top_controls_layout)
 
     def _create_video_grid(self):
         self.video_grid_widget = QWidget(self)
         self.video_grid = QGridLayout(self.video_grid_widget)
         self.video_grid.setSpacing(3)
-        self.layout.addWidget(self.video_grid_widget, 1)
+        self._layout.addWidget(self.video_grid_widget, 1)
 
     def _create_players_and_items(self):
         self.players_a, self.players_b = [], []
@@ -203,7 +203,7 @@ class TeslaCamViewer(QWidget):
         control_layout.addWidget(self.speed_selector)
         
         control_layout.addStretch()
-        self.layout.addLayout(control_layout)
+        self._layout.addLayout(control_layout)
         
     def _create_scrubber(self):
         self.slider_layout = QHBoxLayout()
@@ -221,7 +221,7 @@ class TeslaCamViewer(QWidget):
         
         self.slider_layout.addWidget(self.time_label)
         self.slider_layout.addWidget(self.scrubber, 1)
-        self.layout.addLayout(self.slider_layout)
+        self._layout.addLayout(self.slider_layout)
 
     def _create_actions_and_shortcuts(self):
         # Play/Pause Action
@@ -356,7 +356,7 @@ class TeslaCamViewer(QWidget):
     def closeEvent(self, event): 
         self.save_settings()
         self.clear_all_players() # Safely stop any running workers
-        if self.export_thread and self.export_thread.isRunning():
+        if self.export_thread and self.export_thread.isRunning() and self.export_worker:
             self.export_worker.stop(); self.export_thread.quit(); self.export_thread.wait()
         
         for p_set in [self.players_a, self.players_b]:
@@ -533,8 +533,11 @@ class TeslaCamViewer(QWidget):
             return
         
         m = utils.filename_pattern.match(os.path.basename(front_clips[target_seg_idx]))
-        s_dt = datetime.strptime(f"{m.group(1)} {m.group(2).replace('-' , ':')}", "%Y-%m-%d %H:%M:%S")
-        pos_in_seg_ms = int((target_dt - s_dt).total_seconds() * 1000)
+        if m:
+            s_dt = datetime.strptime(f"{m.group(1)} {m.group(2).replace('-' , ':')}", "%Y-%m-%d %H:%M:%S")
+            pos_in_seg_ms = int((target_dt - s_dt).total_seconds() * 1000)
+        else:
+            pos_in_seg_ms = 0
         
         if target_seg_idx != self.app_state.playback_state.clip_indices[0]:
             self._load_and_set_segment(target_seg_idx, pos_in_seg_ms)
@@ -705,7 +708,7 @@ class TeslaCamViewer(QWidget):
             if utils.DEBUG_UI: print(f"Error in update_slider_and_time_display: {e}"); traceback.print_exc()
     
     def clear_all_players(self):
-        if self.clip_loader_thread and self.clip_loader_thread.isRunning():
+        if self.clip_loader_thread and self.clip_loader_thread.isRunning() and self.clip_loader_worker:
             self.clip_loader_worker.stop()
             self.clip_loader_thread.quit()
             self.clip_loader_thread.wait() # Wait for thread to fully terminate
@@ -754,8 +757,11 @@ class TeslaCamViewer(QWidget):
         if target_seg_idx == -1: return
         
         m = utils.filename_pattern.match(os.path.basename(front_clips[target_seg_idx]))
-        s_dt = datetime.strptime(f"{m.group(1)} {m.group(2).replace('-' , ':')}", "%Y-%m-%d %H:%M:%S")
-        pos_in_seg_ms = int((target_dt - s_dt).total_seconds() * 1000)
+        if m:
+            s_dt = datetime.strptime(f"{m.group(1)} {m.group(2).replace('-' , ':')}", "%Y-%m-%d %H:%M:%S")
+            pos_in_seg_ms = int((target_dt - s_dt).total_seconds() * 1000)
+        else:
+            pos_in_seg_ms = 0
         
         if target_seg_idx != self.app_state.playback_state.clip_indices[0]:
             self._load_and_set_segment(target_seg_idx, pos_in_seg_ms)
@@ -782,9 +788,11 @@ class TeslaCamViewer(QWidget):
             return
 
         m = utils.filename_pattern.match(os.path.basename(front_clips[segment_index]))
-        s_dt = datetime.strptime(f"{m.group(1)} {m.group(2).replace('-' , ':')}", "%Y-%m-%d %H:%M:%S")
-        
-        segment_start_ms = int((s_dt - self.app_state.first_timestamp_of_day).total_seconds() * 1000)
+        if m and self.app_state.first_timestamp_of_day:
+            s_dt = datetime.strptime(f"{m.group(1)} {m.group(2).replace('-' , ':')}", "%Y-%m-%d %H:%M:%S")
+            segment_start_ms = int((s_dt - self.app_state.first_timestamp_of_day).total_seconds() * 1000)
+        else:
+            segment_start_ms = 0
         self.app_state.playback_state = PlaybackState(clip_indices=[segment_index]*6, segment_start_ms=segment_start_ms)
 
         # Update the UI to show the new video items immediately.
@@ -885,8 +893,11 @@ class TeslaCamViewer(QWidget):
         
         front_clips = self.app_state.daily_clip_collections[front_cam_idx]
         m = utils.filename_pattern.match(os.path.basename(front_clips[next_segment_index]))
-        s_dt = datetime.strptime(f"{m.group(1)} {m.group(2).replace('-' , ':')}", "%Y-%m-%d %H:%M:%S")
-        segment_start_ms = int((s_dt - self.app_state.first_timestamp_of_day).total_seconds() * 1000)
+        if m and self.app_state.first_timestamp_of_day:
+            s_dt = datetime.strptime(f"{m.group(1)} {m.group(2).replace('-' , ':')}", "%Y-%m-%d %H:%M:%S")
+            segment_start_ms = int((s_dt - self.app_state.first_timestamp_of_day).total_seconds() * 1000)
+        else:
+            segment_start_ms = 0
         self.app_state.playback_state = PlaybackState(clip_indices=[next_segment_index] * 6, segment_start_ms=segment_start_ms)
 
         for i in range(6):
@@ -904,8 +915,10 @@ class TeslaCamViewer(QWidget):
     def update_layout(self):
         while self.video_grid.count():
             item = self.video_grid.takeAt(0)
-            if item and item.widget(): 
-                item.widget().setParent(None); item.widget().hide()
+            widget = item.widget() if item else None
+            if widget is not None:
+                widget.setParent(None)
+                widget.hide()
         
         num_visible = len(self.ordered_visible_player_indices)
         if num_visible == 0: self.video_grid.update(); return 
