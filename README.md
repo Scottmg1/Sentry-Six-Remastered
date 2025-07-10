@@ -45,7 +45,6 @@ Have questions, suggestions, or want to connect with other users? Join our offic
 
 -   Python 3.10+
 -   PyQt6
--   FFmpeg (must be in your system's PATH)
 
 Install all Python dependencies with:
 
@@ -58,6 +57,10 @@ pip install -r requirements.txt
 2. Double-click the downloaded file to run the application. No installation or Python required.
 3. (Optional) Pin the app to your taskbar for easy access.
 4. To check for updates, use the "Check for Updates" button in the app. If a new version is available, the app will guide you through the update process.
+
+## FFmpeg
+
+FFmpeg is now bundled with Sentry-Six and managed automatically by the application. No manual installation or PATH configuration is required.
 
 ## 🛠️ Usage
 

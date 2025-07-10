@@ -23,6 +23,7 @@ from . import workers
 from . import ffmpeg_manager
 from .state import AppState, PlaybackState, ExportState, TimelineData
 from .ffmpeg_builder import FFmpegCommandBuilder
+from .ffmpeg_manager import FFMPEG_EXE
 
 
 class WelcomeDialog(QDialog):
@@ -99,8 +100,8 @@ class TeslaCamViewer(QWidget):
             self._maybe_show_welcome_dialog()
         self.update_layout()
 
-        # FFmpeg update check (Windows only)
-        ffmpeg_manager.ensure_ffmpeg_up_to_date(parent=self)
+        # FFmpeg update check (Windows only) - run after window is shown to avoid blocking UI
+        QTimer.singleShot(0, lambda: ffmpeg_manager.ensure_ffmpeg_up_to_date(parent=self))
 
 
     def _maybe_show_welcome_dialog(self):
@@ -474,11 +475,11 @@ class TeslaCamViewer(QWidget):
         self.date_selector.blockSignals(False); return bool(dates)
 
     def generate_and_set_thumbnail(self, video_path, timestamp_seconds):
-        if not utils.FFMPEG_FOUND or not self.go_to_time_dialog_instance: return
+        if not os.path.exists(FFMPEG_EXE) or not self.go_to_time_dialog_instance: return
         
         temp_fd, temp_file_path = tempfile.mkstemp(suffix=".jpg"); os.close(temp_fd)
         try:
-            cmd = [utils.FFMPEG_PATH, "-y", "-ss", str(timestamp_seconds), "-i", video_path, "-vframes", "1", "-vf", "scale=192:-1", "-q:v", "3", temp_file_path]
+            cmd = [FFMPEG_EXE, "-y", "-ss", str(timestamp_seconds), "-i", video_path, "-vframes", "1", "-vf", "scale=192:-1", "-q:v", "3", temp_file_path]
             subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, timeout=5, creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0)
             
             pixmap = QPixmap(temp_file_path) if os.path.exists(temp_file_path) else QPixmap()
@@ -644,7 +645,7 @@ class TeslaCamViewer(QWidget):
         self.scrubber.set_export_range(self.app_state.export_state.start_ms, self.app_state.export_state.end_ms)
 
     def show_export_dialog(self):
-        if not all([utils.FFMPEG_FOUND, self.app_state.is_daily_view_active, self.app_state.export_state.start_ms is not None, self.app_state.export_state.end_ms is not None]):
+        if not all([os.path.exists(FFMPEG_EXE), self.app_state.is_daily_view_active, self.app_state.export_state.start_ms is not None, self.app_state.export_state.end_ms is not None]):
             QMessageBox.warning(self, "Export Error", "Please load clips and set both a start and end time before exporting."); return
         dialog = QDialog(self); dialog.setWindowTitle("Export Options"); layout = QVBoxLayout(dialog)
         layout.addWidget(QLabel("Select export quality:")); full_res_rb = QRadioButton("Full Resolution"); mobile_rb = QRadioButton("Mobile Friendly - 1080p")
