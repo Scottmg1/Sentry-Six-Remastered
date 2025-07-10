@@ -52,6 +52,12 @@ Install all Python dependencies with:
 ```bash
 pip install -r requirements.txt
 ```
+## Installation  
+
+1. Download the latest `SentrySix.exe` from the [Releases page](https://github.com/ChadR23/Sentry-Six/releases).
+2. Double-click the downloaded file to run the application. No installation or Python required.
+3. (Optional) Pin the app to your taskbar for easy access.
+4. To check for updates, use the "Check for Updates" button in the app. If a new version is available, the app will guide you through the update process.
 
 ## 🛠️ Usage
 
