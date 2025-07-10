@@ -20,6 +20,7 @@ from PyQt6.QtGui import QPixmap, QAction, QKeySequence
 from . import utils
 from . import widgets
 from . import workers
+from . import ffmpeg_manager
 from .state import AppState, PlaybackState, ExportState, TimelineData
 from .ffmpeg_builder import FFmpegCommandBuilder
 
@@ -97,6 +98,9 @@ class TeslaCamViewer(QWidget):
         if show_welcome:
             self._maybe_show_welcome_dialog()
         self.update_layout()
+
+        # FFmpeg update check (Windows only)
+        ffmpeg_manager.ensure_ffmpeg_up_to_date(parent=self)
 
 
     def _maybe_show_welcome_dialog(self):
