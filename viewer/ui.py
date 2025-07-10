@@ -271,9 +271,39 @@ class TeslaCamViewer(QWidget):
         self.update_layout_from_visibility_change()
 
     def update_layout_from_visibility_change(self):
-        self.ordered_visible_player_indices = [self.checkbox_info[i][2] for i, cb in enumerate(self.camera_visibility_checkboxes) if cb.isChecked()]
+        # Update the list of visible player indices based on checkboxes
+        new_visible = [
+            self.checkbox_info[i][2]
+            for i, cb in enumerate(self.camera_visibility_checkboxes)
+            if cb.isChecked()
+        ]
+        # Track previously visible cameras
+        last_visible = getattr(self, '_last_visible_player_indices', [])
+        newly_visible = set(new_visible) - set(last_visible)
+        newly_hidden = set(last_visible) - set(new_visible)
+        self.ordered_visible_player_indices = new_visible
         self.update_layout()
+        # Only load/seek newly visible cameras
+        current_segment_index = self.app_state.playback_state.clip_indices[0]
+        active_players = self.get_active_players()
+        # Use the first active visible player's position as reference (if any)
+        reference_player = None
+        for idx in new_visible:
+            if active_players[idx].mediaStatus() == QMediaPlayer.MediaStatus.LoadedMedia:
+                reference_player = active_players[idx]
+                break
+        current_time = reference_player.position() if reference_player else 0
+        is_playing = self.play_btn.text() == "⏸️ Pause"
+        for i in newly_visible:
+            self._load_next_clip_for_player_set(active_players, i, current_segment_index)
+            active_players[i].setPosition(current_time)
+            if is_playing:
+                active_players[i].play()
+        for i in newly_hidden:
+            active_players[i].setSource(QUrl())
         self.save_settings()
+        # Update for next time
+        self._last_visible_player_indices = list(new_visible)
     
     def handle_widget_swap(self, dragged_index, dropped_on_index):
         if utils.DEBUG_UI:
@@ -799,12 +829,18 @@ class TeslaCamViewer(QWidget):
         for i in range(6):
             self.video_player_item_widgets[i].set_video_item(active_video_items[i])
             
-        # Determine which players will actually be loaded with a video clip.
+        # Only load visible cameras
         players_to_load = set()
-        for i in range(6):
+        for i in self.ordered_visible_player_indices:
             clips = self.app_state.daily_clip_collections[i]
             if 0 <= segment_index < len(clips):
                 players_to_load.add(active_players[i])
+                self._load_next_clip_for_player_set(active_players, i)
+            else:
+                active_players[i].setSource(QUrl())
+        # Unload hidden cameras
+        for i in set(range(6)) - set(self.ordered_visible_player_indices):
+            active_players[i].setSource(QUrl())
         
         if not players_to_load:
             return
@@ -814,10 +850,6 @@ class TeslaCamViewer(QWidget):
         # Set up the pending seek operation. It will be executed in handle_media_status_changed.
         self.pending_seek_position = position_ms
         self.players_awaiting_seek = players_to_load
-
-        # Start loading the clips into the active players.
-        for i in range(6):
-            self._load_next_clip_for_player_set(active_players, i)
 
         self._preload_next_segment()
 
@@ -834,8 +866,12 @@ class TeslaCamViewer(QWidget):
                 return
         
         if utils.DEBUG_UI: print(f"--- Preloading segment {next_segment_index} ---")
-        for i in range(6):
+        # Only preload visible cameras
+        for i in self.ordered_visible_player_indices:
             self._load_next_clip_for_player_set(inactive_players, i, next_segment_index)
+        # Unload hidden cameras
+        for i in set(range(6)) - set(self.ordered_visible_player_indices):
+            inactive_players[i].setSource(QUrl())
 
     def _load_next_clip_for_player_set(self, player_set, player_index, force_index=None):
         idx_to_load = force_index if force_index is not None else self.app_state.playback_state.clip_indices[player_index]
