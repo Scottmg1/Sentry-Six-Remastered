@@ -274,9 +274,34 @@ class TeslaCamViewer(QWidget):
         
     def reset_to_default_layout(self):
         self.settings.remove("cameraOrder") # Remove saved order to reset
+        # Set all cameras to visible
         for checkbox in self.camera_visibility_checkboxes:
-            checkbox.blockSignals(True); checkbox.setChecked(True); checkbox.blockSignals(False)
-        self.update_layout_from_visibility_change()
+            checkbox.blockSignals(True)
+            checkbox.setChecked(True)
+            checkbox.blockSignals(False)
+        # Reset the ordered_visible_player_indices to default order (all indices from checkbox_info)
+        self.ordered_visible_player_indices = [idx for _, _, idx in self.checkbox_info]
+        self.update_layout()
+        # Reload video sources for all visible cameras
+        current_segment_index = self.app_state.playback_state.clip_indices[0]
+        active_players = self.get_active_players()
+        reference_player = None
+        for idx in self.ordered_visible_player_indices:
+            if active_players[idx].mediaStatus() == QMediaPlayer.MediaStatus.LoadedMedia:
+                reference_player = active_players[idx]
+                break
+        current_time = reference_player.position() if reference_player else 0
+        is_playing = self.play_btn.text() == "⏸️ Pause"
+        for i in self.ordered_visible_player_indices:
+            self._load_next_clip_for_player_set(active_players, i, current_segment_index)
+            active_players[i].setPosition(current_time)
+            if is_playing:
+                active_players[i].play()
+        for i in set(range(6)) - set(self.ordered_visible_player_indices):
+            active_players[i].setSource(QUrl())
+        self.video_grid_widget.update()
+        self.video_grid_widget.adjustSize()
+        self.save_settings()
 
     def update_layout_from_visibility_change(self):
         # Update the list of visible player indices based on checkboxes
@@ -957,33 +982,61 @@ class TeslaCamViewer(QWidget):
         self._preload_next_segment()
 
     def update_layout(self):
+        # Remove all widgets from the grid
         while self.video_grid.count():
             item = self.video_grid.takeAt(0)
             widget = item.widget() if item else None
             if widget is not None:
                 widget.setParent(None)
                 widget.hide()
-        
-        num_visible = len(self.ordered_visible_player_indices)
-        if num_visible == 0: self.video_grid.update(); return 
 
+        num_visible = len(self.ordered_visible_player_indices)
+        if num_visible == 0:
+            self.video_grid.update()
+            return
+
+        # Calculate columns (1 for 1, 2 for 2/4, 3 for 3/6)
         cols = 1 if num_visible == 1 else 2 if num_visible in [2, 4] else 3
-        
+
         current_col, current_row = 0, 0
         for p_idx in self.ordered_visible_player_indices:
-            widget = self.video_player_item_widgets[p_idx]; widget.setVisible(True); widget.reset_view() 
+            widget = self.video_player_item_widgets[p_idx]
+            widget.setVisible(True)
+            widget.reset_view()  # Ensure video fits the new cell size
             self.video_grid.addWidget(widget, current_row, current_col)
-            
             active_video_item = self.get_active_video_items()[p_idx]
             widget.set_video_item(active_video_item)
 
             current_col += 1
-            if current_col >= cols: current_col = 0; current_row += 1
+            if current_col >= cols:
+                current_col = 0
+                current_row += 1
 
+        # Hide any widgets not in the visible set
         for hidden_idx in (set(range(6)) - set(self.ordered_visible_player_indices)):
             self.video_player_item_widgets[hidden_idx].setVisible(False)
-        
+
+        # Set row and column stretch factors for uniform grid sizing
+        num_rows = (num_visible + cols - 1) // cols
+        if num_visible == 1:
+            # Only one camera: make it fill all space
+            self.video_grid.setRowStretch(0, 1)
+            self.video_grid.setColumnStretch(0, 1)
+            # Set all other stretches to 0 (in case of previous layouts)
+            for i in range(1, 6):
+                self.video_grid.setRowStretch(i, 0)
+                self.video_grid.setColumnStretch(i, 0)
+        else:
+            for i in range(num_rows):
+                self.video_grid.setRowStretch(i, 1)
+            for j in range(cols):
+                self.video_grid.setColumnStretch(j, 1)
+
+        self.video_grid_widget.updateGeometry()
         self.video_grid_widget.update()
+        self.video_grid_widget.adjustSize()
+        self.video_grid.update()
+        self.video_grid.invalidate()
 
     def check_for_updates(self):
         from viewer import updater
