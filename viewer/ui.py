@@ -24,6 +24,7 @@ from . import ffmpeg_manager
 from .state import AppState, PlaybackState, ExportState, TimelineData
 from .ffmpeg_builder import FFmpegCommandBuilder
 from .ffmpeg_manager import FFMPEG_EXE
+from .hwacc_detector import hwacc_detector
 
 
 class WelcomeDialog(QDialog):
@@ -74,6 +75,11 @@ class TeslaCamViewer(QWidget):
         self.pending_seek_position = -1
         self.players_awaiting_seek = set()
 
+        # Hardware acceleration detection
+        self.hwacc_gpu_type = None
+        self.hwacc_available = False
+        self._detect_hardware_acceleration()
+
         self.setWindowTitle("Sentry Six")
         self.setMinimumSize(1280, 720)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
@@ -116,6 +122,29 @@ class TeslaCamViewer(QWidget):
         else:
             if dlg.dont_show_cb.isChecked():
                 self.settings.setValue("welcome_seen", True)
+
+    def _detect_hardware_acceleration(self):
+        """Detect and configure hardware acceleration for video decoding"""
+        try:
+            # Detect GPU and hardware acceleration capabilities
+            gpu_type, hwacc_available = hwacc_detector.detect_and_configure()
+            
+            self.hwacc_gpu_type = gpu_type
+            self.hwacc_available = hwacc_available
+            
+            # Print debug information
+            hwacc_detector.print_debug_info()
+            
+            if utils.DEBUG_UI:
+                print(f"[UI] Hardware acceleration detection complete:")
+                print(f"[UI] GPU Type: {gpu_type}")
+                print(f"[UI] HWACC Available: {hwacc_available}")
+                
+        except Exception as e:
+            if utils.DEBUG_UI:
+                print(f"[UI] Hardware acceleration detection error: {e}")
+            self.hwacc_gpu_type = None
+            self.hwacc_available = False
 
     def _create_top_controls(self):
         top_controls_layout = QHBoxLayout()
@@ -167,6 +196,14 @@ class TeslaCamViewer(QWidget):
             player_a.mediaStatusChanged.connect(lambda s, p=player_a, idx=i: self.handle_media_status_changed(s, p, idx))
             player_b = QMediaPlayer(); player_b.setAudioOutput(QAudioOutput())
             player_b.mediaStatusChanged.connect(lambda s, p=player_b, idx=i: self.handle_media_status_changed(s, p, idx))
+            
+            # Configure hardware acceleration if available
+            if self.hwacc_available and self.hwacc_gpu_type:
+                hwacc_detector.configure_media_player_hwacc(player_a, self.hwacc_gpu_type)
+                hwacc_detector.configure_media_player_hwacc(player_b, self.hwacc_gpu_type)
+                if utils.DEBUG_UI:
+                    print(f"[UI] Configured hardware acceleration for player {i}")
+            
             self.players_a.append(player_a); self.players_b.append(player_b)
 
             self.video_items_a.append(QGraphicsVideoItem())
@@ -271,6 +308,14 @@ class TeslaCamViewer(QWidget):
     def get_active_players(self): return self.players_a if self.active_player_set == 'a' else self.players_b
     def get_inactive_players(self): return self.players_b if self.active_player_set == 'a' else self.players_a
     def get_active_video_items(self): return self.video_items_a if self.active_player_set == 'a' else self.video_items_b
+    
+    def get_hardware_acceleration_status(self) -> dict:
+        """Get current hardware acceleration status for debugging"""
+        return {
+            "gpu_type": self.hwacc_gpu_type,
+            "hwacc_available": self.hwacc_available,
+            "debug_info": hwacc_detector.get_debug_info()
+        }
         
     def reset_to_default_layout(self):
         self.settings.remove("cameraOrder") # Remove saved order to reset
