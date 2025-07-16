@@ -14,7 +14,7 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QLabel, QPushButton, QFileDia
                              QDialog, QDialogButtonBox)
 from PyQt6.QtMultimedia import QMediaPlayer, QAudioOutput
 from PyQt6.QtMultimediaWidgets import QGraphicsVideoItem
-from PyQt6.QtCore import Qt, QUrl, QTimer, QSettings, QThread
+from PyQt6.QtCore import Qt, QUrl, QTimer, QSettings, QThread, pyqtSignal, QObject
 from PyQt6.QtGui import QPixmap, QAction, QKeySequence
 
 from . import utils
@@ -50,6 +50,16 @@ class WelcomeDialog(QDialog):
         folder = QFileDialog.getExistingDirectory(self, "Select TeslaCam Folder")
         if folder:
             self.selected_folder = folder
+
+class FFmpegCheckWorker(QObject):
+    finished = pyqtSignal()
+    def __init__(self, parent_widget):
+        super().__init__()
+        self.parent_widget = parent_widget
+    def run(self):
+        from . import ffmpeg_manager
+        ffmpeg_manager.ensure_ffmpeg_up_to_date(parent=self.parent_widget)
+        self.finished.emit()
 
 class TeslaCamViewer(QWidget):
     def __init__(self, show_welcome: bool = True):
@@ -105,10 +115,31 @@ class TeslaCamViewer(QWidget):
         if show_welcome:
             self._maybe_show_welcome_dialog()
         self.update_layout()
+        # FFmpeg update check (Windows only) - show progress dialog and run in thread
+        QTimer.singleShot(0, self._start_ffmpeg_check_with_progress)
 
-        # FFmpeg update check (Windows only) - run after window is shown to avoid blocking UI
-        QTimer.singleShot(0, lambda: ffmpeg_manager.ensure_ffmpeg_up_to_date(parent=self))
+    def _start_ffmpeg_check_with_progress(self):
+        from PyQt6.QtWidgets import QProgressDialog
+        self.ffmpeg_progress_dialog = QProgressDialog("Checking for FFmpeg updates...", None, 0, 0, self)
+        self.ffmpeg_progress_dialog.setWindowTitle("Please Wait")
+        self.ffmpeg_progress_dialog.setWindowModality(Qt.WindowModality.ApplicationModal)
+        self.ffmpeg_progress_dialog.setMinimumDuration(0)
+        self.ffmpeg_progress_dialog.setCancelButton(None)
+        self.ffmpeg_progress_dialog.show()
+        self.ffmpeg_check_thread = QThread()
+        self.ffmpeg_check_worker = FFmpegCheckWorker(parent_widget=self)
+        self.ffmpeg_check_worker.moveToThread(self.ffmpeg_check_thread)
+        self.ffmpeg_check_thread.started.connect(self.ffmpeg_check_worker.run)
+        self.ffmpeg_check_worker.finished.connect(self._on_ffmpeg_check_done)
+        self.ffmpeg_check_worker.finished.connect(self.ffmpeg_check_thread.quit)
+        self.ffmpeg_check_worker.finished.connect(self.ffmpeg_check_worker.deleteLater)
+        self.ffmpeg_check_thread.finished.connect(self.ffmpeg_check_thread.deleteLater)
+        self.ffmpeg_check_thread.start()
 
+    def _on_ffmpeg_check_done(self):
+        if hasattr(self, 'ffmpeg_progress_dialog') and self.ffmpeg_progress_dialog:
+            self.ffmpeg_progress_dialog.close()
+            self.ffmpeg_progress_dialog = None
 
     def _maybe_show_welcome_dialog(self):
         if self.app_state.root_clips_path is not None and self.settings.value("welcome_seen", False, type=bool):
