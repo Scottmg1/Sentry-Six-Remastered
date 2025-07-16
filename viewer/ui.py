@@ -687,7 +687,7 @@ class TeslaCamViewer(QWidget):
     def handle_event_click(self, event_data):
         seek_ms = event_data['ms_in_timeline']
         if 'sentry' in event_data['reason'] or 'user_interaction' in event_data['reason']:
-            seek_ms -= 10000 
+            seek_ms -= 10000
         self.seek_all_global(max(0, seek_ms))
         self.play_all()
 

@@ -25,9 +25,9 @@ class ExportScrubber(QSlider):
         self.events = []
         self.setMouseTracking(True)
         
-        self.icon_camera = QPixmap(os.path.join(utils.ASSETS_DIR, "camera.svg"))
-        self.icon_hand = QPixmap(os.path.join(utils.ASSETS_DIR, "hand.svg"))
-        self.icon_horn = QPixmap(os.path.join(utils.ASSETS_DIR, "horn.svg"))
+        self.icon_camera = QPixmap(os.path.join(utils.ASSETS_DIR, "camera.svg")).scaled(28, 28, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+        self.icon_hand = QPixmap(os.path.join(utils.ASSETS_DIR, "hand.svg")).scaled(28, 28, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+        self.icon_horn = QPixmap(os.path.join(utils.ASSETS_DIR, "horn.svg")).scaled(28, 28, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
         self.hovered_event = None
 
     def set_export_range(self, start_ms, end_ms):
@@ -328,7 +328,7 @@ class GoToTimeDialog(QDialog):
 
     def trigger_thumbnail_generation(self):
         time_str = self.time_input.text().strip()
-        if not time_str or not utils.FFMPEG_FOUND:
+        if not time_str or not utils.FFMPEG_EXE:
             self.thumbnail_label.setText("Preview N/A (No input/ffmpeg)")
             return
         
