@@ -1,164 +1,207 @@
-# Sentry-Six Project
+# Sentry-Six Electron
 
-This directory contains both the original PyQt6 implementation and the new Electron-based Tesla dashcam viewer.
+A modern Tesla dashcam viewer built with Electron and TypeScript, featuring synchronized multi-camera video playback and advanced timeline controls.
 
-## 📁 **Project Structure**
+## Features
 
-```
-Sentry-Six/
-├── Electron/                    # 🆕 NEW: Modern Electron implementation
-│   ├── src/
-│   │   ├── main/               # Backend (Node.js/TypeScript)
-│   │   │   ├── tesla-file-manager.ts
-│   │   │   ├── video-processor.ts
-│   │   │   └── config-manager.ts
-│   │   ├── renderer/           # Frontend (HTML/CSS/JS)
-│   │   │   ├── index.html
-│   │   │   ├── styles.css
-│   │   │   └── app.js
-│   │   ├── main.ts            # Electron main process
-│   │   └── preload.ts         # Secure IPC bridge
-│   ├── assets/                # Icons and images
-│   ├── package.json           # Dependencies and scripts
-│   ├── tsconfig.json          # TypeScript configuration
-│   ├── README.md              # Full documentation
-│   └── SETUP.md               # Installation guide
-│
-└── PyQt6-Backup/              # 📦 BACKUP: Original PyQt6 implementation
-    └── Sentry-Six-PyQt6-Backup/
-        ├── main.py            # Original Python application
-        ├── viewer/            # PyQt6 modules and managers
-        ├── assets/            # Original assets
-        └── ...                # All original files preserved
-```
+### 🎥 **Multi-Camera Synchronization**
+- Simultaneous playback of up to 6 Tesla camera feeds
+- Frame-accurate synchronization using HTML5 video elements
+- Optimized for Tesla's 36.02 FPS video format
 
-## 🚀 **Quick Start (Electron Version)**
+### 📁 **Tesla File Management**
+- Automatic detection of Tesla dashcam folder structure
+- Support for SavedClips, RecentClips, and SentryClips
+- Intelligent file grouping by timestamp
 
-### **Prerequisites**
-- Node.js 18+ (download from https://nodejs.org/)
+### ⏯️ **Advanced Playback Controls**
+- Play/pause/stop with keyboard shortcuts
+- Variable speed playback (0.25x to 2x)
+- Frame-accurate timeline scrubbing
+- Volume control and muting
+
+### 🎨 **Modern Interface**
+- Dark theme optimized for video viewing
+- Responsive grid layout for multiple cameras
+- Real-time timestamp display
+- Intuitive clip navigation
+
+### 🔧 **Export & Processing**
+- FFmpeg integration for video export
+- Multiple quality settings
+- Custom time range selection
+- Audio inclusion options
+
+## Installation
+
+### Prerequisites
+- Node.js 18+ and npm
 - FFmpeg (for video processing)
 
-### **Installation**
-```bash
-cd Electron
-npm install
-npm run build
-npm start
-```
+### Setup
+1. **Clone or download the project**
+   ```bash
+   cd Sentry-Six-Electron
+   ```
 
-### **Development**
+2. **Install dependencies**
+   ```bash
+   npm install
+   ```
+
+3. **Build the application**
+   ```bash
+   npm run build
+   ```
+
+4. **Start the application**
+   ```bash
+   npm start
+   ```
+
+### Development Mode
+For development with hot reload:
 ```bash
-cd Electron
 npm run dev
 ```
 
-## 🎯 **Migration Summary**
+## Usage
 
-### **✅ What Was Accomplished**
-- **Complete backup** of original PyQt6 implementation preserved in `PyQt6-Backup/`
-- **New Electron application** created with modern architecture
-- **All Tesla-specific logic** ported from Python to TypeScript
-- **Video synchronization engine** rebuilt using HTML5 video elements
-- **Modern UI** with dark theme and responsive design
+### Loading Tesla Videos
+1. Click "📁 Open Folder" in the sidebar
+2. Select your Tesla dashcam folder (usually on USB drive)
+3. The app will automatically scan and organize your clips
 
-### **🔧 Problem Resolution**
-The Electron migration specifically addresses the freezing issues:
+### Video Playback
+- **Play/Pause**: Space bar or play button
+- **Stop**: Ctrl+S or stop button
+- **Seek**: Click timeline or use arrow keys
+- **Speed**: Use speed dropdown or number keys
+- **Volume**: Use volume slider
 
-| Issue | PyQt6 (Old) | Electron (New) |
-|-------|-------------|----------------|
-| **UI Freezes** | ❌ 1-3 second freezes | ✅ Smooth real-time playback |
-| **Video Sync** | ❌ Qt synchronization problems | ✅ Perfect multi-camera sync |
-| **Memory Usage** | ❌ Memory leaks with large videos | ✅ Efficient resource management |
-| **Cross-platform** | ⚠️ Platform-specific issues | ✅ Consistent behavior |
+### Keyboard Shortcuts
+- `Space` - Play/Pause
+- `←/→` - Seek backward/forward 5 seconds
+- `Ctrl+←/→` - Previous/Next clip
+- `Home/End` - Jump to start/end
+- `Ctrl+S` - Stop playback
 
-### **🎥 Key Features Implemented**
-- **6 synchronized HTML5 video elements** for Tesla cameras
-- **Frame-accurate playback** using Chromium's video engine
-- **Tesla file management** with automatic folder scanning
-- **Timeline scrubber** with smooth seeking
-- **Export functionality** using FFmpeg integration
-- **Configuration management** with persistent settings
+### Navigation
+- Click any clip in the sidebar to load it
+- Use previous/next buttons for sequential playback
+- Timeline shows current position and total duration
 
-## 📚 **Documentation**
+## Architecture
 
-### **Electron Version**
-- **`Electron/README.md`** - Complete feature documentation
-- **`Electron/SETUP.md`** - Detailed setup and migration guide
-- **Code comments** - Comprehensive inline documentation
+### Main Process (`src/main/`)
+- **main.ts** - Electron main process and window management
+- **tesla-file-manager.ts** - Tesla file discovery and organization
+- **video-processor.ts** - FFmpeg integration for metadata and export
+- **config-manager.ts** - Application settings and preferences
 
-### **PyQt6 Backup**
-- **`PyQt6-Backup/Sentry-Six-PyQt6-Backup/`** - Complete original codebase
-- All Python modules, timing fixes, and Tesla-specific logic preserved
-- Available for reference or rollback if needed
+### Renderer Process (`src/renderer/`)
+- **index.html** - Main application UI
+- **styles.css** - Modern CSS styling
+- **app.js** - Frontend application logic and video synchronization
 
-## 🔄 **Migration Benefits**
+### Shared (`src/shared/`)
+- Type definitions and interfaces
+- Common utilities and constants
 
-### **Performance Improvements**
-- **No more UI freezing** during video operations
-- **Better hardware acceleration** through Chromium
+## Performance Optimizations
+
+### Video Synchronization
+- Uses HTML5 video elements for hardware acceleration
+- Chromium's optimized video engine handles multiple streams efficiently
+- Frame-accurate seeking with minimal UI blocking
+
+### Memory Management
+- Lazy loading of video metadata
+- Efficient clip list rendering
+- Automatic cleanup of unused video elements
+
+### Tesla-Specific Optimizations
+- 36.02 FPS frame rate detection
+- Optimized for Tesla's H.264 encoding
+- Intelligent timestamp parsing from filenames
+
+## Migration from PyQt6
+
+This Electron version replaces the previous PyQt6 implementation to solve:
+- **Video freezing issues** - Qt QMediaPlayer limitations with multiple streams
+- **Synchronization problems** - Better control over video timing
+- **Cross-platform compatibility** - Consistent behavior across Windows, macOS, Linux
+- **Modern UI** - Web-based interface with better responsiveness
+
+### Key Improvements
+- **No more 1-3 second UI freezes** during video operations
 - **Smoother timeline scrubbing** with real-time updates
-- **Efficient memory management** for large video files
+- **Better hardware acceleration** through Chromium's video engine
+- **Unified codebase** - Single technology stack for easier maintenance
 
-### **Development Benefits**
-- **Unified codebase** - Single JavaScript/TypeScript stack
-- **Modern tooling** - Hot reload, DevTools, extensive debugging
-- **Cross-platform consistency** - Same behavior on Windows, macOS, Linux
-- **Easier maintenance** - Web-based UI with CSS Grid layout
+## Building for Distribution
 
-### **User Experience**
-- **Responsive interface** that doesn't freeze during video loading
-- **Smooth multi-camera synchronization** for Tesla's 6-camera system
-- **Modern dark theme** optimized for video viewing
-- **Keyboard shortcuts** for efficient navigation
-
-## 🛠️ **Development Workflow**
-
-### **Working with Electron Version**
+### Windows
 ```bash
-cd Electron
-
-# Install dependencies
-npm install
-
-# Development with hot reload
-npm run dev
-
-# Build for production
-npm run build
-npm start
-
-# Create distribution packages
 npm run dist
 ```
+Creates an NSIS installer in the `release/` directory.
 
-### **Accessing PyQt6 Backup**
-The original PyQt6 implementation is preserved in `PyQt6-Backup/Sentry-Six-PyQt6-Backup/` with:
-- All Python source code
-- Timing optimizations and fixes
-- Tesla file processing logic
-- Original assets and documentation
-- Git history and branches
+### macOS
+```bash
+npm run dist
+```
+Creates a DMG file in the `release/` directory.
 
-## 🎯 **Next Steps**
+### Linux
+```bash
+npm run dist
+```
+Creates an AppImage in the `release/` directory.
 
-1. **Test the Electron version** with your Tesla videos
-2. **Verify synchronization** works correctly across all cameras
-3. **Check export functionality** if needed
-4. **Report any issues** for quick resolution
-5. **Enjoy freeze-free video playback!**
+## Configuration
 
-## 📞 **Support**
+Settings are stored in:
+- **Windows**: `%APPDATA%/sentry-six-electron/config.json`
+- **macOS**: `~/Library/Application Support/sentry-six-electron/config.json`
+- **Linux**: `~/.config/sentry-six-electron/config.json`
 
-If you encounter any issues:
-1. Check `Electron/SETUP.md` for troubleshooting
-2. Review console output for error messages
-3. Test with a small set of videos first
-4. Compare with PyQt6 backup if needed
+## Troubleshooting
 
-The new Electron architecture should eliminate the freezing issues while providing better performance and a more modern interface.
+### Video Won't Play
+- Ensure FFmpeg is installed and accessible
+- Check that video files aren't corrupted
+- Verify Tesla folder structure is correct
 
----
+### Performance Issues
+- Close other video applications
+- Reduce number of concurrent cameras in settings
+- Check available system memory
 
-**Migration completed successfully! 🎉**
+### File Loading Problems
+- Ensure proper Tesla folder structure:
+  ```
+  TeslaCam/
+  ├── SavedClips/
+  ├── RecentClips/
+  └── SentryClips/
+  ```
 
-The Tesla dashcam viewer is now ready for smooth, freeze-free multi-camera video playback.
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Test thoroughly
+5. Submit a pull request
+
+## License
+
+MIT License - see LICENSE file for details.
+
+## Acknowledgments
+
+- Tesla for creating an amazing dashcam system
+- Electron team for the excellent framework
+- FFmpeg project for video processing capabilities
+- Original PyQt6 implementation contributors
