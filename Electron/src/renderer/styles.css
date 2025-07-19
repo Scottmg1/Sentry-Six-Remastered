@@ -214,8 +214,6 @@ body {
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    min-height: 0; /* Allow section to shrink */
-    height: calc(100vh - 140px); /* Account for header (60px) + timeline (80px) */
 }
 
 .video-grid {
@@ -226,8 +224,6 @@ body {
     flex: 1;
     background: #000;
     padding: 2px;
-    min-height: 0; /* Allow grid to shrink */
-    overflow: hidden; /* Prevent overflow */
 }
 
 .video-container {
@@ -237,8 +233,6 @@ body {
     overflow: hidden;
     display: flex;
     flex-direction: column;
-    min-height: 0; /* Allow container to shrink */
-    height: 100%; /* Fill grid cell */
 }
 
 .video-header {
@@ -615,20 +609,10 @@ body {
     cursor: pointer;
     user-select: none;
     transition: background 0.2s;
-    position: sticky;
-    top: 0;
-    z-index: 10;
-    border-bottom: 1px solid #555555;
 }
 
 .section-header:hover {
     background: #454545;
-}
-
-/* Enhanced sticky header effect */
-.section-header.sticky {
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-    background: #404040;
 }
 
 .section-toggle {
@@ -665,9 +649,7 @@ body {
 }
 
 .section-content.expanded {
-    max-height: none;
-    overflow-y: auto;
-    max-height: calc(100vh - 200px); /* Allow scrolling within viewport */
+    max-height: 1000px;
 }
 
 .date-group {
@@ -977,151 +959,4 @@ body {
 .gap-message {
     font-size: 14px;
     font-weight: 500;
-}
-
-/* Camera Visibility Panel Styles */
-.camera-panel {
-    position: fixed;
-    top: 80px;
-    right: 20px;
-    width: 300px;
-    background: rgba(30, 30, 30, 0.95);
-    border: 1px solid #444;
-    border-radius: 8px;
-    padding: 0;
-    z-index: 1000;
-    backdrop-filter: blur(10px);
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-}
-
-.camera-panel.hidden {
-    display: none;
-}
-
-.panel-header {
-    padding: 15px 20px;
-    border-bottom: 1px solid #444;
-    position: relative;
-}
-
-.panel-header h3 {
-    margin: 0;
-    color: #fff;
-    font-size: 16px;
-}
-
-.panel-content {
-    padding: 20px;
-}
-
-.camera-toggles {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    margin-bottom: 20px;
-}
-
-.camera-toggle {
-    display: flex;
-    align-items: center;
-    cursor: pointer;
-    padding: 8px 12px;
-    border-radius: 6px;
-    transition: background-color 0.2s;
-}
-
-.camera-toggle:hover {
-    background-color: rgba(255, 255, 255, 0.05);
-}
-
-.camera-toggle input[type="checkbox"] {
-    display: none;
-}
-
-.checkmark {
-    width: 18px;
-    height: 18px;
-    border: 2px solid #666;
-    border-radius: 3px;
-    margin-right: 12px;
-    position: relative;
-    transition: all 0.2s;
-}
-
-.camera-toggle input[type="checkbox"]:checked + .checkmark {
-    background-color: #4CAF50;
-    border-color: #4CAF50;
-}
-
-.camera-toggle input[type="checkbox"]:checked + .checkmark::after {
-    content: '✓';
-    position: absolute;
-    top: -2px;
-    left: 2px;
-    color: white;
-    font-size: 14px;
-    font-weight: bold;
-}
-
-.camera-name {
-    color: #fff;
-    font-size: 14px;
-    user-select: none;
-}
-
-.panel-actions {
-    display: flex;
-    gap: 10px;
-}
-
-.panel-btn {
-    flex: 1;
-    padding: 8px 16px;
-    background: #444;
-    border: 1px solid #666;
-    border-radius: 4px;
-    color: #fff;
-    cursor: pointer;
-    font-size: 12px;
-    transition: all 0.2s;
-}
-
-.panel-btn:hover {
-    background: #555;
-    border-color: #777;
-}
-
-.panel-btn:active {
-    background: #333;
-}
-
-.close-btn {
-    position: absolute;
-    top: 10px;
-    right: 15px;
-    background: none;
-    border: none;
-    color: #999;
-    font-size: 20px;
-    cursor: pointer;
-    padding: 0;
-    width: 20px;
-    height: 20px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.close-btn:hover {
-    color: #fff;
-}
-
-/* Hidden camera styles */
-.video-container.hidden-camera {
-    display: none;
-}
-
-/* Adjust debug panel position when camera panel is open */
-.debug-panel {
-    right: 340px; /* Moved left to avoid camera panel */
 }

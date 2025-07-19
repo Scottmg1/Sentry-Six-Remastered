@@ -16,15 +16,6 @@ class SentrySixApp {
         this.isLoadingClip = false; // Flag to prevent timeline updates during clip loading
         this.isAutoAdvancing = false; // Flag to prevent multiple rapid auto-advancements
         this.isSeekingTimeline = false; // Flag to prevent timeline updates during manual seeking
-        this.seekTimeout = null; // Debounce timer for seeking
-        this.cameraVisibility = {
-            left_pillar: true,
-            front: true,
-            right_pillar: true,
-            left_repeater: true,
-            back: true,
-            right_repeater: true
-        };
 
         this.initializeApp();
     }
@@ -44,9 +35,6 @@ class SentrySixApp {
             
             // Set up event listeners
             this.setupEventListeners();
-
-        // Set up sticky header behavior
-        this.setupStickyHeaders();
             
             // Initialize video players
             this.initializeVideoPlayers();
@@ -115,9 +103,9 @@ class SentrySixApp {
         const nextClipBtn = document.getElementById('next-clip-btn');
         nextClipBtn.addEventListener('click', () => this.manualNextClip());
 
-        // Timeline scrubber with debouncing
+        // Timeline scrubber
         const timelineScrubber = document.getElementById('timeline-scrubber');
-        timelineScrubber.addEventListener('input', (e) => this.debouncedSeek(e.target.value));
+        timelineScrubber.addEventListener('input', (e) => this.seekToPosition(e.target.value));
         timelineScrubber.addEventListener('mousedown', () => {
             this.isSeekingTimeline = true;
             console.log('🎯 Started seeking');
@@ -147,27 +135,6 @@ class SentrySixApp {
         // Settings button
         const settingsBtn = document.getElementById('settings-btn');
         settingsBtn.addEventListener('click', () => this.openSettings());
-
-        // Camera visibility panel
-        const cameraToggleBtn = document.getElementById('camera-toggle-btn');
-        cameraToggleBtn.addEventListener('click', () => this.toggleCameraPanel());
-
-        const closeCameraPanel = document.getElementById('close-camera-panel');
-        closeCameraPanel.addEventListener('click', () => this.hideCameraPanel());
-
-        // Camera visibility toggles
-        const cameras = ['left_pillar', 'front', 'right_pillar', 'left_repeater', 'back', 'right_repeater'];
-        cameras.forEach(camera => {
-            const toggle = document.getElementById(`toggle-${camera}`);
-            toggle.addEventListener('change', (e) => this.toggleCameraVisibility(camera, e.target.checked));
-        });
-
-        // Show/Hide all cameras
-        const showAllBtn = document.getElementById('show-all-cameras');
-        showAllBtn.addEventListener('click', () => this.showAllCameras());
-
-        const hideAllBtn = document.getElementById('hide-all-cameras');
-        hideAllBtn.addEventListener('click', () => this.hideAllCameras());
 
         // Keyboard shortcuts
         document.addEventListener('keydown', (e) => this.handleKeyboardShortcuts(e));
@@ -344,22 +311,8 @@ class SentrySixApp {
 
     renderDateGroups(dateGroups, sectionName) {
         return dateGroups.map((dateGroup, dateIndex) => {
-            // Calculate total duration for the day using actual clip analysis
-            let totalDurationMs = 0;
-
-            // Try to get actual duration from clip analysis if available
-            if (dateGroup.actualTotalDuration) {
-                totalDurationMs = dateGroup.actualTotalDuration;
-            } else {
-                // Use filtered clip count for more accurate estimation
-                const clipCount = dateGroup.clips.length;
-
-                // Use more realistic estimation for Tesla clips
-                // Many Tesla clips are shorter than 60s, especially after corruption filtering
-                const estimatedSecondsPerClip = clipCount === 1 ? 35 : 45; // Single clips often shorter
-                totalDurationMs = clipCount * estimatedSecondsPerClip * 1000;
-            }
-
+            // Calculate total duration for the day
+            const totalDurationMs = dateGroup.clips.length * 60000; // Assume 60 seconds per clip
             const totalMinutes = Math.floor(totalDurationMs / 60000);
             const totalHours = Math.floor(totalMinutes / 60);
             const remainingMinutes = totalMinutes % 60;
@@ -367,12 +320,8 @@ class SentrySixApp {
             let durationText = '';
             if (totalHours > 0) {
                 durationText = `${totalHours}h ${remainingMinutes}m`;
-            } else if (totalMinutes > 0) {
-                durationText = `${totalMinutes}m`;
             } else {
-                // Show seconds for very short timelines
-                const totalSeconds = Math.floor(totalDurationMs / 1000);
-                durationText = `${totalSeconds}s`;
+                durationText = `${totalMinutes}m`;
             }
 
             // Create a single selectable date item (no collapsible clips)
@@ -444,14 +393,11 @@ class SentrySixApp {
         this.currentTimeline = {
             clips: dateGroup.clips,
             currentClipIndex: 0,
-            totalDuration: dateGroup.clips.length * 60000, // Start with conservative estimate
-            displayDuration: dateGroup.clips.length * 60000, // Stable duration for display
+            totalDuration: dateGroup.clips.length * 60000, // Assume 60 seconds per clip
             startTime: dateGroup.clips[0]?.timestamp || new Date(),
             isPlaying: false,
             currentPosition: 0, // Global position in milliseconds across all clips
-            date: dateGroup.displayDate,
-            actualDurations: [], // Store actual clip durations as they load
-            loadedClipCount: 0 // Track how many clips have loaded
+            date: dateGroup.displayDate
         };
 
         // Notify debug manager of timeline load
@@ -764,14 +710,6 @@ class SentrySixApp {
         // Set lock to prevent multiple rapid advancements
         this.isAutoAdvancing = true;
 
-        // Safety timeout to release lock if something goes wrong
-        setTimeout(() => {
-            if (this.isAutoAdvancing) {
-                console.warn('⚠️ Auto-advancement lock timeout - releasing lock');
-                this.isAutoAdvancing = false;
-            }
-        }, 5000); // 5 second timeout
-
         // Use the EXACT same logic as manual advancement (which works!)
         if (!this.currentTimeline) {
             console.log('No timeline loaded');
@@ -810,25 +748,17 @@ class SentrySixApp {
         }
 
         if (this.currentTimeline) {
-            // Calculate global position using actual clip durations
+            // Calculate global position across all clips
             const currentClipTime = event.target.currentTime * 1000; // Convert to milliseconds
-            let globalPosition = 0;
-
-            // Add durations of all clips before current clip
-            for (let i = 0; i < this.currentTimeline.currentClipIndex; i++) {
-                const actualDuration = this.currentTimeline.actualDurations[i];
-                globalPosition += actualDuration || 60000; // Use actual duration or default 60s
-            }
-
-            // Add current time within current clip
-            globalPosition += currentClipTime;
+            const clipsBeforeCurrent = this.currentTimeline.currentClipIndex;
+            const globalPosition = (clipsBeforeCurrent * 60000) + currentClipTime; // Assume 60s per clip
 
             this.currentTimeline.currentPosition = globalPosition;
-            this.throttledUpdateTimelineDisplay();
+            this.updateTimelineDisplay();
         } else {
             // Single clip mode - update current time
             this.currentTime = event.target.currentTime;
-            this.throttledUpdateTimelineDisplay();
+            this.updateTimelineDisplay();
         }
     }
 
@@ -946,12 +876,6 @@ class SentrySixApp {
             this.startTimeUpdateLoop();
 
         } catch (error) {
-            // Ignore play interruption errors (common during seeking)
-            if (error.name === 'AbortError' || error.message.includes('interrupted by a new load request')) {
-                console.log('Play request interrupted (normal during seeking)');
-                return;
-            }
-
             console.error('Failed to play videos:', error);
             this.showError('Playback Error', 'Failed to start video playback');
         }
@@ -975,24 +899,11 @@ class SentrySixApp {
         this.seekToPosition(0);
     }
 
-    debouncedSeek(position) {
-        // Clear any existing seek timeout
-        if (this.seekTimeout) {
-            clearTimeout(this.seekTimeout);
-        }
-
-        // Set a new timeout to seek after user stops dragging
-        this.seekTimeout = setTimeout(() => {
-            console.log(`🎯 Debounced seek to position ${position}%`);
-            this.seekToPosition(position);
-        }, 150); // Wait 150ms after user stops dragging
-    }
-
     seekToPosition(position) {
         console.log(`🎯 Seeking to position ${position}%`);
         if (this.currentTimeline) {
-            // Timeline mode - seek using stable display duration
-            const targetPositionMs = (position / 100) * this.currentTimeline.displayDuration;
+            // Timeline mode - seek across entire day
+            const targetPositionMs = (position / 100) * this.currentTimeline.totalDuration;
             console.log(`🎯 Target position: ${Math.round(targetPositionMs/1000)}s`);
             this.seekToGlobalPosition(targetPositionMs);
         } else {
@@ -1082,23 +993,10 @@ class SentrySixApp {
     seekToGlobalPosition(globalPositionMs) {
         if (!this.currentTimeline) return;
 
-        // Calculate which clip and position within clip using actual durations
-        let accumulatedTime = 0;
-        let targetClipIndex = 0;
-        let positionInClipMs = globalPositionMs;
-
-        // Find which clip contains the target position
-        for (let i = 0; i < this.currentTimeline.clips.length; i++) {
-            const clipDuration = this.currentTimeline.actualDurations[i] || 60000; // Use actual or default
-
-            if (accumulatedTime + clipDuration > globalPositionMs) {
-                targetClipIndex = i;
-                positionInClipMs = globalPositionMs - accumulatedTime;
-                break;
-            }
-
-            accumulatedTime += clipDuration;
-        }
+        // Calculate which clip and position within clip
+        const clipDurationMs = 60000; // Assume 60 seconds per clip
+        const targetClipIndex = Math.floor(globalPositionMs / clipDurationMs);
+        const positionInClipMs = globalPositionMs % clipDurationMs;
 
         // Ensure target clip index is valid
         const validClipIndex = Math.min(targetClipIndex, this.currentTimeline.clips.length - 1);
@@ -1190,25 +1088,6 @@ class SentrySixApp {
             this.duration = video.duration;
             this.updateTimelineDisplay();
         }
-
-        // Update timeline duration dynamically
-        if (this.currentTimeline && camera === 'front') {
-            const clipIndex = this.currentTimeline.currentClipIndex;
-            this.currentTimeline.actualDurations[clipIndex] = video.duration * 1000; // Convert to milliseconds
-            this.currentTimeline.loadedClipCount++;
-
-            // Check for truly corrupted clips (extremely short)
-            if (video.duration < 1) { // Less than 1 second is likely corrupted
-                console.warn(`⚠️ Corrupted clip detected: Clip ${clipIndex + 1} is only ${video.duration}s`);
-                this.handleCorruptedClip(clipIndex);
-                return;
-            }
-
-            // Update dynamic total duration estimate
-            this.updateDynamicTimelineDuration();
-
-            console.log(`📏 Clip ${clipIndex + 1} duration: ${video.duration}s | Loaded: ${this.currentTimeline.loadedClipCount}/${this.currentTimeline.clips.length} | Display: ${Math.round(this.currentTimeline.displayDuration/1000)}s | Total: ${Math.round(this.currentTimeline.totalDuration/1000)}s`);
-        }
     }
 
     recalculateTimelineDuration() {
@@ -1225,64 +1104,12 @@ class SentrySixApp {
         console.log(`🔄 Timeline duration updated: ${Math.round(oldDuration/60000)}min -> ${Math.round(totalDuration/60000)}min`);
     }
 
-    updateDynamicTimelineDuration() {
-        if (!this.currentTimeline) return;
-
-        // Calculate current estimate based on what we know so far
-        let knownDuration = 0;
-        let knownClips = 0;
-
-        // Add up all known clip durations
-        for (let i = 0; i < this.currentTimeline.clips.length; i++) {
-            const actualDuration = this.currentTimeline.actualDurations[i];
-            if (actualDuration !== undefined) {
-                knownDuration += actualDuration;
-                knownClips++;
-            }
-        }
-
-        // Always update working duration for calculations
-        if (knownClips > 0) {
-            if (knownClips === this.currentTimeline.clips.length) {
-                // All clips loaded, use exact total
-                this.currentTimeline.totalDuration = knownDuration;
-                this.currentTimeline.displayDuration = knownDuration;
-                console.log(`📏 Final timeline duration: ${Math.round(knownDuration/1000)}s (exact from ${knownClips} clips) - updating display`);
-                this.updateTimelineDisplay();
-
-                // Update the sidebar duration display
-                this.updateSidebarDuration(knownDuration);
-            } else {
-                // Estimate based on loaded clips, but also update display for better UX
-                const averageDuration = knownDuration / knownClips;
-                const unknownClips = this.currentTimeline.clips.length - knownClips;
-                const estimatedTotal = knownDuration + (unknownClips * averageDuration);
-
-                this.currentTimeline.totalDuration = estimatedTotal;
-
-                // For small timelines (≤3 clips), wait for all clips before updating display
-                // For larger timelines, update when we have most clips loaded
-                const shouldUpdateDisplay = this.currentTimeline.clips.length > 3 ?
-                    knownClips >= Math.ceil(this.currentTimeline.clips.length * 0.8) :
-                    false; // Wait for exact duration on small timelines
-
-                if (shouldUpdateDisplay) {
-                    this.currentTimeline.displayDuration = estimatedTotal;
-                    console.log(`📏 Estimated timeline duration: ${Math.round(estimatedTotal/1000)}s (from ${knownClips}/${this.currentTimeline.clips.length} clips, avg: ${Math.round(averageDuration/1000)}s)`);
-                    this.updateTimelineDisplay();
-                } else {
-                    console.log(`📏 Calculated estimate: ${Math.round(estimatedTotal/1000)}s (waiting for more clips before updating display)`);
-                }
-            }
-        }
-    }
-
     onVideoTimeUpdate(camera) {
         // Use front camera as the reference for time updates
         if (camera === 'front' && !this.isSeekingTimeline) {
             const video = this.videos[camera];
             this.currentTime = video.currentTime;
-            this.throttledUpdateTimelineDisplay();
+            this.updateTimelineDisplay();
         }
     }
 
@@ -1326,21 +1153,13 @@ class SentrySixApp {
     }
 
     updateTimelineDisplay() {
-        // Prevent infinite loops
-        if (this.isUpdatingDisplay) {
-            return;
-        }
-        this.isUpdatingDisplay = true;
-
         // Update timeline scrubber
         const timelineScrubber = document.getElementById('timeline-scrubber');
 
         if (this.currentTimeline) {
-            // Timeline mode - use stable display duration for consistent scrubber
-            if (this.currentTimeline.displayDuration > 0) {
-                const percentage = Math.min(100, Math.max(0,
-                    (this.currentTimeline.currentPosition / this.currentTimeline.displayDuration) * 100
-                ));
+            // Timeline mode - show position across entire day
+            if (this.currentTimeline.totalDuration > 0) {
+                const percentage = (this.currentTimeline.currentPosition / this.currentTimeline.totalDuration) * 100;
                 timelineScrubber.value = percentage;
             }
         } else {
@@ -1356,94 +1175,17 @@ class SentrySixApp {
         const totalTimeEl = document.getElementById('total-time');
 
         if (this.currentTimeline) {
-            // Timeline mode - use stable display duration for consistent time display
+            // Timeline mode - show daily timeline format
             const currentSeconds = Math.floor(this.currentTimeline.currentPosition / 1000);
-            const totalSeconds = Math.floor(this.currentTimeline.displayDuration / 1000);
+            const totalSeconds = Math.floor(this.currentTimeline.totalDuration / 1000);
 
-            // Use simple time format for timeline (like video players)
-            currentTimeEl.textContent = this.formatTime(currentSeconds);
-            totalTimeEl.textContent = this.formatTime(totalSeconds);
+            currentTimeEl.textContent = this.formatTimelineTime(currentSeconds);
+            totalTimeEl.textContent = this.formatTimelineTime(totalSeconds);
         } else {
             // Single clip mode
             currentTimeEl.textContent = this.formatTime(this.currentTime);
             totalTimeEl.textContent = this.formatTime(this.duration);
         }
-
-        // Release the update guard
-        this.isUpdatingDisplay = false;
-    }
-
-    throttledUpdateTimelineDisplay() {
-        // Throttle timeline updates to prevent infinite loops during playback
-        if (this.timelineUpdateTimeout) {
-            return; // Update already scheduled
-        }
-
-        this.timelineUpdateTimeout = setTimeout(() => {
-            this.updateTimelineDisplay();
-            this.timelineUpdateTimeout = null;
-        }, 100); // Update at most every 100ms
-    }
-
-    updateSidebarDuration(actualDurationMs) {
-        if (!this.currentTimeline) return;
-
-        // Find the active date item in the sidebar
-        const activeDateItem = document.querySelector('.date-item.active');
-        if (!activeDateItem) return;
-
-        // Update the duration display
-        const durationElement = activeDateItem.querySelector('.date-duration');
-        if (!durationElement) return;
-
-        // Calculate and format the new duration
-        const totalMinutes = Math.floor(actualDurationMs / 60000);
-        const totalHours = Math.floor(totalMinutes / 60);
-        const remainingMinutes = totalMinutes % 60;
-
-        let durationText = '';
-        if (totalHours > 0) {
-            durationText = `${totalHours}h ${remainingMinutes}m`;
-        } else if (totalMinutes > 0) {
-            durationText = `${totalMinutes}m`;
-        } else {
-            // Show seconds for very short timelines
-            const totalSeconds = Math.floor(actualDurationMs / 1000);
-            durationText = `${totalSeconds}s`;
-        }
-
-        durationElement.textContent = durationText;
-    }
-
-    setupStickyHeaders() {
-        // Set up intersection observer for sticky header effects
-        const sidebarContent = document.getElementById('sidebar-content');
-        if (!sidebarContent) return;
-
-        // Create intersection observer to detect when headers become sticky
-        const observer = new IntersectionObserver((entries) => {
-            entries.forEach(entry => {
-                const header = entry.target;
-                if (entry.isIntersecting) {
-                    // Header is visible normally
-                    header.classList.remove('sticky');
-                } else {
-                    // Header is sticky (out of normal view)
-                    header.classList.add('sticky');
-                }
-            });
-        }, {
-            root: sidebarContent,
-            rootMargin: '-1px 0px 0px 0px',
-            threshold: [0, 1]
-        });
-
-        // Observe all section headers
-        const headers = document.querySelectorAll('.section-header');
-        headers.forEach(header => observer.observe(header));
-
-        // Store observer for cleanup
-        this.stickyHeaderObserver = observer;
     }
 
     renderTimelineGaps() {
@@ -1751,122 +1493,6 @@ class SentrySixApp {
             if (gap > 120) {
                 console.log(`  📍 Gap: ${Math.round(gap / 60)} minutes - but footage position advances continuously`);
             }
-        }
-    }
-
-    // Camera Visibility Methods
-    toggleCameraPanel() {
-        const panel = document.getElementById('camera-visibility-panel');
-        panel.classList.toggle('hidden');
-    }
-
-    hideCameraPanel() {
-        const panel = document.getElementById('camera-visibility-panel');
-        panel.classList.add('hidden');
-    }
-
-    toggleCameraVisibility(camera, isVisible) {
-        this.cameraVisibility[camera] = isVisible;
-        const container = document.querySelector(`[data-camera="${camera}"]`);
-
-        if (container) {
-            if (isVisible) {
-                container.classList.remove('hidden-camera');
-            } else {
-                container.classList.add('hidden-camera');
-            }
-        }
-
-        console.log(`Camera ${camera} ${isVisible ? 'shown' : 'hidden'}`);
-        this.updateVideoGridLayout();
-    }
-
-    showAllCameras() {
-        const cameras = ['left_pillar', 'front', 'right_pillar', 'left_repeater', 'back', 'right_repeater'];
-        cameras.forEach(camera => {
-            this.cameraVisibility[camera] = true;
-            const toggle = document.getElementById(`toggle-${camera}`);
-            const container = document.querySelector(`[data-camera="${camera}"]`);
-
-            if (toggle) toggle.checked = true;
-            if (container) container.classList.remove('hidden-camera');
-        });
-
-        console.log('All cameras shown');
-        this.updateVideoGridLayout();
-    }
-
-    hideAllCameras() {
-        const cameras = ['left_pillar', 'front', 'right_pillar', 'left_repeater', 'back', 'right_repeater'];
-        cameras.forEach(camera => {
-            this.cameraVisibility[camera] = false;
-            const toggle = document.getElementById(`toggle-${camera}`);
-            const container = document.querySelector(`[data-camera="${camera}"]`);
-
-            if (toggle) toggle.checked = false;
-            if (container) container.classList.add('hidden-camera');
-        });
-
-        console.log('All cameras hidden');
-        this.updateVideoGridLayout();
-    }
-
-    updateVideoGridLayout() {
-        const videoGrid = document.getElementById('video-grid');
-        const visibleCameras = Object.values(this.cameraVisibility).filter(visible => visible).length;
-
-        // Adjust grid layout based on number of visible cameras
-        if (visibleCameras === 1) {
-            videoGrid.style.gridTemplateColumns = '1fr';
-            videoGrid.style.gridTemplateRows = '1fr';
-        } else if (visibleCameras === 2) {
-            videoGrid.style.gridTemplateColumns = '1fr 1fr';
-            videoGrid.style.gridTemplateRows = '1fr';
-        } else if (visibleCameras === 3) {
-            videoGrid.style.gridTemplateColumns = '1fr 1fr 1fr';
-            videoGrid.style.gridTemplateRows = '1fr';
-        } else if (visibleCameras === 4) {
-            videoGrid.style.gridTemplateColumns = '1fr 1fr';
-            videoGrid.style.gridTemplateRows = '1fr 1fr';
-            // Ensure grid fits properly in available space
-            videoGrid.style.height = '100%';
-            videoGrid.style.maxHeight = 'calc(100vh - 180px)'; // Account for header + timeline
-        } else if (visibleCameras === 5) {
-            videoGrid.style.gridTemplateColumns = '1fr 1fr 1fr';
-            videoGrid.style.gridTemplateRows = '1fr 1fr';
-        } else {
-            // Default 6-camera layout
-            videoGrid.style.gridTemplateColumns = '1fr 1fr 1fr';
-            videoGrid.style.gridTemplateRows = '1fr 1fr';
-            videoGrid.style.height = '';
-            videoGrid.style.maxHeight = '';
-        }
-
-        console.log(`Grid layout updated for ${visibleCameras} visible cameras`);
-    }
-
-    handleCorruptedClip(clipIndex) {
-        console.warn(`🚨 Handling corrupted clip ${clipIndex + 1}`);
-
-        // Release auto-advancement lock immediately
-        this.isAutoAdvancing = false;
-
-        // Skip to next clip if available
-        if (this.currentTimeline && clipIndex < this.currentTimeline.clips.length - 1) {
-            console.log(`⏭️ Skipping corrupted clip ${clipIndex + 1}, advancing to clip ${clipIndex + 2}`);
-
-            // Small delay to ensure videos have stopped
-            setTimeout(() => {
-                this.loadTimelineClip(clipIndex + 1);
-
-                // Start playing the next clip
-                setTimeout(() => {
-                    this.playAllVideos();
-                }, 200);
-            }, 100);
-        } else {
-            console.log(`🏁 Corrupted clip ${clipIndex + 1} was the last clip, ending timeline`);
-            this.pauseAllVideos();
         }
     }
 }

@@ -331,24 +331,37 @@ class SentrySixApp {
 
         const stats = fs.statSync(filePath);
 
+        // Mark file as potentially corrupted but don't skip yet
+        // We'll do group-based filtering later
+        const isCorrupted = this.isClipCorrupted(stats.size, filename);
+        if (isCorrupted) {
+            console.log(`🔍 Potentially corrupted: ${filename} (${Math.round(stats.size/1024)}KB)`);
+        }
+
         return {
             path: filePath,
             filename,
             camera,
             timestamp,
             size: stats.size,
-            type: folderType
+            type: folderType,
+            isCorrupted: isCorrupted // Mark corruption status
         };
     }
 
     parseTimestamp(datePart, timePart) {
         try {
-            // Convert YYYY-MM-DD_HH-MM-SS to Date
-            const dateTimeString = `${datePart}T${timePart.replace(/-/g, ':')}`;
-            const timestamp = new Date(dateTimeString);
+            // Parse as local time to avoid timezone offset issues
+            // Split the date and time parts
+            const [year, month, day] = datePart.split('-').map(Number);
+            const [hour, minute, second] = timePart.split('-').map(Number);
+
+            // Create Date object in local timezone (not UTC)
+            const timestamp = new Date(year, month - 1, day, hour, minute, second);
 
             return isNaN(timestamp.getTime()) ? null : timestamp;
         } catch (error) {
+            console.error('Error parsing timestamp:', error);
             return null;
         }
     }
@@ -366,6 +379,84 @@ class SentrySixApp {
         return cameraMap[cameraPart] || null;
     }
 
+    isClipCorrupted(fileSize, filename) {
+        // Tesla clips are typically 40-80MB for 60-second recordings
+        // Corrupted clips are usually under 5MB
+        const MIN_VALID_SIZE = 5 * 1024 * 1024; // 5MB threshold
+
+        if (fileSize < MIN_VALID_SIZE) {
+            // Additional check: very small files (under 2MB) are almost certainly corrupted
+            const VERY_SMALL_SIZE = 2 * 1024 * 1024; // 2MB
+            if (fileSize < VERY_SMALL_SIZE) {
+                return true; // Definitely corrupted
+            }
+
+            // For files between 2-5MB, be more lenient for legitimate short clips
+            // But still flag extremely small ones
+            const TINY_SIZE = 1.5 * 1024 * 1024; // 1.5MB
+            if (fileSize < TINY_SIZE) {
+                return true; // Likely corrupted
+            }
+
+            // Log suspicious files for user awareness
+            console.log(`🔍 Suspicious small file: ${filename} (${Math.round(fileSize/1024)}KB) - including but monitoring`);
+        }
+
+        return false; // File appears valid
+    }
+
+    filterCorruptedTimestampGroups(clips) {
+        const validClips = [];
+        let totalClipsScanned = 0;
+        let corruptedGroupsRemoved = 0;
+
+        for (const clip of clips) {
+            totalClipsScanned++;
+
+            // Count corrupted vs valid cameras for this timestamp
+            let corruptedCameras = 0;
+            let totalCameras = 0;
+
+            for (const [camera, file] of Object.entries(clip.files)) {
+                totalCameras++;
+                if (file.isCorrupted) {
+                    corruptedCameras++;
+                }
+            }
+
+            // Apply majority rule: if more than half the cameras are corrupted, skip entire group
+            const corruptionRatio = corruptedCameras / totalCameras;
+            if (corruptionRatio > 0.5) { // More than 50% corrupted
+                console.warn(`⚠️ Skipping timestamp group ${clip.timestamp.toISOString()}: ${corruptedCameras}/${totalCameras} cameras corrupted`);
+                corruptedGroupsRemoved++;
+            } else {
+                // Keep the group, but remove corrupted individual files
+                const cleanClip = {
+                    ...clip,
+                    files: {}
+                };
+
+                for (const [camera, file] of Object.entries(clip.files)) {
+                    if (!file.isCorrupted) {
+                        cleanClip.files[camera] = file;
+                    }
+                }
+
+                validClips.push(cleanClip);
+
+                if (corruptedCameras > 0) {
+                    console.log(`🔧 Cleaned timestamp group ${clip.timestamp.toISOString()}: removed ${corruptedCameras} corrupted cameras, kept ${totalCameras - corruptedCameras}`);
+                }
+            }
+        }
+
+        if (corruptedGroupsRemoved > 0) {
+            console.log(`📊 Corruption filtering: ${corruptedGroupsRemoved}/${totalClipsScanned} timestamp groups removed due to majority corruption`);
+        }
+
+        return validClips;
+    }
+
     groupVideosByDateAndType(videoFiles) {
         const sections = {
             'User Saved': [],
@@ -377,7 +468,11 @@ class SentrySixApp {
         const dateGroups = new Map();
 
         for (const file of videoFiles) {
-            const dateKey = file.timestamp.toISOString().split('T')[0]; // YYYY-MM-DD
+            // Create date key using local time (not UTC)
+            const year = file.timestamp.getFullYear();
+            const month = String(file.timestamp.getMonth() + 1).padStart(2, '0');
+            const day = String(file.timestamp.getDate()).padStart(2, '0');
+            const dateKey = `${year}-${month}-${day}`; // YYYY-MM-DD in local time
             const sectionKey = this.getSectionKey(file.type);
 
             if (!dateGroups.has(sectionKey)) {
@@ -390,7 +485,8 @@ class SentrySixApp {
             }
 
             const dayMap = sectionMap.get(dateKey);
-            const timestampKey = file.timestamp.toISOString();
+            // Create timestamp key using local time (not UTC)
+            const timestampKey = file.timestamp.getTime().toString(); // Use milliseconds as key
 
             if (!dayMap.has(timestampKey)) {
                 dayMap.set(timestampKey, {
@@ -408,22 +504,51 @@ class SentrySixApp {
         // Convert to organized structure
         for (const [sectionKey, sectionMap] of dateGroups) {
             for (const [dateKey, dayMap] of sectionMap) {
-                const clips = Array.from(dayMap.values()).sort((a, b) =>
+                const allClips = Array.from(dayMap.values()).sort((a, b) =>
                     a.timestamp.getTime() - b.timestamp.getTime()
                 );
 
-                const dateObj = new Date(dateKey);
+                // Filter out timestamp groups where majority of cameras are corrupted
+                const clips = this.filterCorruptedTimestampGroups(allClips);
+
+                // Parse date key as local time (not UTC)
+                const [year, month, day] = dateKey.split('-').map(Number);
+                const dateObj = new Date(year, month - 1, day); // Local time
                 const displayDate = dateObj.toLocaleDateString('en-US', {
                     month: '2-digit',
                     day: '2-digit',
                     year: '2-digit'
                 });
 
+                // Calculate actual total duration from filtered clips if possible
+                let actualTotalDuration = null;
+                let hasAllDurations = true;
+                let totalDurationMs = 0;
+
+                for (const clip of clips) {
+                    // Check if we have actual durations for all cameras in this clip
+                    let clipDuration = 0;
+                    let cameraCount = 0;
+
+                    for (const [camera, file] of Object.entries(clip.files)) {
+                        cameraCount++;
+                        // For now, we don't have actual durations during initial scan
+                        // This will be calculated when the timeline is loaded
+                        hasAllDurations = false;
+                        break;
+                    }
+
+                    if (!hasAllDurations) break;
+                }
+
                 sections[sectionKey].push({
                     date: dateKey,
                     displayDate: displayDate,
                     clips: clips,
-                    totalClips: clips.length
+                    totalClips: clips.length,
+                    originalClipCount: allClips.length,
+                    filteredClipCount: clips.length,
+                    actualTotalDuration: actualTotalDuration
                 });
             }
         }

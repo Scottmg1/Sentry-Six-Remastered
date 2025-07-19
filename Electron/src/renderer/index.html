@@ -44,9 +44,6 @@
                 <button id="debug-btn" class="control-btn debug-btn" title="Debug Timeline">
                     <span class="icon">🐛</span>
                 </button>
-                <button id="camera-toggle-btn" class="control-btn" title="Camera Visibility">
-                    <span class="icon">👁️</span>
-                </button>
                 <button id="settings-btn" class="control-btn" title="Settings">
                     <span class="icon">⚙️</span>
                 </button>
@@ -98,52 +95,6 @@
                     </div>
                 </div>
             </aside>
-
-            <!-- Camera Visibility Panel -->
-            <div id="camera-visibility-panel" class="camera-panel hidden">
-                <div class="panel-header">
-                    <h3>Camera Visibility</h3>
-                    <button id="close-camera-panel" class="close-btn">×</button>
-                </div>
-                <div class="panel-content">
-                    <div class="camera-toggles">
-                        <label class="camera-toggle">
-                            <input type="checkbox" id="toggle-left_pillar" checked>
-                            <span class="checkmark"></span>
-                            <span class="camera-name">Left Pillar</span>
-                        </label>
-                        <label class="camera-toggle">
-                            <input type="checkbox" id="toggle-front" checked>
-                            <span class="checkmark"></span>
-                            <span class="camera-name">Front</span>
-                        </label>
-                        <label class="camera-toggle">
-                            <input type="checkbox" id="toggle-right_pillar" checked>
-                            <span class="checkmark"></span>
-                            <span class="camera-name">Right Pillar</span>
-                        </label>
-                        <label class="camera-toggle">
-                            <input type="checkbox" id="toggle-left_repeater" checked>
-                            <span class="checkmark"></span>
-                            <span class="camera-name">Left Repeater</span>
-                        </label>
-                        <label class="camera-toggle">
-                            <input type="checkbox" id="toggle-back" checked>
-                            <span class="checkmark"></span>
-                            <span class="camera-name">Back</span>
-                        </label>
-                        <label class="camera-toggle">
-                            <input type="checkbox" id="toggle-right_repeater" checked>
-                            <span class="checkmark"></span>
-                            <span class="camera-name">Right Repeater</span>
-                        </label>
-                    </div>
-                    <div class="panel-actions">
-                        <button id="show-all-cameras" class="panel-btn">Show All</button>
-                        <button id="hide-all-cameras" class="panel-btn">Hide All</button>
-                    </div>
-                </div>
-            </div>
 
             <!-- Video Grid -->
             <section class="video-section">
@@ -335,29 +286,15 @@
                     </div>
                     <div class="volume-control">
                         <label for="volume-slider">Volume:</label>
-                        <input
-                            type="range"
-                            id="volume-slider"
+                        <input 
+                            type="range" 
+                            id="volume-slider" 
                             class="volume-slider"
-                            min="0"
-                            max="1"
+                            min="0" 
+                            max="1" 
                             value="0.5"
                             step="0.1"
                         >
-                    </div>
-                    <div class="export-controls">
-                        <button id="set-start-marker" class="export-btn" title="Set Start Marker">
-                            📍 Start
-                        </button>
-                        <button id="set-end-marker" class="export-btn" title="Set End Marker">
-                            🏁 End
-                        </button>
-                        <button id="clear-markers" class="export-btn secondary" title="Clear Markers">
-                            🗑️ Clear
-                        </button>
-                        <button id="export-video" class="export-btn primary" title="Export Video">
-                            🎬 Export
-                        </button>
                     </div>
                 </div>
             </div>

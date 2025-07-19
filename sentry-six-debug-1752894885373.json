@@ -1,0 +1,1695 @@
+{
+  "timestamp": "2025-07-19T03:14:45.371Z",
+  "timeline": {
+    "clips": [
+      {
+        "timestamp": "2025-07-15T16:51:10.000Z",
+        "files": {
+          "back": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_13-01-31\\2025-07-15_12-51-10-back.mp4",
+            "filename": "2025-07-15_12-51-10-back.mp4",
+            "camera": "back",
+            "timestamp": "2025-07-15T16:51:10.000Z",
+            "size": 39830393,
+            "type": "SavedClips"
+          },
+          "front": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_13-01-31\\2025-07-15_12-51-10-front.mp4",
+            "filename": "2025-07-15_12-51-10-front.mp4",
+            "camera": "front",
+            "timestamp": "2025-07-15T16:51:10.000Z",
+            "size": 79004023,
+            "type": "SavedClips"
+          },
+          "left_pillar": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_13-01-31\\2025-07-15_12-51-10-left_pillar.mp4",
+            "filename": "2025-07-15_12-51-10-left_pillar.mp4",
+            "camera": "left_pillar",
+            "timestamp": "2025-07-15T16:51:10.000Z",
+            "size": 40635904,
+            "type": "SavedClips"
+          },
+          "left_repeater": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_13-01-31\\2025-07-15_12-51-10-left_repeater.mp4",
+            "filename": "2025-07-15_12-51-10-left_repeater.mp4",
+            "camera": "left_repeater",
+            "timestamp": "2025-07-15T16:51:10.000Z",
+            "size": 40050254,
+            "type": "SavedClips"
+          },
+          "right_pillar": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_13-01-31\\2025-07-15_12-51-10-right_pillar.mp4",
+            "filename": "2025-07-15_12-51-10-right_pillar.mp4",
+            "camera": "right_pillar",
+            "timestamp": "2025-07-15T16:51:10.000Z",
+            "size": 40257498,
+            "type": "SavedClips"
+          },
+          "right_repeater": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_13-01-31\\2025-07-15_12-51-10-right_repeater.mp4",
+            "filename": "2025-07-15_12-51-10-right_repeater.mp4",
+            "camera": "right_repeater",
+            "timestamp": "2025-07-15T16:51:10.000Z",
+            "size": 39794703,
+            "type": "SavedClips"
+          }
+        },
+        "type": "SavedClips",
+        "date": "2025-07-15"
+      },
+      {
+        "timestamp": "2025-07-15T16:52:12.000Z",
+        "files": {
+          "back": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_13-01-31\\2025-07-15_12-52-12-back.mp4",
+            "filename": "2025-07-15_12-52-12-back.mp4",
+            "camera": "back",
+            "timestamp": "2025-07-15T16:52:12.000Z",
+            "size": 40044527,
+            "type": "SavedClips"
+          },
+          "front": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_13-01-31\\2025-07-15_12-52-12-front.mp4",
+            "filename": "2025-07-15_12-52-12-front.mp4",
+            "camera": "front",
+            "timestamp": "2025-07-15T16:52:12.000Z",
+            "size": 78947922,
+            "type": "SavedClips"
+          },
+          "left_pillar": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_13-01-31\\2025-07-15_12-52-12-left_pillar.mp4",
+            "filename": "2025-07-15_12-52-12-left_pillar.mp4",
+            "camera": "left_pillar",
+            "timestamp": "2025-07-15T16:52:12.000Z",
+            "size": 40715451,
+            "type": "SavedClips"
+          },
+          "left_repeater": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_13-01-31\\2025-07-15_12-52-12-left_repeater.mp4",
+            "filename": "2025-07-15_12-52-12-left_repeater.mp4",
+            "camera": "left_repeater",
+            "timestamp": "2025-07-15T16:52:12.000Z",
+            "size": 40014277,
+            "type": "SavedClips"
+          },
+          "right_pillar": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_13-01-31\\2025-07-15_12-52-12-right_pillar.mp4",
+            "filename": "2025-07-15_12-52-12-right_pillar.mp4",
+            "camera": "right_pillar",
+            "timestamp": "2025-07-15T16:52:12.000Z",
+            "size": 40085322,
+            "type": "SavedClips"
+          },
+          "right_repeater": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_13-01-31\\2025-07-15_12-52-12-right_repeater.mp4",
+            "filename": "2025-07-15_12-52-12-right_repeater.mp4",
+            "camera": "right_repeater",
+            "timestamp": "2025-07-15T16:52:12.000Z",
+            "size": 39782077,
+            "type": "SavedClips"
+          }
+        },
+        "type": "SavedClips",
+        "date": "2025-07-15"
+      },
+      {
+        "timestamp": "2025-07-15T16:53:13.000Z",
+        "files": {
+          "back": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_13-01-31\\2025-07-15_12-53-13-back.mp4",
+            "filename": "2025-07-15_12-53-13-back.mp4",
+            "camera": "back",
+            "timestamp": "2025-07-15T16:53:13.000Z",
+            "size": 40052544,
+            "type": "SavedClips"
+          },
+          "front": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_13-01-31\\2025-07-15_12-53-13-front.mp4",
+            "filename": "2025-07-15_12-53-13-front.mp4",
+            "camera": "front",
+            "timestamp": "2025-07-15T16:53:13.000Z",
+            "size": 78061034,
+            "type": "SavedClips"
+          },
+          "left_pillar": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_13-01-31\\2025-07-15_12-53-13-left_pillar.mp4",
+            "filename": "2025-07-15_12-53-13-left_pillar.mp4",
+            "camera": "left_pillar",
+            "timestamp": "2025-07-15T16:53:13.000Z",
+            "size": 40612153,
+            "type": "SavedClips"
+          },
+          "left_repeater": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_13-01-31\\2025-07-15_12-53-13-left_repeater.mp4",
+            "filename": "2025-07-15_12-53-13-left_repeater.mp4",
+            "camera": "left_repeater",
+            "timestamp": "2025-07-15T16:53:13.000Z",
+            "size": 39761257,
+            "type": "SavedClips"
+          },
+          "right_pillar": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_13-01-31\\2025-07-15_12-53-13-right_pillar.mp4",
+            "filename": "2025-07-15_12-53-13-right_pillar.mp4",
+            "camera": "right_pillar",
+            "timestamp": "2025-07-15T16:53:13.000Z",
+            "size": 40315659,
+            "type": "SavedClips"
+          },
+          "right_repeater": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_13-01-31\\2025-07-15_12-53-13-right_repeater.mp4",
+            "filename": "2025-07-15_12-53-13-right_repeater.mp4",
+            "camera": "right_repeater",
+            "timestamp": "2025-07-15T16:53:13.000Z",
+            "size": 39740424,
+            "type": "SavedClips"
+          }
+        },
+        "type": "SavedClips",
+        "date": "2025-07-15"
+      },
+      {
+        "timestamp": "2025-07-15T16:54:15.000Z",
+        "files": {
+          "back": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_13-01-31\\2025-07-15_12-54-15-back.mp4",
+            "filename": "2025-07-15_12-54-15-back.mp4",
+            "camera": "back",
+            "timestamp": "2025-07-15T16:54:15.000Z",
+            "size": 39811113,
+            "type": "SavedClips"
+          },
+          "front": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_13-01-31\\2025-07-15_12-54-15-front.mp4",
+            "filename": "2025-07-15_12-54-15-front.mp4",
+            "camera": "front",
+            "timestamp": "2025-07-15T16:54:15.000Z",
+            "size": 78049374,
+            "type": "SavedClips"
+          },
+          "left_pillar": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_13-01-31\\2025-07-15_12-54-15-left_pillar.mp4",
+            "filename": "2025-07-15_12-54-15-left_pillar.mp4",
+            "camera": "left_pillar",
+            "timestamp": "2025-07-15T16:54:15.000Z",
+            "size": 40663141,
+            "type": "SavedClips"
+          },
+          "left_repeater": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_13-01-31\\2025-07-15_12-54-15-left_repeater.mp4",
+            "filename": "2025-07-15_12-54-15-left_repeater.mp4",
+            "camera": "left_repeater",
+            "timestamp": "2025-07-15T16:54:15.000Z",
+            "size": 39642590,
+            "type": "SavedClips"
+          },
+          "right_pillar": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_13-01-31\\2025-07-15_12-54-15-right_pillar.mp4",
+            "filename": "2025-07-15_12-54-15-right_pillar.mp4",
+            "camera": "right_pillar",
+            "timestamp": "2025-07-15T16:54:15.000Z",
+            "size": 39905346,
+            "type": "SavedClips"
+          },
+          "right_repeater": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_13-01-31\\2025-07-15_12-54-15-right_repeater.mp4",
+            "filename": "2025-07-15_12-54-15-right_repeater.mp4",
+            "camera": "right_repeater",
+            "timestamp": "2025-07-15T16:54:15.000Z",
+            "size": 39809305,
+            "type": "SavedClips"
+          }
+        },
+        "type": "SavedClips",
+        "date": "2025-07-15"
+      },
+      {
+        "timestamp": "2025-07-15T16:55:16.000Z",
+        "files": {
+          "back": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_13-01-31\\2025-07-15_12-55-16-back.mp4",
+            "filename": "2025-07-15_12-55-16-back.mp4",
+            "camera": "back",
+            "timestamp": "2025-07-15T16:55:16.000Z",
+            "size": 40306837,
+            "type": "SavedClips"
+          },
+          "front": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_13-01-31\\2025-07-15_12-55-16-front.mp4",
+            "filename": "2025-07-15_12-55-16-front.mp4",
+            "camera": "front",
+            "timestamp": "2025-07-15T16:55:16.000Z",
+            "size": 78365114,
+            "type": "SavedClips"
+          },
+          "left_pillar": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_13-01-31\\2025-07-15_12-55-16-left_pillar.mp4",
+            "filename": "2025-07-15_12-55-16-left_pillar.mp4",
+            "camera": "left_pillar",
+            "timestamp": "2025-07-15T16:55:16.000Z",
+            "size": 40718589,
+            "type": "SavedClips"
+          },
+          "left_repeater": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_13-01-31\\2025-07-15_12-55-16-left_repeater.mp4",
+            "filename": "2025-07-15_12-55-16-left_repeater.mp4",
+            "camera": "left_repeater",
+            "timestamp": "2025-07-15T16:55:16.000Z",
+            "size": 39958426,
+            "type": "SavedClips"
+          },
+          "right_pillar": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_13-01-31\\2025-07-15_12-55-16-right_pillar.mp4",
+            "filename": "2025-07-15_12-55-16-right_pillar.mp4",
+            "camera": "right_pillar",
+            "timestamp": "2025-07-15T16:55:16.000Z",
+            "size": 39939841,
+            "type": "SavedClips"
+          },
+          "right_repeater": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_13-01-31\\2025-07-15_12-55-16-right_repeater.mp4",
+            "filename": "2025-07-15_12-55-16-right_repeater.mp4",
+            "camera": "right_repeater",
+            "timestamp": "2025-07-15T16:55:16.000Z",
+            "size": 39618769,
+            "type": "SavedClips"
+          }
+        },
+        "type": "SavedClips",
+        "date": "2025-07-15"
+      },
+      {
+        "timestamp": "2025-07-15T16:56:18.000Z",
+        "files": {
+          "back": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_13-01-31\\2025-07-15_12-56-18-back.mp4",
+            "filename": "2025-07-15_12-56-18-back.mp4",
+            "camera": "back",
+            "timestamp": "2025-07-15T16:56:18.000Z",
+            "size": 39978016,
+            "type": "SavedClips"
+          },
+          "front": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_13-01-31\\2025-07-15_12-56-18-front.mp4",
+            "filename": "2025-07-15_12-56-18-front.mp4",
+            "camera": "front",
+            "timestamp": "2025-07-15T16:56:18.000Z",
+            "size": 78798518,
+            "type": "SavedClips"
+          },
+          "left_pillar": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_13-01-31\\2025-07-15_12-56-18-left_pillar.mp4",
+            "filename": "2025-07-15_12-56-18-left_pillar.mp4",
+            "camera": "left_pillar",
+            "timestamp": "2025-07-15T16:56:18.000Z",
+            "size": 40915603,
+            "type": "SavedClips"
+          },
+          "left_repeater": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_13-01-31\\2025-07-15_12-56-18-left_repeater.mp4",
+            "filename": "2025-07-15_12-56-18-left_repeater.mp4",
+            "camera": "left_repeater",
+            "timestamp": "2025-07-15T16:56:18.000Z",
+            "size": 39814012,
+            "type": "SavedClips"
+          },
+          "right_pillar": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_13-01-31\\2025-07-15_12-56-18-right_pillar.mp4",
+            "filename": "2025-07-15_12-56-18-right_pillar.mp4",
+            "camera": "right_pillar",
+            "timestamp": "2025-07-15T16:56:18.000Z",
+            "size": 40314031,
+            "type": "SavedClips"
+          },
+          "right_repeater": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_13-01-31\\2025-07-15_12-56-18-right_repeater.mp4",
+            "filename": "2025-07-15_12-56-18-right_repeater.mp4",
+            "camera": "right_repeater",
+            "timestamp": "2025-07-15T16:56:18.000Z",
+            "size": 39703282,
+            "type": "SavedClips"
+          }
+        },
+        "type": "SavedClips",
+        "date": "2025-07-15"
+      },
+      {
+        "timestamp": "2025-07-15T16:57:19.000Z",
+        "files": {
+          "back": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_13-01-31\\2025-07-15_12-57-19-back.mp4",
+            "filename": "2025-07-15_12-57-19-back.mp4",
+            "camera": "back",
+            "timestamp": "2025-07-15T16:57:19.000Z",
+            "size": 39669794,
+            "type": "SavedClips"
+          },
+          "front": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_13-01-31\\2025-07-15_12-57-19-front.mp4",
+            "filename": "2025-07-15_12-57-19-front.mp4",
+            "camera": "front",
+            "timestamp": "2025-07-15T16:57:19.000Z",
+            "size": 78419660,
+            "type": "SavedClips"
+          },
+          "left_pillar": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_13-01-31\\2025-07-15_12-57-19-left_pillar.mp4",
+            "filename": "2025-07-15_12-57-19-left_pillar.mp4",
+            "camera": "left_pillar",
+            "timestamp": "2025-07-15T16:57:19.000Z",
+            "size": 40703949,
+            "type": "SavedClips"
+          },
+          "left_repeater": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_13-01-31\\2025-07-15_12-57-19-left_repeater.mp4",
+            "filename": "2025-07-15_12-57-19-left_repeater.mp4",
+            "camera": "left_repeater",
+            "timestamp": "2025-07-15T16:57:19.000Z",
+            "size": 39578534,
+            "type": "SavedClips"
+          },
+          "right_pillar": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_13-01-31\\2025-07-15_12-57-19-right_pillar.mp4",
+            "filename": "2025-07-15_12-57-19-right_pillar.mp4",
+            "camera": "right_pillar",
+            "timestamp": "2025-07-15T16:57:19.000Z",
+            "size": 40008565,
+            "type": "SavedClips"
+          },
+          "right_repeater": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_13-01-31\\2025-07-15_12-57-19-right_repeater.mp4",
+            "filename": "2025-07-15_12-57-19-right_repeater.mp4",
+            "camera": "right_repeater",
+            "timestamp": "2025-07-15T16:57:19.000Z",
+            "size": 39817079,
+            "type": "SavedClips"
+          }
+        },
+        "type": "SavedClips",
+        "date": "2025-07-15"
+      },
+      {
+        "timestamp": "2025-07-15T16:58:21.000Z",
+        "files": {
+          "back": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_13-01-31\\2025-07-15_12-58-21-back.mp4",
+            "filename": "2025-07-15_12-58-21-back.mp4",
+            "camera": "back",
+            "timestamp": "2025-07-15T16:58:21.000Z",
+            "size": 39916155,
+            "type": "SavedClips"
+          },
+          "front": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_13-01-31\\2025-07-15_12-58-21-front.mp4",
+            "filename": "2025-07-15_12-58-21-front.mp4",
+            "camera": "front",
+            "timestamp": "2025-07-15T16:58:21.000Z",
+            "size": 78857918,
+            "type": "SavedClips"
+          },
+          "left_pillar": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_13-01-31\\2025-07-15_12-58-21-left_pillar.mp4",
+            "filename": "2025-07-15_12-58-21-left_pillar.mp4",
+            "camera": "left_pillar",
+            "timestamp": "2025-07-15T16:58:21.000Z",
+            "size": 40455925,
+            "type": "SavedClips"
+          },
+          "left_repeater": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_13-01-31\\2025-07-15_12-58-21-left_repeater.mp4",
+            "filename": "2025-07-15_12-58-21-left_repeater.mp4",
+            "camera": "left_repeater",
+            "timestamp": "2025-07-15T16:58:21.000Z",
+            "size": 39708739,
+            "type": "SavedClips"
+          },
+          "right_pillar": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_13-01-31\\2025-07-15_12-58-21-right_pillar.mp4",
+            "filename": "2025-07-15_12-58-21-right_pillar.mp4",
+            "camera": "right_pillar",
+            "timestamp": "2025-07-15T16:58:21.000Z",
+            "size": 40239448,
+            "type": "SavedClips"
+          },
+          "right_repeater": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_13-01-31\\2025-07-15_12-58-21-right_repeater.mp4",
+            "filename": "2025-07-15_12-58-21-right_repeater.mp4",
+            "camera": "right_repeater",
+            "timestamp": "2025-07-15T16:58:21.000Z",
+            "size": 39738555,
+            "type": "SavedClips"
+          }
+        },
+        "type": "SavedClips",
+        "date": "2025-07-15"
+      },
+      {
+        "timestamp": "2025-07-15T16:59:22.000Z",
+        "files": {
+          "back": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_13-01-31\\2025-07-15_12-59-22-back.mp4",
+            "filename": "2025-07-15_12-59-22-back.mp4",
+            "camera": "back",
+            "timestamp": "2025-07-15T16:59:22.000Z",
+            "size": 40614974,
+            "type": "SavedClips"
+          },
+          "front": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_13-01-31\\2025-07-15_12-59-22-front.mp4",
+            "filename": "2025-07-15_12-59-22-front.mp4",
+            "camera": "front",
+            "timestamp": "2025-07-15T16:59:22.000Z",
+            "size": 77351246,
+            "type": "SavedClips"
+          },
+          "left_pillar": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_13-01-31\\2025-07-15_12-59-22-left_pillar.mp4",
+            "filename": "2025-07-15_12-59-22-left_pillar.mp4",
+            "camera": "left_pillar",
+            "timestamp": "2025-07-15T16:59:22.000Z",
+            "size": 40465185,
+            "type": "SavedClips"
+          },
+          "left_repeater": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_13-01-31\\2025-07-15_12-59-22-left_repeater.mp4",
+            "filename": "2025-07-15_12-59-22-left_repeater.mp4",
+            "camera": "left_repeater",
+            "timestamp": "2025-07-15T16:59:22.000Z",
+            "size": 40000152,
+            "type": "SavedClips"
+          },
+          "right_pillar": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_13-01-31\\2025-07-15_12-59-22-right_pillar.mp4",
+            "filename": "2025-07-15_12-59-22-right_pillar.mp4",
+            "camera": "right_pillar",
+            "timestamp": "2025-07-15T16:59:22.000Z",
+            "size": 39931859,
+            "type": "SavedClips"
+          },
+          "right_repeater": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_13-01-31\\2025-07-15_12-59-22-right_repeater.mp4",
+            "filename": "2025-07-15_12-59-22-right_repeater.mp4",
+            "camera": "right_repeater",
+            "timestamp": "2025-07-15T16:59:22.000Z",
+            "size": 39812725,
+            "type": "SavedClips"
+          }
+        },
+        "type": "SavedClips",
+        "date": "2025-07-15"
+      },
+      {
+        "timestamp": "2025-07-15T17:00:24.000Z",
+        "files": {
+          "back": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_13-01-31\\2025-07-15_13-00-24-back.mp4",
+            "filename": "2025-07-15_13-00-24-back.mp4",
+            "camera": "back",
+            "timestamp": "2025-07-15T17:00:24.000Z",
+            "size": 40071093,
+            "type": "SavedClips"
+          },
+          "front": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_13-01-31\\2025-07-15_13-00-24-front.mp4",
+            "filename": "2025-07-15_13-00-24-front.mp4",
+            "camera": "front",
+            "timestamp": "2025-07-15T17:00:24.000Z",
+            "size": 77902627,
+            "type": "SavedClips"
+          },
+          "left_pillar": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_13-01-31\\2025-07-15_13-00-24-left_pillar.mp4",
+            "filename": "2025-07-15_13-00-24-left_pillar.mp4",
+            "camera": "left_pillar",
+            "timestamp": "2025-07-15T17:00:24.000Z",
+            "size": 39901511,
+            "type": "SavedClips"
+          },
+          "left_repeater": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_13-01-31\\2025-07-15_13-00-24-left_repeater.mp4",
+            "filename": "2025-07-15_13-00-24-left_repeater.mp4",
+            "camera": "left_repeater",
+            "timestamp": "2025-07-15T17:00:24.000Z",
+            "size": 39720367,
+            "type": "SavedClips"
+          },
+          "right_pillar": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_13-01-31\\2025-07-15_13-00-24-right_pillar.mp4",
+            "filename": "2025-07-15_13-00-24-right_pillar.mp4",
+            "camera": "right_pillar",
+            "timestamp": "2025-07-15T17:00:24.000Z",
+            "size": 39853724,
+            "type": "SavedClips"
+          },
+          "right_repeater": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_13-01-31\\2025-07-15_13-00-24-right_repeater.mp4",
+            "filename": "2025-07-15_13-00-24-right_repeater.mp4",
+            "camera": "right_repeater",
+            "timestamp": "2025-07-15T17:00:24.000Z",
+            "size": 39567299,
+            "type": "SavedClips"
+          }
+        },
+        "type": "SavedClips",
+        "date": "2025-07-15"
+      },
+      {
+        "timestamp": "2025-07-15T17:01:26.000Z",
+        "files": {
+          "back": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_13-01-31\\2025-07-15_13-01-26-back.mp4",
+            "filename": "2025-07-15_13-01-26-back.mp4",
+            "camera": "back",
+            "timestamp": "2025-07-15T17:01:26.000Z",
+            "size": 2124808,
+            "type": "SavedClips"
+          },
+          "front": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_13-01-31\\2025-07-15_13-01-26-front.mp4",
+            "filename": "2025-07-15_13-01-26-front.mp4",
+            "camera": "front",
+            "timestamp": "2025-07-15T17:01:26.000Z",
+            "size": 4273483,
+            "type": "SavedClips"
+          },
+          "left_pillar": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_13-01-31\\2025-07-15_13-01-26-left_pillar.mp4",
+            "filename": "2025-07-15_13-01-26-left_pillar.mp4",
+            "camera": "left_pillar",
+            "timestamp": "2025-07-15T17:01:26.000Z",
+            "size": 2194770,
+            "type": "SavedClips"
+          },
+          "left_repeater": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_13-01-31\\2025-07-15_13-01-26-left_repeater.mp4",
+            "filename": "2025-07-15_13-01-26-left_repeater.mp4",
+            "camera": "left_repeater",
+            "timestamp": "2025-07-15T17:01:26.000Z",
+            "size": 2154174,
+            "type": "SavedClips"
+          },
+          "right_pillar": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_13-01-31\\2025-07-15_13-01-26-right_pillar.mp4",
+            "filename": "2025-07-15_13-01-26-right_pillar.mp4",
+            "camera": "right_pillar",
+            "timestamp": "2025-07-15T17:01:26.000Z",
+            "size": 2169222,
+            "type": "SavedClips"
+          },
+          "right_repeater": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_13-01-31\\2025-07-15_13-01-26-right_repeater.mp4",
+            "filename": "2025-07-15_13-01-26-right_repeater.mp4",
+            "camera": "right_repeater",
+            "timestamp": "2025-07-15T17:01:26.000Z",
+            "size": 2133680,
+            "type": "SavedClips"
+          }
+        },
+        "type": "SavedClips",
+        "date": "2025-07-15"
+      },
+      {
+        "timestamp": "2025-07-15T18:47:11.000Z",
+        "files": {
+          "back": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_14-57-27\\2025-07-15_14-47-11-back.mp4",
+            "filename": "2025-07-15_14-47-11-back.mp4",
+            "camera": "back",
+            "timestamp": "2025-07-15T18:47:11.000Z",
+            "size": 39609227,
+            "type": "SavedClips"
+          },
+          "front": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_14-57-27\\2025-07-15_14-47-11-front.mp4",
+            "filename": "2025-07-15_14-47-11-front.mp4",
+            "camera": "front",
+            "timestamp": "2025-07-15T18:47:11.000Z",
+            "size": 78019168,
+            "type": "SavedClips"
+          },
+          "left_pillar": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_14-57-27\\2025-07-15_14-47-11-left_pillar.mp4",
+            "filename": "2025-07-15_14-47-11-left_pillar.mp4",
+            "camera": "left_pillar",
+            "timestamp": "2025-07-15T18:47:11.000Z",
+            "size": 40020426,
+            "type": "SavedClips"
+          },
+          "left_repeater": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_14-57-27\\2025-07-15_14-47-11-left_repeater.mp4",
+            "filename": "2025-07-15_14-47-11-left_repeater.mp4",
+            "camera": "left_repeater",
+            "timestamp": "2025-07-15T18:47:11.000Z",
+            "size": 39431399,
+            "type": "SavedClips"
+          },
+          "right_pillar": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_14-57-27\\2025-07-15_14-47-11-right_pillar.mp4",
+            "filename": "2025-07-15_14-47-11-right_pillar.mp4",
+            "camera": "right_pillar",
+            "timestamp": "2025-07-15T18:47:11.000Z",
+            "size": 39904662,
+            "type": "SavedClips"
+          },
+          "right_repeater": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_14-57-27\\2025-07-15_14-47-11-right_repeater.mp4",
+            "filename": "2025-07-15_14-47-11-right_repeater.mp4",
+            "camera": "right_repeater",
+            "timestamp": "2025-07-15T18:47:11.000Z",
+            "size": 39283915,
+            "type": "SavedClips"
+          }
+        },
+        "type": "SavedClips",
+        "date": "2025-07-15"
+      },
+      {
+        "timestamp": "2025-07-15T18:48:12.000Z",
+        "files": {
+          "back": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_14-57-27\\2025-07-15_14-48-12-back.mp4",
+            "filename": "2025-07-15_14-48-12-back.mp4",
+            "camera": "back",
+            "timestamp": "2025-07-15T18:48:12.000Z",
+            "size": 39923685,
+            "type": "SavedClips"
+          },
+          "front": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_14-57-27\\2025-07-15_14-48-12-front.mp4",
+            "filename": "2025-07-15_14-48-12-front.mp4",
+            "camera": "front",
+            "timestamp": "2025-07-15T18:48:12.000Z",
+            "size": 78367529,
+            "type": "SavedClips"
+          },
+          "left_pillar": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_14-57-27\\2025-07-15_14-48-12-left_pillar.mp4",
+            "filename": "2025-07-15_14-48-12-left_pillar.mp4",
+            "camera": "left_pillar",
+            "timestamp": "2025-07-15T18:48:12.000Z",
+            "size": 40302579,
+            "type": "SavedClips"
+          },
+          "left_repeater": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_14-57-27\\2025-07-15_14-48-12-left_repeater.mp4",
+            "filename": "2025-07-15_14-48-12-left_repeater.mp4",
+            "camera": "left_repeater",
+            "timestamp": "2025-07-15T18:48:12.000Z",
+            "size": 39853972,
+            "type": "SavedClips"
+          },
+          "right_pillar": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_14-57-27\\2025-07-15_14-48-12-right_pillar.mp4",
+            "filename": "2025-07-15_14-48-12-right_pillar.mp4",
+            "camera": "right_pillar",
+            "timestamp": "2025-07-15T18:48:12.000Z",
+            "size": 40006073,
+            "type": "SavedClips"
+          },
+          "right_repeater": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_14-57-27\\2025-07-15_14-48-12-right_repeater.mp4",
+            "filename": "2025-07-15_14-48-12-right_repeater.mp4",
+            "camera": "right_repeater",
+            "timestamp": "2025-07-15T18:48:12.000Z",
+            "size": 39723929,
+            "type": "SavedClips"
+          }
+        },
+        "type": "SavedClips",
+        "date": "2025-07-15"
+      },
+      {
+        "timestamp": "2025-07-15T18:49:13.000Z",
+        "files": {
+          "back": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_14-57-27\\2025-07-15_14-49-13-back.mp4",
+            "filename": "2025-07-15_14-49-13-back.mp4",
+            "camera": "back",
+            "timestamp": "2025-07-15T18:49:13.000Z",
+            "size": 39842468,
+            "type": "SavedClips"
+          },
+          "front": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_14-57-27\\2025-07-15_14-49-13-front.mp4",
+            "filename": "2025-07-15_14-49-13-front.mp4",
+            "camera": "front",
+            "timestamp": "2025-07-15T18:49:13.000Z",
+            "size": 78070512,
+            "type": "SavedClips"
+          },
+          "left_pillar": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_14-57-27\\2025-07-15_14-49-13-left_pillar.mp4",
+            "filename": "2025-07-15_14-49-13-left_pillar.mp4",
+            "camera": "left_pillar",
+            "timestamp": "2025-07-15T18:49:13.000Z",
+            "size": 40238781,
+            "type": "SavedClips"
+          },
+          "left_repeater": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_14-57-27\\2025-07-15_14-49-13-left_repeater.mp4",
+            "filename": "2025-07-15_14-49-13-left_repeater.mp4",
+            "camera": "left_repeater",
+            "timestamp": "2025-07-15T18:49:13.000Z",
+            "size": 39592210,
+            "type": "SavedClips"
+          },
+          "right_pillar": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_14-57-27\\2025-07-15_14-49-13-right_pillar.mp4",
+            "filename": "2025-07-15_14-49-13-right_pillar.mp4",
+            "camera": "right_pillar",
+            "timestamp": "2025-07-15T18:49:13.000Z",
+            "size": 40374601,
+            "type": "SavedClips"
+          },
+          "right_repeater": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_14-57-27\\2025-07-15_14-49-13-right_repeater.mp4",
+            "filename": "2025-07-15_14-49-13-right_repeater.mp4",
+            "camera": "right_repeater",
+            "timestamp": "2025-07-15T18:49:13.000Z",
+            "size": 39803778,
+            "type": "SavedClips"
+          }
+        },
+        "type": "SavedClips",
+        "date": "2025-07-15"
+      },
+      {
+        "timestamp": "2025-07-15T18:50:15.000Z",
+        "files": {
+          "back": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_14-57-27\\2025-07-15_14-50-15-back.mp4",
+            "filename": "2025-07-15_14-50-15-back.mp4",
+            "camera": "back",
+            "timestamp": "2025-07-15T18:50:15.000Z",
+            "size": 39903282,
+            "type": "SavedClips"
+          },
+          "front": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_14-57-27\\2025-07-15_14-50-15-front.mp4",
+            "filename": "2025-07-15_14-50-15-front.mp4",
+            "camera": "front",
+            "timestamp": "2025-07-15T18:50:15.000Z",
+            "size": 76259933,
+            "type": "SavedClips"
+          },
+          "left_pillar": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_14-57-27\\2025-07-15_14-50-15-left_pillar.mp4",
+            "filename": "2025-07-15_14-50-15-left_pillar.mp4",
+            "camera": "left_pillar",
+            "timestamp": "2025-07-15T18:50:15.000Z",
+            "size": 39569954,
+            "type": "SavedClips"
+          },
+          "left_repeater": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_14-57-27\\2025-07-15_14-50-15-left_repeater.mp4",
+            "filename": "2025-07-15_14-50-15-left_repeater.mp4",
+            "camera": "left_repeater",
+            "timestamp": "2025-07-15T18:50:15.000Z",
+            "size": 39578168,
+            "type": "SavedClips"
+          },
+          "right_pillar": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_14-57-27\\2025-07-15_14-50-15-right_pillar.mp4",
+            "filename": "2025-07-15_14-50-15-right_pillar.mp4",
+            "camera": "right_pillar",
+            "timestamp": "2025-07-15T18:50:15.000Z",
+            "size": 39542004,
+            "type": "SavedClips"
+          },
+          "right_repeater": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_14-57-27\\2025-07-15_14-50-15-right_repeater.mp4",
+            "filename": "2025-07-15_14-50-15-right_repeater.mp4",
+            "camera": "right_repeater",
+            "timestamp": "2025-07-15T18:50:15.000Z",
+            "size": 38798528,
+            "type": "SavedClips"
+          }
+        },
+        "type": "SavedClips",
+        "date": "2025-07-15"
+      },
+      {
+        "timestamp": "2025-07-15T18:51:17.000Z",
+        "files": {
+          "back": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_14-57-27\\2025-07-15_14-51-17-back.mp4",
+            "filename": "2025-07-15_14-51-17-back.mp4",
+            "camera": "back",
+            "timestamp": "2025-07-15T18:51:17.000Z",
+            "size": 39489321,
+            "type": "SavedClips"
+          },
+          "front": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_14-57-27\\2025-07-15_14-51-17-front.mp4",
+            "filename": "2025-07-15_14-51-17-front.mp4",
+            "camera": "front",
+            "timestamp": "2025-07-15T18:51:17.000Z",
+            "size": 76909770,
+            "type": "SavedClips"
+          },
+          "left_pillar": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_14-57-27\\2025-07-15_14-51-17-left_pillar.mp4",
+            "filename": "2025-07-15_14-51-17-left_pillar.mp4",
+            "camera": "left_pillar",
+            "timestamp": "2025-07-15T18:51:17.000Z",
+            "size": 39647724,
+            "type": "SavedClips"
+          },
+          "left_repeater": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_14-57-27\\2025-07-15_14-51-17-left_repeater.mp4",
+            "filename": "2025-07-15_14-51-17-left_repeater.mp4",
+            "camera": "left_repeater",
+            "timestamp": "2025-07-15T18:51:17.000Z",
+            "size": 39247828,
+            "type": "SavedClips"
+          },
+          "right_pillar": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_14-57-27\\2025-07-15_14-51-17-right_pillar.mp4",
+            "filename": "2025-07-15_14-51-17-right_pillar.mp4",
+            "camera": "right_pillar",
+            "timestamp": "2025-07-15T18:51:17.000Z",
+            "size": 39480404,
+            "type": "SavedClips"
+          },
+          "right_repeater": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_14-57-27\\2025-07-15_14-51-17-right_repeater.mp4",
+            "filename": "2025-07-15_14-51-17-right_repeater.mp4",
+            "camera": "right_repeater",
+            "timestamp": "2025-07-15T18:51:17.000Z",
+            "size": 39267582,
+            "type": "SavedClips"
+          }
+        },
+        "type": "SavedClips",
+        "date": "2025-07-15"
+      },
+      {
+        "timestamp": "2025-07-15T18:52:18.000Z",
+        "files": {
+          "back": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_14-57-27\\2025-07-15_14-52-18-back.mp4",
+            "filename": "2025-07-15_14-52-18-back.mp4",
+            "camera": "back",
+            "timestamp": "2025-07-15T18:52:18.000Z",
+            "size": 39932245,
+            "type": "SavedClips"
+          },
+          "front": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_14-57-27\\2025-07-15_14-52-18-front.mp4",
+            "filename": "2025-07-15_14-52-18-front.mp4",
+            "camera": "front",
+            "timestamp": "2025-07-15T18:52:18.000Z",
+            "size": 75331379,
+            "type": "SavedClips"
+          },
+          "left_pillar": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_14-57-27\\2025-07-15_14-52-18-left_pillar.mp4",
+            "filename": "2025-07-15_14-52-18-left_pillar.mp4",
+            "camera": "left_pillar",
+            "timestamp": "2025-07-15T18:52:18.000Z",
+            "size": 38974615,
+            "type": "SavedClips"
+          },
+          "left_repeater": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_14-57-27\\2025-07-15_14-52-18-left_repeater.mp4",
+            "filename": "2025-07-15_14-52-18-left_repeater.mp4",
+            "camera": "left_repeater",
+            "timestamp": "2025-07-15T18:52:18.000Z",
+            "size": 39223983,
+            "type": "SavedClips"
+          },
+          "right_pillar": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_14-57-27\\2025-07-15_14-52-18-right_pillar.mp4",
+            "filename": "2025-07-15_14-52-18-right_pillar.mp4",
+            "camera": "right_pillar",
+            "timestamp": "2025-07-15T18:52:18.000Z",
+            "size": 39922301,
+            "type": "SavedClips"
+          },
+          "right_repeater": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_14-57-27\\2025-07-15_14-52-18-right_repeater.mp4",
+            "filename": "2025-07-15_14-52-18-right_repeater.mp4",
+            "camera": "right_repeater",
+            "timestamp": "2025-07-15T18:52:18.000Z",
+            "size": 39155796,
+            "type": "SavedClips"
+          }
+        },
+        "type": "SavedClips",
+        "date": "2025-07-15"
+      },
+      {
+        "timestamp": "2025-07-15T18:53:19.000Z",
+        "files": {
+          "back": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_14-57-27\\2025-07-15_14-53-19-back.mp4",
+            "filename": "2025-07-15_14-53-19-back.mp4",
+            "camera": "back",
+            "timestamp": "2025-07-15T18:53:19.000Z",
+            "size": 40587037,
+            "type": "SavedClips"
+          },
+          "front": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_14-57-27\\2025-07-15_14-53-19-front.mp4",
+            "filename": "2025-07-15_14-53-19-front.mp4",
+            "camera": "front",
+            "timestamp": "2025-07-15T18:53:19.000Z",
+            "size": 77990920,
+            "type": "SavedClips"
+          },
+          "left_pillar": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_14-57-27\\2025-07-15_14-53-19-left_pillar.mp4",
+            "filename": "2025-07-15_14-53-19-left_pillar.mp4",
+            "camera": "left_pillar",
+            "timestamp": "2025-07-15T18:53:19.000Z",
+            "size": 39513583,
+            "type": "SavedClips"
+          },
+          "left_repeater": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_14-57-27\\2025-07-15_14-53-19-left_repeater.mp4",
+            "filename": "2025-07-15_14-53-19-left_repeater.mp4",
+            "camera": "left_repeater",
+            "timestamp": "2025-07-15T18:53:19.000Z",
+            "size": 39580973,
+            "type": "SavedClips"
+          },
+          "right_pillar": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_14-57-27\\2025-07-15_14-53-19-right_pillar.mp4",
+            "filename": "2025-07-15_14-53-19-right_pillar.mp4",
+            "camera": "right_pillar",
+            "timestamp": "2025-07-15T18:53:19.000Z",
+            "size": 39932569,
+            "type": "SavedClips"
+          },
+          "right_repeater": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_14-57-27\\2025-07-15_14-53-19-right_repeater.mp4",
+            "filename": "2025-07-15_14-53-19-right_repeater.mp4",
+            "camera": "right_repeater",
+            "timestamp": "2025-07-15T18:53:19.000Z",
+            "size": 39574016,
+            "type": "SavedClips"
+          }
+        },
+        "type": "SavedClips",
+        "date": "2025-07-15"
+      },
+      {
+        "timestamp": "2025-07-15T18:54:21.000Z",
+        "files": {
+          "back": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_14-57-27\\2025-07-15_14-54-21-back.mp4",
+            "filename": "2025-07-15_14-54-21-back.mp4",
+            "camera": "back",
+            "timestamp": "2025-07-15T18:54:21.000Z",
+            "size": 40073220,
+            "type": "SavedClips"
+          },
+          "front": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_14-57-27\\2025-07-15_14-54-21-front.mp4",
+            "filename": "2025-07-15_14-54-21-front.mp4",
+            "camera": "front",
+            "timestamp": "2025-07-15T18:54:21.000Z",
+            "size": 78320743,
+            "type": "SavedClips"
+          },
+          "left_pillar": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_14-57-27\\2025-07-15_14-54-21-left_pillar.mp4",
+            "filename": "2025-07-15_14-54-21-left_pillar.mp4",
+            "camera": "left_pillar",
+            "timestamp": "2025-07-15T18:54:21.000Z",
+            "size": 40252418,
+            "type": "SavedClips"
+          },
+          "left_repeater": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_14-57-27\\2025-07-15_14-54-21-left_repeater.mp4",
+            "filename": "2025-07-15_14-54-21-left_repeater.mp4",
+            "camera": "left_repeater",
+            "timestamp": "2025-07-15T18:54:21.000Z",
+            "size": 39690848,
+            "type": "SavedClips"
+          },
+          "right_pillar": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_14-57-27\\2025-07-15_14-54-21-right_pillar.mp4",
+            "filename": "2025-07-15_14-54-21-right_pillar.mp4",
+            "camera": "right_pillar",
+            "timestamp": "2025-07-15T18:54:21.000Z",
+            "size": 40232051,
+            "type": "SavedClips"
+          },
+          "right_repeater": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_14-57-27\\2025-07-15_14-54-21-right_repeater.mp4",
+            "filename": "2025-07-15_14-54-21-right_repeater.mp4",
+            "camera": "right_repeater",
+            "timestamp": "2025-07-15T18:54:21.000Z",
+            "size": 39708779,
+            "type": "SavedClips"
+          }
+        },
+        "type": "SavedClips",
+        "date": "2025-07-15"
+      },
+      {
+        "timestamp": "2025-07-15T18:55:22.000Z",
+        "files": {
+          "back": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_14-57-27\\2025-07-15_14-55-22-back.mp4",
+            "filename": "2025-07-15_14-55-22-back.mp4",
+            "camera": "back",
+            "timestamp": "2025-07-15T18:55:22.000Z",
+            "size": 39821199,
+            "type": "SavedClips"
+          },
+          "front": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_14-57-27\\2025-07-15_14-55-22-front.mp4",
+            "filename": "2025-07-15_14-55-22-front.mp4",
+            "camera": "front",
+            "timestamp": "2025-07-15T18:55:22.000Z",
+            "size": 78443309,
+            "type": "SavedClips"
+          },
+          "left_pillar": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_14-57-27\\2025-07-15_14-55-22-left_pillar.mp4",
+            "filename": "2025-07-15_14-55-22-left_pillar.mp4",
+            "camera": "left_pillar",
+            "timestamp": "2025-07-15T18:55:22.000Z",
+            "size": 39866498,
+            "type": "SavedClips"
+          },
+          "left_repeater": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_14-57-27\\2025-07-15_14-55-22-left_repeater.mp4",
+            "filename": "2025-07-15_14-55-22-left_repeater.mp4",
+            "camera": "left_repeater",
+            "timestamp": "2025-07-15T18:55:22.000Z",
+            "size": 39394321,
+            "type": "SavedClips"
+          },
+          "right_pillar": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_14-57-27\\2025-07-15_14-55-22-right_pillar.mp4",
+            "filename": "2025-07-15_14-55-22-right_pillar.mp4",
+            "camera": "right_pillar",
+            "timestamp": "2025-07-15T18:55:22.000Z",
+            "size": 40156840,
+            "type": "SavedClips"
+          },
+          "right_repeater": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_14-57-27\\2025-07-15_14-55-22-right_repeater.mp4",
+            "filename": "2025-07-15_14-55-22-right_repeater.mp4",
+            "camera": "right_repeater",
+            "timestamp": "2025-07-15T18:55:22.000Z",
+            "size": 39683917,
+            "type": "SavedClips"
+          }
+        },
+        "type": "SavedClips",
+        "date": "2025-07-15"
+      },
+      {
+        "timestamp": "2025-07-15T18:56:24.000Z",
+        "files": {
+          "back": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_14-57-27\\2025-07-15_14-56-24-back.mp4",
+            "filename": "2025-07-15_14-56-24-back.mp4",
+            "camera": "back",
+            "timestamp": "2025-07-15T18:56:24.000Z",
+            "size": 40402152,
+            "type": "SavedClips"
+          },
+          "front": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_14-57-27\\2025-07-15_14-56-24-front.mp4",
+            "filename": "2025-07-15_14-56-24-front.mp4",
+            "camera": "front",
+            "timestamp": "2025-07-15T18:56:24.000Z",
+            "size": 78538872,
+            "type": "SavedClips"
+          },
+          "left_pillar": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_14-57-27\\2025-07-15_14-56-24-left_pillar.mp4",
+            "filename": "2025-07-15_14-56-24-left_pillar.mp4",
+            "camera": "left_pillar",
+            "timestamp": "2025-07-15T18:56:24.000Z",
+            "size": 40048918,
+            "type": "SavedClips"
+          },
+          "left_repeater": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_14-57-27\\2025-07-15_14-56-24-left_repeater.mp4",
+            "filename": "2025-07-15_14-56-24-left_repeater.mp4",
+            "camera": "left_repeater",
+            "timestamp": "2025-07-15T18:56:24.000Z",
+            "size": 39780951,
+            "type": "SavedClips"
+          },
+          "right_pillar": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_14-57-27\\2025-07-15_14-56-24-right_pillar.mp4",
+            "filename": "2025-07-15_14-56-24-right_pillar.mp4",
+            "camera": "right_pillar",
+            "timestamp": "2025-07-15T18:56:24.000Z",
+            "size": 40314041,
+            "type": "SavedClips"
+          },
+          "right_repeater": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_14-57-27\\2025-07-15_14-56-24-right_repeater.mp4",
+            "filename": "2025-07-15_14-56-24-right_repeater.mp4",
+            "camera": "right_repeater",
+            "timestamp": "2025-07-15T18:56:24.000Z",
+            "size": 39803924,
+            "type": "SavedClips"
+          }
+        },
+        "type": "SavedClips",
+        "date": "2025-07-15"
+      },
+      {
+        "timestamp": "2025-07-15T18:57:25.000Z",
+        "files": {
+          "back": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_14-57-27\\2025-07-15_14-57-25-back.mp4",
+            "filename": "2025-07-15_14-57-25-back.mp4",
+            "camera": "back",
+            "timestamp": "2025-07-15T18:57:25.000Z",
+            "size": 289799,
+            "type": "SavedClips"
+          },
+          "front": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_14-57-27\\2025-07-15_14-57-25-front.mp4",
+            "filename": "2025-07-15_14-57-25-front.mp4",
+            "camera": "front",
+            "timestamp": "2025-07-15T18:57:25.000Z",
+            "size": 588882,
+            "type": "SavedClips"
+          },
+          "left_pillar": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_14-57-27\\2025-07-15_14-57-25-left_pillar.mp4",
+            "filename": "2025-07-15_14-57-25-left_pillar.mp4",
+            "camera": "left_pillar",
+            "timestamp": "2025-07-15T18:57:25.000Z",
+            "size": 310735,
+            "type": "SavedClips"
+          },
+          "left_repeater": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_14-57-27\\2025-07-15_14-57-25-left_repeater.mp4",
+            "filename": "2025-07-15_14-57-25-left_repeater.mp4",
+            "camera": "left_repeater",
+            "timestamp": "2025-07-15T18:57:25.000Z",
+            "size": 322188,
+            "type": "SavedClips"
+          },
+          "right_pillar": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_14-57-27\\2025-07-15_14-57-25-right_pillar.mp4",
+            "filename": "2025-07-15_14-57-25-right_pillar.mp4",
+            "camera": "right_pillar",
+            "timestamp": "2025-07-15T18:57:25.000Z",
+            "size": 319325,
+            "type": "SavedClips"
+          },
+          "right_repeater": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_14-57-27\\2025-07-15_14-57-25-right_repeater.mp4",
+            "filename": "2025-07-15_14-57-25-right_repeater.mp4",
+            "camera": "right_repeater",
+            "timestamp": "2025-07-15T18:57:25.000Z",
+            "size": 294515,
+            "type": "SavedClips"
+          }
+        },
+        "type": "SavedClips",
+        "date": "2025-07-15"
+      },
+      {
+        "timestamp": "2025-07-15T21:08:39.000Z",
+        "files": {
+          "back": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_17-18-53\\2025-07-15_17-08-39-back.mp4",
+            "filename": "2025-07-15_17-08-39-back.mp4",
+            "camera": "back",
+            "timestamp": "2025-07-15T21:08:39.000Z",
+            "size": 6594229,
+            "type": "SavedClips"
+          },
+          "front": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_17-18-53\\2025-07-15_17-08-39-front.mp4",
+            "filename": "2025-07-15_17-08-39-front.mp4",
+            "camera": "front",
+            "timestamp": "2025-07-15T21:08:39.000Z",
+            "size": 12559175,
+            "type": "SavedClips"
+          },
+          "left_pillar": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_17-18-53\\2025-07-15_17-08-39-left_pillar.mp4",
+            "filename": "2025-07-15_17-08-39-left_pillar.mp4",
+            "camera": "left_pillar",
+            "timestamp": "2025-07-15T21:08:39.000Z",
+            "size": 6513013,
+            "type": "SavedClips"
+          },
+          "left_repeater": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_17-18-53\\2025-07-15_17-08-39-left_repeater.mp4",
+            "filename": "2025-07-15_17-08-39-left_repeater.mp4",
+            "camera": "left_repeater",
+            "timestamp": "2025-07-15T21:08:39.000Z",
+            "size": 6644869,
+            "type": "SavedClips"
+          },
+          "right_pillar": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_17-18-53\\2025-07-15_17-08-39-right_pillar.mp4",
+            "filename": "2025-07-15_17-08-39-right_pillar.mp4",
+            "camera": "right_pillar",
+            "timestamp": "2025-07-15T21:08:39.000Z",
+            "size": 6785107,
+            "type": "SavedClips"
+          },
+          "right_repeater": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_17-18-53\\2025-07-15_17-08-39-right_repeater.mp4",
+            "filename": "2025-07-15_17-08-39-right_repeater.mp4",
+            "camera": "right_repeater",
+            "timestamp": "2025-07-15T21:08:39.000Z",
+            "size": 6728614,
+            "type": "SavedClips"
+          }
+        },
+        "type": "SavedClips",
+        "date": "2025-07-15"
+      },
+      {
+        "timestamp": "2025-07-15T21:11:43.000Z",
+        "files": {
+          "back": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_17-18-53\\2025-07-15_17-11-43-back.mp4",
+            "filename": "2025-07-15_17-11-43-back.mp4",
+            "camera": "back",
+            "timestamp": "2025-07-15T21:11:43.000Z",
+            "size": 11812206,
+            "type": "SavedClips"
+          },
+          "front": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_17-18-53\\2025-07-15_17-11-43-front.mp4",
+            "filename": "2025-07-15_17-11-43-front.mp4",
+            "camera": "front",
+            "timestamp": "2025-07-15T21:11:43.000Z",
+            "size": 23222882,
+            "type": "SavedClips"
+          },
+          "left_pillar": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_17-18-53\\2025-07-15_17-11-43-left_pillar.mp4",
+            "filename": "2025-07-15_17-11-43-left_pillar.mp4",
+            "camera": "left_pillar",
+            "timestamp": "2025-07-15T21:11:43.000Z",
+            "size": 11705335,
+            "type": "SavedClips"
+          },
+          "left_repeater": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_17-18-53\\2025-07-15_17-11-43-left_repeater.mp4",
+            "filename": "2025-07-15_17-11-43-left_repeater.mp4",
+            "camera": "left_repeater",
+            "timestamp": "2025-07-15T21:11:43.000Z",
+            "size": 12032456,
+            "type": "SavedClips"
+          },
+          "right_pillar": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_17-18-53\\2025-07-15_17-11-43-right_pillar.mp4",
+            "filename": "2025-07-15_17-11-43-right_pillar.mp4",
+            "camera": "right_pillar",
+            "timestamp": "2025-07-15T21:11:43.000Z",
+            "size": 12189244,
+            "type": "SavedClips"
+          },
+          "right_repeater": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_17-18-53\\2025-07-15_17-11-43-right_repeater.mp4",
+            "filename": "2025-07-15_17-11-43-right_repeater.mp4",
+            "camera": "right_repeater",
+            "timestamp": "2025-07-15T21:11:43.000Z",
+            "size": 11997600,
+            "type": "SavedClips"
+          }
+        },
+        "type": "SavedClips",
+        "date": "2025-07-15"
+      },
+      {
+        "timestamp": "2025-07-15T21:12:45.000Z",
+        "files": {
+          "back": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_17-18-53\\2025-07-15_17-12-45-back.mp4",
+            "filename": "2025-07-15_17-12-45-back.mp4",
+            "camera": "back",
+            "timestamp": "2025-07-15T21:12:45.000Z",
+            "size": 39952244,
+            "type": "SavedClips"
+          },
+          "front": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_17-18-53\\2025-07-15_17-12-45-front.mp4",
+            "filename": "2025-07-15_17-12-45-front.mp4",
+            "camera": "front",
+            "timestamp": "2025-07-15T21:12:45.000Z",
+            "size": 78524297,
+            "type": "SavedClips"
+          },
+          "left_pillar": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_17-18-53\\2025-07-15_17-12-45-left_pillar.mp4",
+            "filename": "2025-07-15_17-12-45-left_pillar.mp4",
+            "camera": "left_pillar",
+            "timestamp": "2025-07-15T21:12:45.000Z",
+            "size": 40084627,
+            "type": "SavedClips"
+          },
+          "left_repeater": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_17-18-53\\2025-07-15_17-12-45-left_repeater.mp4",
+            "filename": "2025-07-15_17-12-45-left_repeater.mp4",
+            "camera": "left_repeater",
+            "timestamp": "2025-07-15T21:12:45.000Z",
+            "size": 39781956,
+            "type": "SavedClips"
+          },
+          "right_pillar": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_17-18-53\\2025-07-15_17-12-45-right_pillar.mp4",
+            "filename": "2025-07-15_17-12-45-right_pillar.mp4",
+            "camera": "right_pillar",
+            "timestamp": "2025-07-15T21:12:45.000Z",
+            "size": 40034767,
+            "type": "SavedClips"
+          },
+          "right_repeater": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_17-18-53\\2025-07-15_17-12-45-right_repeater.mp4",
+            "filename": "2025-07-15_17-12-45-right_repeater.mp4",
+            "camera": "right_repeater",
+            "timestamp": "2025-07-15T21:12:45.000Z",
+            "size": 39757688,
+            "type": "SavedClips"
+          }
+        },
+        "type": "SavedClips",
+        "date": "2025-07-15"
+      },
+      {
+        "timestamp": "2025-07-15T21:13:46.000Z",
+        "files": {
+          "back": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_17-18-53\\2025-07-15_17-13-46-back.mp4",
+            "filename": "2025-07-15_17-13-46-back.mp4",
+            "camera": "back",
+            "timestamp": "2025-07-15T21:13:46.000Z",
+            "size": 39904333,
+            "type": "SavedClips"
+          },
+          "front": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_17-18-53\\2025-07-15_17-13-46-front.mp4",
+            "filename": "2025-07-15_17-13-46-front.mp4",
+            "camera": "front",
+            "timestamp": "2025-07-15T21:13:46.000Z",
+            "size": 76944064,
+            "type": "SavedClips"
+          },
+          "left_pillar": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_17-18-53\\2025-07-15_17-13-46-left_pillar.mp4",
+            "filename": "2025-07-15_17-13-46-left_pillar.mp4",
+            "camera": "left_pillar",
+            "timestamp": "2025-07-15T21:13:46.000Z",
+            "size": 39620580,
+            "type": "SavedClips"
+          },
+          "left_repeater": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_17-18-53\\2025-07-15_17-13-46-left_repeater.mp4",
+            "filename": "2025-07-15_17-13-46-left_repeater.mp4",
+            "camera": "left_repeater",
+            "timestamp": "2025-07-15T21:13:46.000Z",
+            "size": 38999597,
+            "type": "SavedClips"
+          },
+          "right_pillar": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_17-18-53\\2025-07-15_17-13-46-right_pillar.mp4",
+            "filename": "2025-07-15_17-13-46-right_pillar.mp4",
+            "camera": "right_pillar",
+            "timestamp": "2025-07-15T21:13:46.000Z",
+            "size": 39563994,
+            "type": "SavedClips"
+          },
+          "right_repeater": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_17-18-53\\2025-07-15_17-13-46-right_repeater.mp4",
+            "filename": "2025-07-15_17-13-46-right_repeater.mp4",
+            "camera": "right_repeater",
+            "timestamp": "2025-07-15T21:13:46.000Z",
+            "size": 39163088,
+            "type": "SavedClips"
+          }
+        },
+        "type": "SavedClips",
+        "date": "2025-07-15"
+      },
+      {
+        "timestamp": "2025-07-15T21:14:47.000Z",
+        "files": {
+          "back": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_17-18-53\\2025-07-15_17-14-47-back.mp4",
+            "filename": "2025-07-15_17-14-47-back.mp4",
+            "camera": "back",
+            "timestamp": "2025-07-15T21:14:47.000Z",
+            "size": 39734929,
+            "type": "SavedClips"
+          },
+          "front": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_17-18-53\\2025-07-15_17-14-47-front.mp4",
+            "filename": "2025-07-15_17-14-47-front.mp4",
+            "camera": "front",
+            "timestamp": "2025-07-15T21:14:47.000Z",
+            "size": 75236328,
+            "type": "SavedClips"
+          },
+          "left_pillar": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_17-18-53\\2025-07-15_17-14-47-left_pillar.mp4",
+            "filename": "2025-07-15_17-14-47-left_pillar.mp4",
+            "camera": "left_pillar",
+            "timestamp": "2025-07-15T21:14:47.000Z",
+            "size": 38877809,
+            "type": "SavedClips"
+          },
+          "left_repeater": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_17-18-53\\2025-07-15_17-14-47-left_repeater.mp4",
+            "filename": "2025-07-15_17-14-47-left_repeater.mp4",
+            "camera": "left_repeater",
+            "timestamp": "2025-07-15T21:14:47.000Z",
+            "size": 37969962,
+            "type": "SavedClips"
+          },
+          "right_pillar": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_17-18-53\\2025-07-15_17-14-47-right_pillar.mp4",
+            "filename": "2025-07-15_17-14-47-right_pillar.mp4",
+            "camera": "right_pillar",
+            "timestamp": "2025-07-15T21:14:47.000Z",
+            "size": 39476879,
+            "type": "SavedClips"
+          },
+          "right_repeater": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_17-18-53\\2025-07-15_17-14-47-right_repeater.mp4",
+            "filename": "2025-07-15_17-14-47-right_repeater.mp4",
+            "camera": "right_repeater",
+            "timestamp": "2025-07-15T21:14:47.000Z",
+            "size": 38592783,
+            "type": "SavedClips"
+          }
+        },
+        "type": "SavedClips",
+        "date": "2025-07-15"
+      },
+      {
+        "timestamp": "2025-07-15T21:15:49.000Z",
+        "files": {
+          "back": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_17-18-53\\2025-07-15_17-15-49-back.mp4",
+            "filename": "2025-07-15_17-15-49-back.mp4",
+            "camera": "back",
+            "timestamp": "2025-07-15T21:15:49.000Z",
+            "size": 39786809,
+            "type": "SavedClips"
+          },
+          "front": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_17-18-53\\2025-07-15_17-15-49-front.mp4",
+            "filename": "2025-07-15_17-15-49-front.mp4",
+            "camera": "front",
+            "timestamp": "2025-07-15T21:15:49.000Z",
+            "size": 77791207,
+            "type": "SavedClips"
+          },
+          "left_pillar": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_17-18-53\\2025-07-15_17-15-49-left_pillar.mp4",
+            "filename": "2025-07-15_17-15-49-left_pillar.mp4",
+            "camera": "left_pillar",
+            "timestamp": "2025-07-15T21:15:49.000Z",
+            "size": 39899059,
+            "type": "SavedClips"
+          },
+          "left_repeater": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_17-18-53\\2025-07-15_17-15-49-left_repeater.mp4",
+            "filename": "2025-07-15_17-15-49-left_repeater.mp4",
+            "camera": "left_repeater",
+            "timestamp": "2025-07-15T21:15:49.000Z",
+            "size": 39398634,
+            "type": "SavedClips"
+          },
+          "right_pillar": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_17-18-53\\2025-07-15_17-15-49-right_pillar.mp4",
+            "filename": "2025-07-15_17-15-49-right_pillar.mp4",
+            "camera": "right_pillar",
+            "timestamp": "2025-07-15T21:15:49.000Z",
+            "size": 39774421,
+            "type": "SavedClips"
+          },
+          "right_repeater": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_17-18-53\\2025-07-15_17-15-49-right_repeater.mp4",
+            "filename": "2025-07-15_17-15-49-right_repeater.mp4",
+            "camera": "right_repeater",
+            "timestamp": "2025-07-15T21:15:49.000Z",
+            "size": 39611527,
+            "type": "SavedClips"
+          }
+        },
+        "type": "SavedClips",
+        "date": "2025-07-15"
+      },
+      {
+        "timestamp": "2025-07-15T21:16:50.000Z",
+        "files": {
+          "back": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_17-18-53\\2025-07-15_17-16-50-back.mp4",
+            "filename": "2025-07-15_17-16-50-back.mp4",
+            "camera": "back",
+            "timestamp": "2025-07-15T21:16:50.000Z",
+            "size": 39903221,
+            "type": "SavedClips"
+          },
+          "front": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_17-18-53\\2025-07-15_17-16-50-front.mp4",
+            "filename": "2025-07-15_17-16-50-front.mp4",
+            "camera": "front",
+            "timestamp": "2025-07-15T21:16:50.000Z",
+            "size": 77723394,
+            "type": "SavedClips"
+          },
+          "left_pillar": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_17-18-53\\2025-07-15_17-16-50-left_pillar.mp4",
+            "filename": "2025-07-15_17-16-50-left_pillar.mp4",
+            "camera": "left_pillar",
+            "timestamp": "2025-07-15T21:16:50.000Z",
+            "size": 39944327,
+            "type": "SavedClips"
+          },
+          "left_repeater": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_17-18-53\\2025-07-15_17-16-50-left_repeater.mp4",
+            "filename": "2025-07-15_17-16-50-left_repeater.mp4",
+            "camera": "left_repeater",
+            "timestamp": "2025-07-15T21:16:50.000Z",
+            "size": 39716456,
+            "type": "SavedClips"
+          },
+          "right_pillar": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_17-18-53\\2025-07-15_17-16-50-right_pillar.mp4",
+            "filename": "2025-07-15_17-16-50-right_pillar.mp4",
+            "camera": "right_pillar",
+            "timestamp": "2025-07-15T21:16:50.000Z",
+            "size": 39816327,
+            "type": "SavedClips"
+          },
+          "right_repeater": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_17-18-53\\2025-07-15_17-16-50-right_repeater.mp4",
+            "filename": "2025-07-15_17-16-50-right_repeater.mp4",
+            "camera": "right_repeater",
+            "timestamp": "2025-07-15T21:16:50.000Z",
+            "size": 39569100,
+            "type": "SavedClips"
+          }
+        },
+        "type": "SavedClips",
+        "date": "2025-07-15"
+      },
+      {
+        "timestamp": "2025-07-15T21:17:51.000Z",
+        "files": {
+          "back": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_17-18-53\\2025-07-15_17-17-51-back.mp4",
+            "filename": "2025-07-15_17-17-51-back.mp4",
+            "camera": "back",
+            "timestamp": "2025-07-15T21:17:51.000Z",
+            "size": 39762874,
+            "type": "SavedClips"
+          },
+          "front": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_17-18-53\\2025-07-15_17-17-51-front.mp4",
+            "filename": "2025-07-15_17-17-51-front.mp4",
+            "camera": "front",
+            "timestamp": "2025-07-15T21:17:51.000Z",
+            "size": 78337924,
+            "type": "SavedClips"
+          },
+          "left_pillar": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_17-18-53\\2025-07-15_17-17-51-left_pillar.mp4",
+            "filename": "2025-07-15_17-17-51-left_pillar.mp4",
+            "camera": "left_pillar",
+            "timestamp": "2025-07-15T21:17:51.000Z",
+            "size": 39990312,
+            "type": "SavedClips"
+          },
+          "left_repeater": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_17-18-53\\2025-07-15_17-17-51-left_repeater.mp4",
+            "filename": "2025-07-15_17-17-51-left_repeater.mp4",
+            "camera": "left_repeater",
+            "timestamp": "2025-07-15T21:17:51.000Z",
+            "size": 39442305,
+            "type": "SavedClips"
+          },
+          "right_pillar": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_17-18-53\\2025-07-15_17-17-51-right_pillar.mp4",
+            "filename": "2025-07-15_17-17-51-right_pillar.mp4",
+            "camera": "right_pillar",
+            "timestamp": "2025-07-15T21:17:51.000Z",
+            "size": 39760629,
+            "type": "SavedClips"
+          },
+          "right_repeater": {
+            "path": "G:\\TeslaCam\\SavedClips\\2025-07-15_17-18-53\\2025-07-15_17-17-51-right_repeater.mp4",
+            "filename": "2025-07-15_17-17-51-right_repeater.mp4",
+            "camera": "right_repeater",
+            "timestamp": "2025-07-15T21:17:51.000Z",
+            "size": 39565335,
+            "type": "SavedClips"
+          }
+        },
+        "type": "SavedClips",
+        "date": "2025-07-15"
+      }
+    ],
+    "currentClipIndex": 22,
+    "totalDuration": 1433796.6666666665,
+    "displayDuration": 1800000,
+    "startTime": "2025-07-15T16:51:10.000Z",
+    "isPlaying": false,
+    "currentPosition": 1264019.77,
+    "date": "07/15/25",
+    "actualDurations": [
+      60157.3,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      59934.7,
+      null,
+      59722.1,
+      59912.6,
+      59975.299999999996,
+      60084.1,
+      60196.1,
+      417.4,
+      9739.4
+    ],
+    "loadedClipCount": 9
+  },
+  "gaps": [],
+  "missingCameras": [],
+  "settings": {
+    "gapThreshold": 60
+  }
+}
