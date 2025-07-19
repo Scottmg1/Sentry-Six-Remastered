@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline';">
+    <title>Sentry-Six - Tesla Dashcam Viewer</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div id="app">
+        <!-- Header -->
+        <header class="app-header">
+            <div class="header-left">
+                <h1 class="app-title">
+                    <img src="../../assets/icon.png" alt="Sentry-Six" class="app-icon">
+                    Sentry-Six
+                </h1>
+                <span class="app-subtitle">Tesla Dashcam Viewer</span>
+            </div>
+            <div class="header-center">
+                <div class="playback-controls">
+                    <button id="play-pause-btn" class="control-btn" title="Play/Pause">
+                        <span class="icon">⏯️</span>
+                    </button>
+                    <button id="stop-btn" class="control-btn" title="Stop">
+                        <span class="icon">⏹️</span>
+                    </button>
+                    <button id="next-clip-btn" class="control-btn" title="Next Clip">
+                        <span class="icon">⏭️</span>
+                    </button>
+                    <button id="prev-clip-btn" class="control-btn" title="Previous Clip">
+                        <span class="icon">⏮️</span>
+                    </button>
+                    <button id="next-clip-btn" class="control-btn" title="Next Clip">
+                        <span class="icon">⏭️</span>
+                    </button>
+                </div>
+            </div>
+            <div class="header-right">
+                <div class="timestamp-display" id="timestamp-display">
+                    --/--/---- --:--:-- --
+                </div>
+                <button id="debug-btn" class="control-btn debug-btn" title="Debug Timeline">
+                    <span class="icon">🐛</span>
+                </button>
+                <button id="settings-btn" class="control-btn" title="Settings">
+                    <span class="icon">⚙️</span>
+                </button>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="app-main">
+            <!-- Sidebar -->
+            <aside class="sidebar" id="sidebar">
+                <div class="sidebar-header">
+                    <h3>Tesla Clips</h3>
+                    <button id="open-folder-btn" class="btn btn-primary">
+                        📁 Open Folder
+                    </button>
+                </div>
+                
+                <div class="sidebar-content">
+                    <div id="loading-indicator" class="loading hidden">
+                        <div class="spinner"></div>
+                        <span>Loading Tesla files...</span>
+                    </div>
+                    
+                    <div id="clip-list" class="clip-list">
+                        <div class="no-clips-message">
+                            <p>No Tesla clips loaded</p>
+                            <p>Click "Open Folder" to select your Tesla dashcam folder</p>
+                        </div>
+
+                        <!-- Collapsible sections will be dynamically added here -->
+                    </div>
+
+                    <!-- Debug Panel -->
+                    <div id="debug-panel" class="debug-panel" style="display: none;">
+                        <div class="debug-header">
+                            <span>Timeline Debug Info</span>
+                            <button id="debug-toggle" class="debug-toggle">Hide</button>
+                        </div>
+                        <div class="debug-content">
+                            <div id="debug-timeline-info"></div>
+                            <div id="debug-clip-gaps"></div>
+                            <div id="debug-current-state"></div>
+                    <div class="debug-actions">
+                        <button id="export-debug-btn" class="debug-action-btn">Export Debug Data</button>
+                        <button id="clear-debug-btn" class="debug-action-btn">Clear Console</button>
+                        <button id="test-timeline-btn" class="debug-action-btn">Test Timeline</button>
+                    </div>
+                        </div>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- Video Grid -->
+            <section class="video-section">
+                <div class="video-grid" id="video-grid">
+                    <!-- Top Row: Left Pillar, Front, Right Pillar -->
+
+                    <!-- Left Pillar Camera -->
+                    <div class="video-container" data-camera="left_pillar">
+                        <div class="video-header">
+                            <span class="camera-label">Left Pillar</span>
+                            <div class="video-controls">
+                                <button class="video-control-btn" data-action="fullscreen" title="Fullscreen">
+                                    <span class="icon">⛶</span>
+                                </button>
+                            </div>
+                        </div>
+                        <video
+                            id="video-left_pillar"
+                            class="video-player"
+                            data-camera="left_pillar"
+                            preload="metadata"
+                            muted
+                        >
+                            Your browser does not support the video tag.
+                        </video>
+                        <div class="video-overlay">
+                            <div class="video-status">No video loaded</div>
+                        </div>
+                    </div>
+
+                    <!-- Front Camera -->
+                    <div class="video-container" data-camera="front">
+                        <div class="video-header">
+                            <span class="camera-label">Front</span>
+                            <div class="video-controls">
+                                <button class="video-control-btn" data-action="fullscreen" title="Fullscreen">
+                                    <span class="icon">⛶</span>
+                                </button>
+                            </div>
+                        </div>
+                        <video
+                            id="video-front"
+                            class="video-player"
+                            data-camera="front"
+                            preload="metadata"
+                            muted
+                        >
+                            Your browser does not support the video tag.
+                        </video>
+                        <div class="video-overlay">
+                            <div class="video-status">No video loaded</div>
+                        </div>
+                    </div>
+
+                    <!-- Right Pillar Camera -->
+                    <div class="video-container" data-camera="right_pillar">
+                        <div class="video-header">
+                            <span class="camera-label">Right Pillar</span>
+                            <div class="video-controls">
+                                <button class="video-control-btn" data-action="fullscreen" title="Fullscreen">
+                                    <span class="icon">⛶</span>
+                                </button>
+                            </div>
+                        </div>
+                        <video
+                            id="video-right_pillar"
+                            class="video-player"
+                            data-camera="right_pillar"
+                            preload="metadata"
+                            muted
+                        >
+                            Your browser does not support the video tag.
+                        </video>
+                        <div class="video-overlay">
+                            <div class="video-status">No video loaded</div>
+                        </div>
+                    </div>
+
+                    <!-- Bottom Row: Left Repeater, Back, Right Repeater -->
+
+                    <!-- Left Repeater Camera -->
+                    <div class="video-container" data-camera="left_repeater">
+                        <div class="video-header">
+                            <span class="camera-label">Left Repeater</span>
+                            <div class="video-controls">
+                                <button class="video-control-btn" data-action="fullscreen" title="Fullscreen">
+                                    <span class="icon">⛶</span>
+                                </button>
+                            </div>
+                        </div>
+                        <video
+                            id="video-left_repeater"
+                            class="video-player"
+                            data-camera="left_repeater"
+                            preload="metadata"
+                            muted
+                        >
+                            Your browser does not support the video tag.
+                        </video>
+                        <div class="video-overlay">
+                            <div class="video-status">No video loaded</div>
+                        </div>
+                    </div>
+
+                    <!-- Back Camera -->
+                    <div class="video-container" data-camera="back">
+                        <div class="video-header">
+                            <span class="camera-label">Back</span>
+                            <div class="video-controls">
+                                <button class="video-control-btn" data-action="fullscreen" title="Fullscreen">
+                                    <span class="icon">⛶</span>
+                                </button>
+                            </div>
+                        </div>
+                        <video
+                            id="video-back"
+                            class="video-player"
+                            data-camera="back"
+                            preload="metadata"
+                            muted
+                        >
+                            Your browser does not support the video tag.
+                        </video>
+                        <div class="video-overlay">
+                            <div class="video-status">No video loaded</div>
+                        </div>
+                    </div>
+
+                    <!-- Right Repeater Camera -->
+                    <div class="video-container" data-camera="right_repeater">
+                        <div class="video-header">
+                            <span class="camera-label">Right Repeater</span>
+                            <div class="video-controls">
+                                <button class="video-control-btn" data-action="fullscreen" title="Fullscreen">
+                                    <span class="icon">⛶</span>
+                                </button>
+                            </div>
+                        </div>
+                        <video
+                            id="video-right_repeater"
+                            class="video-player"
+                            data-camera="right_repeater"
+                            preload="metadata"
+                            muted
+                        >
+                            Your browser does not support the video tag.
+                        </video>
+                        <div class="video-overlay">
+                            <div class="video-status">No video loaded</div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Timeline -->
+        <footer class="timeline-section">
+            <div class="timeline-container">
+                <div class="timeline-header">
+                    <span class="timeline-label">Timeline</span>
+                    <div class="timeline-info">
+                        <span id="current-time">00:00</span>
+                        <span>/</span>
+                        <span id="total-time">00:00</span>
+                    </div>
+                </div>
+                <div class="timeline-track">
+                    <input 
+                        type="range" 
+                        id="timeline-scrubber" 
+                        class="timeline-scrubber"
+                        min="0" 
+                        max="100" 
+                        value="0"
+                        step="0.1"
+                    >
+                    <div class="timeline-markers" id="timeline-markers"></div>
+                </div>
+                <div class="timeline-controls">
+                    <div class="speed-control">
+                        <label for="speed-select">Speed:</label>
+                        <select id="speed-select" class="speed-select">
+                            <option value="0.25">0.25x</option>
+                            <option value="0.5">0.5x</option>
+                            <option value="1" selected>1x</option>
+                            <option value="1.5">1.5x</option>
+                            <option value="2">2x</option>
+                        </select>
+                    </div>
+                    <div class="volume-control">
+                        <label for="volume-slider">Volume:</label>
+                        <input 
+                            type="range" 
+                            id="volume-slider" 
+                            class="volume-slider"
+                            min="0" 
+                            max="1" 
+                            value="0.5"
+                            step="0.1"
+                        >
+                    </div>
+                </div>
+            </div>
+        </footer>
+    </div>
+
+    <!-- Loading Screen -->
+    <div id="loading-screen" class="loading-screen hidden">
+        <div class="loading-content">
+            <div class="spinner large"></div>
+            <h2>Loading Sentry-Six</h2>
+            <p id="loading-message">Initializing application...</p>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="debug-manager.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
