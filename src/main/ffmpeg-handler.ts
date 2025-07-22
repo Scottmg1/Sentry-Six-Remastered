@@ -185,8 +185,18 @@ export class FFmpegHandler {
             // Add input stream
             cmd.push('-f', 'concat', '-safe', '0', '-ss', offsetSeconds.toString(), '-i', concatFile);
             
+            // Check if camera should be mirrored (Tesla back and repeater cameras are mirrored)
+            const isMirroredCamera = ['back', 'left_repeater', 'right_repeater'].includes(camera);
+            let filterChain = 'setpts=PTS-STARTPTS';
+
+            if (isMirroredCamera) {
+                // Add horizontal flip for mirrored cameras
+                filterChain += ',hflip';
+                console.log(`🔍 Applying horizontal flip to ${camera}`);
+            }
+
             // Create scaling filter for this stream
-            filterChains.push(`[${index}:v]setpts=PTS-STARTPTS,scale=${cameraWidth}:${cameraHeight}[v${index}]`);
+            filterChains.push(`[${index}:v]${filterChain},scale=${cameraWidth}:${cameraHeight}[v${index}]`);
             inputStreams.push(`[v${index}]`);
         });
 

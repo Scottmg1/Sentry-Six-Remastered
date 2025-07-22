@@ -327,6 +327,20 @@ body {
     cursor: grabbing;
 }
 
+/* Mirror Tesla cameras that are mirrored in the actual vehicle */
+.video-container[data-camera="back"] .video-player,
+.video-container[data-camera="left_repeater"] .video-player,
+.video-container[data-camera="right_repeater"] .video-player {
+    transform: scaleX(-1);
+}
+
+/* Ensure mirroring is preserved when zooming */
+.video-container[data-camera="back"] .video-player[style*="scale"],
+.video-container[data-camera="left_repeater"] .video-player[style*="scale"],
+.video-container[data-camera="right_repeater"] .video-player[style*="scale"] {
+    transform: scaleX(-1) scale(var(--zoom-level, 1));
+}
+
 .video-overlay {
     position: absolute;
     top: 0;

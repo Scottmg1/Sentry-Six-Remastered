@@ -350,9 +350,19 @@ class SentrySixApp {
                     ptsFilter = 'setpts=PTS-STARTPTS+1/TB';
                     console.log(`🔍 Applying 1-second delay to right_repeater`);
                 }
-                
+
+                // Check if camera should be mirrored (Tesla back and repeater cameras are mirrored)
+                const isMirroredCamera = ['back', 'left_repeater', 'right_repeater'].includes(input.camera);
+                let filterChain = ptsFilter;
+
+                if (isMirroredCamera) {
+                    // Add horizontal flip for mirrored cameras
+                    filterChain += ',hflip';
+                    console.log(`🔍 Applying horizontal flip to ${input.camera}`);
+                }
+
                 // Scale each stream to standard Tesla camera resolution
-                const scaleFilter = `[${i}:v]${ptsFilter},scale=1448:938[v${i}]`;
+                const scaleFilter = `[${i}:v]${filterChain},scale=1448:938[v${i}]`;
                 initialFilters.push(scaleFilter);
                 streamMaps.push(`[v${i}]`);
             }

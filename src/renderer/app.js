@@ -3335,14 +3335,21 @@ class SentrySixApp {
         // Store zoom level
         this.cameraZoomLevels[camera] = zoomLevel;
 
-        // Apply CSS transform for zoom
-        video.style.transform = `scale(${zoomLevel})`;
+        // Check if this camera should be mirrored (back and repeater cameras)
+        const isMirroredCamera = ['back', 'left_repeater', 'right_repeater'].includes(camera);
+
+        // Apply CSS transform for zoom, preserving mirroring for Tesla cameras
+        if (isMirroredCamera) {
+            video.style.transform = `scaleX(-1) scale(${zoomLevel})`;
+        } else {
+            video.style.transform = `scale(${zoomLevel})`;
+        }
         video.style.transformOrigin = 'center center';
 
         // Add smooth transition for better UX
         video.style.transition = 'transform 0.1s ease-out';
 
-        console.log(`Camera ${camera} zoom set to ${zoomLevel.toFixed(2)}x`);
+        console.log(`Camera ${camera} zoom set to ${zoomLevel.toFixed(2)}x${isMirroredCamera ? ' (mirrored)' : ''}`);
     }
 
     resetCameraZoom(camera) {
@@ -3352,12 +3359,19 @@ class SentrySixApp {
         // Reset zoom level
         this.cameraZoomLevels[camera] = 1.0;
 
-        // Reset CSS transform
-        video.style.transform = 'scale(1.0)';
+        // Check if this camera should be mirrored (back and repeater cameras)
+        const isMirroredCamera = ['back', 'left_repeater', 'right_repeater'].includes(camera);
+
+        // Reset CSS transform, preserving mirroring for Tesla cameras
+        if (isMirroredCamera) {
+            video.style.transform = 'scaleX(-1) scale(1.0)';
+        } else {
+            video.style.transform = 'scale(1.0)';
+        }
         video.style.transformOrigin = 'center center';
         video.style.transition = 'transform 0.2s ease-out';
 
-        console.log(`Camera ${camera} zoom reset to 1.0x`);
+        console.log(`Camera ${camera} zoom reset to 1.0x${isMirroredCamera ? ' (mirrored)' : ''}`);
     }
 
     resetAllCameraZoom() {
