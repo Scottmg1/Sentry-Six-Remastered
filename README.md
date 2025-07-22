@@ -8,7 +8,7 @@ This project was remastered and significantly enhanced through a collaboration b
 
 Have questions, suggestions, or want to connect with other users? Join our official Discord server!
 
-**[Join the TeslaCam Viewer Discord Server](https://discord.com/invite/9qzezvwdnt)**
+**[Join the TeslaCam Viewer Discord Server](https://discord.com/invite/9QZEzVwdnt)**
 
 ![SentrySix UI Overview](Screenshots/All_cams.png)
 
