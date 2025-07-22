@@ -17,6 +17,8 @@ class SentrySixApp {
         this.isAutoAdvancing = false; // Flag to prevent multiple rapid auto-advancements
         this.isSeekingTimeline = false; // Flag to prevent timeline updates during manual seeking
         this.seekTimeout = null; // Debounce timer for seeking
+        this.eventMarkers = []; // Store event markers for timeline
+        this.eventTooltip = null; // Event tooltip element
         this.cameraVisibility = {
             left_pillar: true,
             front: true,
@@ -53,7 +55,10 @@ class SentrySixApp {
 
         // Set up export system
         this.setupExportSystem();
-            
+
+        // Set up event markers
+        this.setupEventMarkers();
+
             // Initialize video players
             this.initializeVideoPlayers();
 
@@ -311,6 +316,10 @@ class SentrySixApp {
             if (result && result.success && result.videoFiles) {
                 this.clipSections = result.videoFiles;
                 this.renderCollapsibleClipList();
+
+                // Load event markers for the selected folder
+                await this.loadEventMarkers(result.path);
+
                 // Save folder path for onboarding persistence
                 localStorage.setItem('teslaFolder', result.path);
                 if (dontShow) {
@@ -572,6 +581,9 @@ class SentrySixApp {
         // Update timeline UI with gap indicators
         this.updateTimelineDisplay();
         this.renderTimelineGaps();
+
+        // Render event markers on the timeline
+        this.renderEventMarkers();
     }
 
     loadTimelineClip(clipIndex) {
@@ -2964,6 +2976,265 @@ class SentrySixApp {
                 video.currentTime = newTime;
             }
         });
+    }
+
+    // ===== EVENT MARKER SYSTEM =====
+
+    setupEventMarkers() {
+        console.log('Setting up event marker system...');
+
+        // Create event tooltip element
+        this.createEventTooltip();
+
+        // Initialize empty event markers array
+        this.eventMarkers = [];
+
+        console.log('Event marker system initialized');
+    }
+
+    createEventTooltip() {
+        // Remove existing tooltip if any
+        const existingTooltip = document.getElementById('event-tooltip');
+        if (existingTooltip) {
+            existingTooltip.remove();
+        }
+
+        // Create tooltip element
+        this.eventTooltip = document.createElement('div');
+        this.eventTooltip.id = 'event-tooltip';
+        this.eventTooltip.className = 'event-tooltip hidden';
+        this.eventTooltip.innerHTML = `
+            <div class="event-tooltip-content">
+                <div class="event-tooltip-image">
+                    <img id="event-tooltip-img" src="" alt="Event thumbnail">
+                </div>
+                <div class="event-tooltip-info">
+                    <div class="event-tooltip-reason" id="event-tooltip-reason"></div>
+                    <div class="event-tooltip-time" id="event-tooltip-time"></div>
+                    <div class="event-tooltip-location" id="event-tooltip-location"></div>
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(this.eventTooltip);
+    }
+
+    async loadEventMarkers(folderPath) {
+        console.log('Loading event markers for:', folderPath);
+
+        try {
+            // Get event data from main process
+            const events = await window.electronAPI.tesla.getEventData(folderPath);
+            console.log(`Found ${events.length} events`);
+
+            // Clear existing markers
+            this.clearEventMarkers();
+
+            // Process events and create markers
+            this.eventMarkers = events.map(event => this.createEventMarkerData(event));
+
+            // Render markers on timeline
+            this.renderEventMarkers();
+
+            console.log(`Loaded ${this.eventMarkers.length} event markers`);
+
+        } catch (error) {
+            console.error('Error loading event markers:', error);
+        }
+    }
+
+    createEventMarkerData(event) {
+        // Determine marker type and emoji based on reason
+        let type = 'default';
+        let emoji = '🔔'; // Default bell emoji
+
+        if (event.reason.toLowerCase().includes('sentry')) {
+            type = 'sentry';
+            emoji = '❗'; // Red exclamation mark for sentry events
+        } else if (event.reason.toLowerCase().includes('user_interaction')) {
+            type = 'user_interaction';
+            emoji = '👆'; // Pointing hand for user interaction
+        }
+
+        return {
+            id: `event-${Date.now()}-${Math.random()}`,
+            timestamp: new Date(event.timestamp),
+            reason: event.reason,
+            type: type,
+            emoji: emoji,
+            thumbnailPath: event.thumbnailPath,
+            folderPath: event.folderPath,
+            city: event.city,
+            position: 0 // Will be calculated when timeline is loaded
+        };
+    }
+
+    renderEventMarkers() {
+        if (!this.currentTimeline || this.eventMarkers.length === 0) {
+            return;
+        }
+
+        const timelineMarkers = document.getElementById('timeline-markers');
+        if (!timelineMarkers) {
+            console.warn('Timeline markers container not found');
+            return;
+        }
+
+        // Clear existing event markers
+        const existingEventMarkers = timelineMarkers.querySelectorAll('.event-marker');
+        existingEventMarkers.forEach(marker => marker.remove());
+
+        // Calculate timeline bounds
+        const timelineStart = this.currentTimeline.startTime.getTime();
+        const timelineEnd = timelineStart + this.currentTimeline.displayDuration;
+
+        // Filter events that fall within the current timeline
+        const visibleEvents = this.eventMarkers.filter(eventMarker => {
+            const eventTime = eventMarker.timestamp.getTime();
+            return eventTime >= timelineStart && eventTime <= timelineEnd;
+        });
+
+        // Create and position event markers
+        visibleEvents.forEach(eventMarker => {
+            const eventTime = eventMarker.timestamp.getTime();
+            const relativePosition = eventTime - timelineStart;
+            const percentage = Math.max(0, Math.min(100, (relativePosition / this.currentTimeline.displayDuration) * 100));
+
+            // Update marker position
+            eventMarker.position = percentage;
+
+            // Only create marker if it's within visible range
+            if (percentage >= 0 && percentage <= 100) {
+                const markerElement = this.createEventMarkerElement(eventMarker);
+                timelineMarkers.appendChild(markerElement);
+            }
+        });
+
+        console.log(`Rendered ${visibleEvents.length} event markers (${this.eventMarkers.length} total events)`);
+    }
+
+    createEventMarkerElement(eventMarker) {
+        const marker = document.createElement('div');
+        marker.className = `event-marker event-marker-${eventMarker.type}`;
+        marker.style.left = `${eventMarker.position}%`;
+        marker.innerHTML = eventMarker.emoji;
+        marker.title = `${eventMarker.reason} - ${eventMarker.timestamp.toLocaleString()}`;
+
+        // Add event listeners
+        marker.addEventListener('click', (e) => this.handleEventMarkerClick(eventMarker, e));
+        marker.addEventListener('mouseenter', (e) => this.handleEventMarkerHover(eventMarker, e));
+        marker.addEventListener('mouseleave', () => this.hideEventTooltip());
+
+        return marker;
+    }
+
+    handleEventMarkerClick(eventMarker, event) {
+        console.log('Event marker clicked:', eventMarker.reason);
+
+        // Calculate seek position (10 seconds before for context, similar to PyQt6 implementation)
+        const eventTime = eventMarker.timestamp.getTime();
+        const timelineStart = this.currentTimeline.startTime.getTime();
+        const relativePosition = eventTime - timelineStart;
+
+        // Seek 10 seconds before the event for context
+        const seekPosition = Math.max(0, relativePosition - 10000); // 10 seconds in milliseconds
+
+        // Convert to percentage for seeking
+        const seekPercentage = (seekPosition / this.currentTimeline.displayDuration) * 100;
+
+        // Seek to position
+        this.seekToPosition(seekPercentage);
+
+        // Hide tooltip
+        this.hideEventTooltip();
+
+        event.stopPropagation();
+    }
+
+    async handleEventMarkerHover(eventMarker, event) {
+        console.log('Event marker hovered:', eventMarker.reason);
+
+        try {
+            // Load thumbnail if available
+            let thumbnailSrc = null;
+            if (eventMarker.thumbnailPath) {
+                thumbnailSrc = await window.electronAPI.tesla.getEventThumbnail(eventMarker.thumbnailPath);
+            }
+
+            // Update tooltip content
+            this.updateEventTooltip(eventMarker, thumbnailSrc);
+
+            // Position and show tooltip
+            this.showEventTooltip(event.clientX, event.clientY);
+
+        } catch (error) {
+            console.error('Error loading event thumbnail:', error);
+            // Show tooltip without image
+            this.updateEventTooltip(eventMarker, null);
+            this.showEventTooltip(event.clientX, event.clientY);
+        }
+    }
+
+    updateEventTooltip(eventMarker, thumbnailSrc) {
+        const reasonElement = document.getElementById('event-tooltip-reason');
+        const timeElement = document.getElementById('event-tooltip-time');
+        const locationElement = document.getElementById('event-tooltip-location');
+        const imgElement = document.getElementById('event-tooltip-img');
+
+        if (reasonElement) reasonElement.textContent = eventMarker.reason;
+        if (timeElement) timeElement.textContent = eventMarker.timestamp.toLocaleString();
+        if (locationElement) locationElement.textContent = eventMarker.city || 'Unknown location';
+
+        if (imgElement) {
+            if (thumbnailSrc) {
+                imgElement.src = thumbnailSrc;
+                imgElement.style.display = 'block';
+            } else {
+                imgElement.style.display = 'none';
+            }
+        }
+    }
+
+    showEventTooltip(x, y) {
+        if (!this.eventTooltip) return;
+
+        // Position tooltip near cursor but keep it on screen
+        const tooltipRect = this.eventTooltip.getBoundingClientRect();
+        const viewportWidth = window.innerWidth;
+        const viewportHeight = window.innerHeight;
+
+        let left = x - tooltipRect.width / 2;
+        let top = y - tooltipRect.height - 10;
+
+        // Keep tooltip on screen
+        if (left < 10) left = 10;
+        if (left + tooltipRect.width > viewportWidth - 10) left = viewportWidth - tooltipRect.width - 10;
+        if (top < 10) top = y + 10; // Show below cursor if no room above
+
+        this.eventTooltip.style.left = `${left}px`;
+        this.eventTooltip.style.top = `${top}px`;
+        this.eventTooltip.classList.remove('hidden');
+    }
+
+    hideEventTooltip() {
+        if (this.eventTooltip) {
+            this.eventTooltip.classList.add('hidden');
+        }
+    }
+
+    clearEventMarkers() {
+        // Clear markers array
+        this.eventMarkers = [];
+
+        // Remove DOM elements
+        const timelineMarkers = document.getElementById('timeline-markers');
+        if (timelineMarkers) {
+            const existingEventMarkers = timelineMarkers.querySelectorAll('.event-marker');
+            existingEventMarkers.forEach(marker => marker.remove());
+        }
+
+        // Hide tooltip
+        this.hideEventTooltip();
     }
 }
 

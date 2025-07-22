@@ -427,6 +427,46 @@ body {
     pointer-events: none;
 }
 
+/* Event Markers */
+.event-marker {
+    position: absolute;
+    top: -8px;
+    width: 20px;
+    height: 20px;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    pointer-events: auto;
+    z-index: 10;
+    transform: translateX(-50%);
+    transition: transform 0.2s ease, filter 0.2s ease;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+    user-select: none;
+}
+
+.event-marker:hover {
+    transform: translateX(-50%) scale(1.2);
+    filter: brightness(1.2);
+    z-index: 15;
+}
+
+.event-marker-sentry {
+    /* Red exclamation mark for sentry events */
+    filter: drop-shadow(0 0 3px rgba(255, 0, 0, 0.6));
+}
+
+.event-marker-user_interaction {
+    /* Pointing hand for user interaction */
+    filter: drop-shadow(0 0 3px rgba(0, 150, 255, 0.6));
+}
+
+.event-marker-default {
+    /* Bell emoji for default events */
+    filter: drop-shadow(0 0 3px rgba(255, 255, 0, 0.6));
+}
+
 /* Gap Markers */
 .gap-marker {
     position: absolute;
@@ -1640,4 +1680,108 @@ body {
 }
 #onboarding-modal.dark .modal-footer {
   background: #181a20;
+}
+
+/* Event Tooltip Styles */
+.event-tooltip {
+    position: fixed;
+    background: rgba(20, 20, 20, 0.95);
+    border: 1px solid #444;
+    border-radius: 8px;
+    padding: 0;
+    z-index: 2000;
+    max-width: 300px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(10px);
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+}
+
+.event-tooltip.hidden {
+    opacity: 0;
+    pointer-events: none;
+}
+
+.event-tooltip-content {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+
+.event-tooltip-image {
+    width: 100%;
+    height: 120px;
+    overflow: hidden;
+    border-radius: 8px 8px 0 0;
+    background: #2d2d2d;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.event-tooltip-image img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 8px 8px 0 0;
+}
+
+.event-tooltip-info {
+    padding: 12px 15px;
+    color: #fff;
+}
+
+.event-tooltip-reason {
+    font-size: 13px;
+    font-weight: 600;
+    color: #4CAF50;
+    margin-bottom: 6px;
+    word-wrap: break-word;
+}
+
+.event-tooltip-time {
+    font-size: 12px;
+    color: #ccc;
+    margin-bottom: 4px;
+    font-family: 'Courier New', monospace;
+}
+
+.event-tooltip-location {
+    font-size: 11px;
+    color: #888;
+    font-style: italic;
+}
+
+/* Responsive adjustments for event markers */
+@media (max-width: 900px) {
+    .event-marker {
+        width: 18px;
+        height: 18px;
+        font-size: 12px;
+        top: -6px;
+    }
+
+    .event-tooltip {
+        max-width: 250px;
+    }
+
+    .event-tooltip-image {
+        height: 100px;
+    }
+
+    .event-tooltip-info {
+        padding: 10px 12px;
+    }
+
+    .event-tooltip-reason {
+        font-size: 12px;
+    }
+
+    .event-tooltip-time {
+        font-size: 11px;
+    }
+
+    .event-tooltip-location {
+        font-size: 10px;
+    }
 }

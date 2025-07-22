@@ -6,6 +6,21 @@
 
 import { contextBridge, ipcRenderer } from 'electron';
 
+// Event marker types for timeline display
+export type EventMarkerType = 'sentry' | 'user_interaction' | 'default';
+
+export interface EventMarkerData {
+    id: string;
+    timestamp: Date;
+    reason: string;
+    type: EventMarkerType;
+    emoji: string;
+    thumbnailPath?: string;
+    folderPath: string;
+    city?: string;
+    position: number; // Position in timeline (0-100%)
+}
+
 // Define the API interface that will be available in the renderer
 export interface ElectronAPI {
     // Tesla file operations
@@ -13,6 +28,8 @@ export interface ElectronAPI {
         selectFolder: () => Promise<any>;
         getVideoFiles: (folderPath: string) => Promise<any>;
         getVideoMetadata: (filePath: string) => Promise<any>;
+        getEventData: (folderPath: string) => Promise<any>;
+        getEventThumbnail: (thumbnailPath: string) => Promise<string | null>;
         exportVideo: (exportId: string, exportData: any) => Promise<boolean>;
         cancelExport: (exportId: string) => Promise<boolean>;
         getExportStatus: (exportId: string) => Promise<boolean>;
@@ -65,6 +82,8 @@ const electronAPI: ElectronAPI = {
         selectFolder: () => ipcRenderer.invoke('tesla:select-folder'),
         getVideoFiles: (folderPath: string) => ipcRenderer.invoke('tesla:get-video-files', folderPath),
         getVideoMetadata: (filePath: string) => ipcRenderer.invoke('tesla:get-video-metadata', filePath),
+        getEventData: (folderPath: string) => ipcRenderer.invoke('tesla:get-event-data', folderPath),
+        getEventThumbnail: (thumbnailPath: string) => ipcRenderer.invoke('tesla:get-event-thumbnail', thumbnailPath),
         exportVideo: (exportId: string, exportData: any) => ipcRenderer.invoke('tesla:export-video', exportId, exportData),
         cancelExport: (exportId: string) => ipcRenderer.invoke('tesla:cancel-export', exportId),
         getExportStatus: (exportId: string) => ipcRenderer.invoke('tesla:get-export-status', exportId),

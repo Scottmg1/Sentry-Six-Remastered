@@ -202,6 +202,34 @@ class SentrySixApp {
             return false; // Not currently exporting
         });
 
+        // Tesla event data
+        ipcMain.handle('tesla:get-event-data', async (_, folderPath) => {
+            console.log('📅 Getting event data for:', folderPath);
+            try {
+                const events = await this.scanTeslaEvents(folderPath);
+                console.log(`Found ${events.length} events`);
+                return events;
+            } catch (error) {
+                console.error('Error getting event data:', error);
+                return [];
+            }
+        });
+
+        // Tesla event thumbnail
+        ipcMain.handle('tesla:get-event-thumbnail', async (_, thumbnailPath) => {
+            console.log('🖼️ Getting event thumbnail:', thumbnailPath);
+            try {
+                if (fs.existsSync(thumbnailPath)) {
+                    const imageBuffer = fs.readFileSync(thumbnailPath);
+                    return `data:image/png;base64,${imageBuffer.toString('base64')}`;
+                }
+                return null;
+            } catch (error) {
+                console.error('Error reading event thumbnail:', error);
+                return null;
+            }
+        });
+
         console.log('IPC handlers set up successfully');
     }
 
@@ -254,30 +282,46 @@ class SentrySixApp {
             const offsetSeconds = startTime / 1000;
 
             console.log(`🎬 Building export command: ${durationSeconds}s duration, ${offsetSeconds}s offset`);
+            console.log(`📍 Export range: ${offsetSeconds}s to ${offsetSeconds + durationSeconds}s (${durationSeconds}s total)`);
 
-            const firstClip = timeline.clips[0];
-            if (!firstClip || !firstClip.files) {
-                throw new Error('No video clips found for export');
+            // Find clips that contain the export range
+            const exportClips = this.findClipsForExportRange(timeline, startTime, endTime);
+            console.log(`🔍 Found ${exportClips.length} clips for export range`);
+
+            if (exportClips.length === 0) {
+                throw new Error('No video clips found in the specified export range');
             }
 
-            // Create input streams for all selected cameras
+            // Create input streams for all selected cameras from the relevant clips
             const inputs = [];
             const tempFiles = [];
-            
+
             for (let i = 0; i < cameras.length; i++) {
                 const camera = cameras[i];
-                const cameraData = firstClip.files[camera];
-                
-                if (!cameraData || !cameraData.path) {
-                    console.log(`⚠️ Skipping camera ${camera}: no file available`);
+
+                // For now, use the first clip that has this camera
+                // TODO: Handle multi-clip exports properly
+                const clipWithCamera = exportClips.find(clip => clip.files[camera]);
+
+                if (!clipWithCamera || !clipWithCamera.files[camera]) {
+                    console.log(`⚠️ Skipping camera ${camera}: no file available in export range`);
                     continue;
                 }
-                
+
+                const cameraData = clipWithCamera.files[camera];
                 console.log(`🔍 Adding camera ${camera}: ${cameraData.path}`);
+
+                // Calculate relative offset within this specific clip
+                const clipRelativeStart = clipWithCamera.clipRelativeStart || 0;
+                const relativeOffset = Math.max(0, startTime - clipRelativeStart) / 1000;
+
+                console.log(`📍 Camera ${camera}: clip starts at ${clipRelativeStart}ms, relative offset: ${relativeOffset}s`);
+
                 inputs.push({
                     camera: camera,
                     path: cameraData.path,
-                    index: i
+                    index: i,
+                    relativeOffset: relativeOffset
                 });
             }
             
@@ -290,9 +334,13 @@ class SentrySixApp {
             const initialFilters = [];
             const streamMaps = [];
             
-            // Add input streams
+            // Add input streams with individual relative offsets
             for (let i = 0; i < inputs.length; i++) {
                 const input = inputs[i];
+                // Add relative offset for this specific camera/clip
+                if (input.relativeOffset > 0) {
+                    cmd.push('-ss', input.relativeOffset.toString());
+                }
                 cmd.push('-i', input.path);
                 
                 // Apply sync offset for right_repeater (starts 1 second early)
@@ -424,6 +472,7 @@ class SentrySixApp {
                 ['-c:v', 'libx264', '-preset', 'fast', '-crf', '23'] :
                 ['-c:v', 'libx264', '-preset', 'medium', '-crf', '18'];
             
+            // Use the calculated duration for the export
             cmd.push('-t', durationSeconds.toString(), ...vCodec, '-c:a', 'aac', '-b:a', '128k', outputPath);
             
             console.log('🚀 FFmpeg command:', cmd.join(' '));
@@ -1065,6 +1114,115 @@ class SentrySixApp {
         return Array.from(groups.values()).sort((a, b) =>
             a.timestamp.getTime() - b.timestamp.getTime()
         );
+    }
+
+    // Tesla event scanning functionality
+    async scanTeslaEvents(folderPath) {
+        console.log('Scanning Tesla events in:', folderPath);
+        const events = [];
+
+        try {
+            const teslaFolders = ['SavedClips', 'SentryClips']; // Skip RecentClips as per requirements
+
+            for (const folderType of teslaFolders) {
+                const subFolderPath = path.join(folderPath, folderType);
+
+                if (fs.existsSync(subFolderPath)) {
+                    const clipEvents = await this.scanClipFoldersForEvents(subFolderPath, folderType);
+                    events.push(...clipEvents);
+                }
+            }
+
+            console.log(`Found ${events.length} events`);
+            return events.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+
+        } catch (error) {
+            console.error('Error scanning Tesla events:', error);
+            return [];
+        }
+    }
+
+    async scanClipFoldersForEvents(subFolderPath, folderType) {
+        const events = [];
+
+        try {
+            const entries = fs.readdirSync(subFolderPath, { withFileTypes: true });
+
+            for (const entry of entries) {
+                if (entry.isDirectory()) {
+                    const clipFolderPath = path.join(subFolderPath, entry.name);
+                    const eventJsonPath = path.join(clipFolderPath, 'event.json');
+
+                    if (fs.existsSync(eventJsonPath)) {
+                        try {
+                            const eventData = JSON.parse(fs.readFileSync(eventJsonPath, 'utf8'));
+
+                            if (eventData.timestamp && eventData.reason) {
+                                const thumbnailPath = path.join(clipFolderPath, 'thumb.png');
+                                const hasThumbnail = fs.existsSync(thumbnailPath);
+
+                                events.push({
+                                    timestamp: eventData.timestamp,
+                                    reason: eventData.reason,
+                                    city: eventData.city,
+                                    est_lat: eventData.est_lat,
+                                    est_lon: eventData.est_lon,
+                                    camera: eventData.camera,
+                                    folderPath: clipFolderPath,
+                                    thumbnailPath: hasThumbnail ? thumbnailPath : null,
+                                    timestampDate: new Date(eventData.timestamp),
+                                    type: folderType
+                                });
+                            }
+                        } catch (parseError) {
+                            console.warn(`Error parsing event.json in ${clipFolderPath}:`, parseError);
+                        }
+                    }
+                }
+            }
+        } catch (error) {
+            console.error(`Error scanning clip folders in ${subFolderPath}:`, error);
+        }
+
+        return events;
+    }
+
+    // Find clips that overlap with the export range
+    findClipsForExportRange(timeline, startTime, endTime) {
+        const timelineStartTime = timeline.startTime.getTime();
+        const exportClips = [];
+        let currentPosition = 0;
+
+        for (let i = 0; i < timeline.clips.length; i++) {
+            const clip = timeline.clips[i];
+            if (!clip || !clip.timestamp) continue;
+
+            // Use actual duration from timeline if available, otherwise estimate
+            let clipDuration = 60000; // Default 60 seconds
+            if (timeline.actualDurations && timeline.actualDurations[i]) {
+                clipDuration = timeline.actualDurations[i];
+            }
+
+            const clipRelativeStart = currentPosition;
+            const clipRelativeEnd = currentPosition + clipDuration;
+
+            // Check if clip overlaps with export range
+            const clipOverlaps = (clipRelativeStart < endTime) && (clipRelativeEnd > startTime);
+
+            if (clipOverlaps) {
+                console.log(`📹 Clip ${i} (${clip.timestamp}) overlaps with export range (${clipRelativeStart}-${clipRelativeEnd}ms)`);
+                exportClips.push({
+                    ...clip,
+                    clipIndex: i,
+                    clipRelativeStart: clipRelativeStart,
+                    clipDuration: clipDuration
+                });
+            }
+
+            currentPosition += clipDuration;
+        }
+
+        return exportClips;
     }
 }
 

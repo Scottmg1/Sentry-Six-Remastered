@@ -17,6 +17,18 @@ export interface TeslaVideoFile {
     type: 'SavedClips' | 'RecentClips' | 'SentryClips';
 }
 
+export interface TeslaEventData {
+    timestamp: string;
+    city?: string;
+    est_lat?: string;
+    est_lon?: string;
+    reason: string;
+    camera?: string;
+    folderPath: string;
+    thumbnailPath?: string;
+    timestampDate: Date;
+}
+
 export interface TeslaClipGroup {
     timestamp: Date;
     files: {
@@ -27,6 +39,7 @@ export interface TeslaClipGroup {
     };
     type: 'SavedClips' | 'RecentClips' | 'SentryClips';
     duration: number;
+    event?: TeslaEventData;
 }
 
 export class TeslaFileManager {
@@ -58,7 +71,10 @@ export class TeslaFileManager {
 
         // Group files by timestamp
         const clipGroups = this.groupFilesByTimestamp(allFiles);
-        
+
+        // Detect events for each clip group
+        await this.detectEventsForClipGroups(clipGroups, folderPath);
+
         console.log(`Found ${clipGroups.length} clip groups with ${allFiles.length} total files`);
         return clipGroups;
     }
@@ -94,22 +110,53 @@ export class TeslaFileManager {
      */
     private async scanSubFolder(subFolderPath: string, folderType: string): Promise<TeslaVideoFile[]> {
         const files: TeslaVideoFile[] = [];
-        
+
         try {
             const entries = fs.readdirSync(subFolderPath, { withFileTypes: true });
-            
+
             for (const entry of entries) {
                 if (entry.isFile() && this.isVideoFile(entry.name)) {
                     const filePath = path.join(subFolderPath, entry.name);
                     const videoFile = await this.parseVideoFile(filePath, folderType as any);
-                    
+
+                    if (videoFile) {
+                        files.push(videoFile);
+                    }
+                } else if (entry.isDirectory()) {
+                    // Scan clip subfolders for video files and events
+                    const clipFolderPath = path.join(subFolderPath, entry.name);
+                    const clipFiles = await this.scanClipFolder(clipFolderPath, folderType as any);
+                    files.push(...clipFiles);
+                }
+            }
+        } catch (error) {
+            console.error(`Error scanning subfolder ${subFolderPath}:`, error);
+        }
+
+        return files;
+    }
+
+    /**
+     * Scan a Tesla clip folder (e.g., 2025-07-21_16-30-30) for video files and events
+     */
+    private async scanClipFolder(clipFolderPath: string, folderType: 'SavedClips' | 'RecentClips' | 'SentryClips'): Promise<TeslaVideoFile[]> {
+        const files: TeslaVideoFile[] = [];
+
+        try {
+            const entries = fs.readdirSync(clipFolderPath, { withFileTypes: true });
+
+            for (const entry of entries) {
+                if (entry.isFile() && this.isVideoFile(entry.name)) {
+                    const filePath = path.join(clipFolderPath, entry.name);
+                    const videoFile = await this.parseVideoFile(filePath, folderType);
+
                     if (videoFile) {
                         files.push(videoFile);
                     }
                 }
             }
         } catch (error) {
-            console.error(`Error scanning subfolder ${subFolderPath}:`, error);
+            console.error(`Error scanning clip folder ${clipFolderPath}:`, error);
         }
 
         return files;
@@ -268,8 +315,138 @@ export class TeslaFileManager {
      * Get total file size for a clip group
      */
     getClipGroupSize(clipGroup: TeslaClipGroup): number {
-        return Object.values(clipGroup.files).reduce((total, file) => 
+        return Object.values(clipGroup.files).reduce((total, file) =>
             total + (file?.size || 0), 0
         );
+    }
+
+    /**
+     * Detect events for clip groups by scanning for event.json files
+     */
+    private async detectEventsForClipGroups(clipGroups: TeslaClipGroup[], baseFolderPath: string): Promise<void> {
+        for (const clipGroup of clipGroups) {
+            // Skip RecentClips folder as specified in requirements
+            if (clipGroup.type === 'RecentClips') {
+                continue;
+            }
+
+            try {
+                const event = await this.detectEventForClipGroup(clipGroup, baseFolderPath);
+                if (event) {
+                    clipGroup.event = event;
+                }
+            } catch (error) {
+                console.error(`Error detecting event for clip group ${clipGroup.timestamp}:`, error);
+            }
+        }
+    }
+
+    /**
+     * Detect event for a specific clip group
+     */
+    private async detectEventForClipGroup(clipGroup: TeslaClipGroup, baseFolderPath: string): Promise<TeslaEventData | null> {
+        try {
+            // Generate the expected folder name from timestamp
+            const folderName = this.generateClipFolderName(clipGroup.timestamp);
+            const clipFolderPath = path.join(baseFolderPath, clipGroup.type, folderName);
+
+            // Check if the clip folder exists
+            if (!fs.existsSync(clipFolderPath)) {
+                return null;
+            }
+
+            // Look for event.json file
+            const eventJsonPath = path.join(clipFolderPath, 'event.json');
+            if (!fs.existsSync(eventJsonPath)) {
+                return null;
+            }
+
+            // Parse event.json
+            const eventData = await this.parseEventJson(eventJsonPath, clipFolderPath);
+            return eventData;
+
+        } catch (error) {
+            console.error(`Error detecting event for clip group:`, error);
+            return null;
+        }
+    }
+
+    /**
+     * Generate Tesla clip folder name from timestamp
+     */
+    private generateClipFolderName(timestamp: Date): string {
+        const year = timestamp.getFullYear();
+        const month = String(timestamp.getMonth() + 1).padStart(2, '0');
+        const day = String(timestamp.getDate()).padStart(2, '0');
+        const hours = String(timestamp.getHours()).padStart(2, '0');
+        const minutes = String(timestamp.getMinutes()).padStart(2, '0');
+        const seconds = String(timestamp.getSeconds()).padStart(2, '0');
+
+        return `${year}-${month}-${day}_${hours}-${minutes}-${seconds}`;
+    }
+
+    /**
+     * Parse event.json file
+     */
+    private async parseEventJson(eventJsonPath: string, folderPath: string): Promise<TeslaEventData | null> {
+        try {
+            const eventJsonContent = fs.readFileSync(eventJsonPath, 'utf8');
+            const eventData = JSON.parse(eventJsonContent);
+
+            // Validate required fields
+            if (!eventData.timestamp || !eventData.reason) {
+                console.warn(`Invalid event.json format in ${eventJsonPath}`);
+                return null;
+            }
+
+            // Parse timestamp
+            const timestampDate = new Date(eventData.timestamp);
+            if (isNaN(timestampDate.getTime())) {
+                console.warn(`Invalid timestamp in event.json: ${eventData.timestamp}`);
+                return null;
+            }
+
+            // Check for thumbnail
+            const thumbnailPath = path.join(folderPath, 'thumb.png');
+            const hasThumbnail = fs.existsSync(thumbnailPath);
+
+            const result: TeslaEventData = {
+                timestamp: eventData.timestamp,
+                city: eventData.city,
+                est_lat: eventData.est_lat,
+                est_lon: eventData.est_lon,
+                reason: eventData.reason,
+                camera: eventData.camera,
+                folderPath: folderPath,
+                timestampDate: timestampDate
+            };
+
+            if (hasThumbnail) {
+                result.thumbnailPath = thumbnailPath;
+            }
+
+            return result;
+
+        } catch (error) {
+            console.error(`Error parsing event.json at ${eventJsonPath}:`, error);
+            return null;
+        }
+    }
+
+    /**
+     * Get event data for a specific clip group
+     */
+    getEventForClipGroup(clipGroup: TeslaClipGroup): TeslaEventData | null {
+        return clipGroup.event || null;
+    }
+
+    /**
+     * Get all events from clip groups
+     */
+    getAllEvents(clipGroups: TeslaClipGroup[]): TeslaEventData[] {
+        return clipGroups
+            .filter(group => group.event)
+            .map(group => group.event!)
+            .sort((a, b) => a.timestampDate.getTime() - b.timestampDate.getTime());
     }
 }

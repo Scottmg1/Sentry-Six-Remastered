@@ -120,6 +120,31 @@ class SentrySixApp {
             return await this.videoProcessor.getVideoMetadata(filePath);
         });
 
+        ipcMain.handle('tesla:get-event-data', async (_, folderPath: string) => {
+            try {
+                const clipGroups = await this.teslaFileManager.scanFolder(folderPath);
+                const events = this.teslaFileManager.getAllEvents(clipGroups);
+                return events;
+            } catch (error) {
+                console.error('Error getting event data:', error);
+                return [];
+            }
+        });
+
+        ipcMain.handle('tesla:get-event-thumbnail', async (_, thumbnailPath: string) => {
+            try {
+                const fs = require('fs');
+                if (fs.existsSync(thumbnailPath)) {
+                    const imageBuffer = fs.readFileSync(thumbnailPath);
+                    return `data:image/png;base64,${imageBuffer.toString('base64')}`;
+                }
+                return null;
+            } catch (error) {
+                console.error('Error reading event thumbnail:', error);
+                return null;
+            }
+        });
+
         // Configuration management
         ipcMain.handle('config:get', async (_, key: string) => {
             return this.configManager.get(key as any);
