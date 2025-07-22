@@ -1027,19 +1027,20 @@ body {
 /* Export Markers */
 .export-marker {
     position: absolute;
-    top: -8px;
+    top: 0;
     width: 20px;
-    height: 20px;
+    height: 24px;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 12px;
+    font-size: 20px;
+    background: none;
+    z-index: 20;
+    pointer-events: auto;
     cursor: grab;
-    z-index: 15;
-    transform: translateX(-50%);
     user-select: none;
+    transform: translateX(-50%);
 }
-
 .export-marker:active {
     cursor: grabbing;
 }
@@ -1055,10 +1056,10 @@ body {
 .export-range-highlight {
     position: absolute;
     top: 0;
-    height: 100%;
-    background: rgba(0, 123, 204, 0.3);
-    border: 1px solid rgba(0, 123, 204, 0.6);
-    z-index: 5;
+    height: 24px;
+    background: rgba(0, 120, 215, 0.25);
+    border-radius: 3px;
+    z-index: 10;
     pointer-events: none;
 }
 

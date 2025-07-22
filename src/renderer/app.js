@@ -1891,8 +1891,13 @@ class SentrySixApp {
         this.exportMarkers.start = null;
         this.exportMarkers.end = null;
 
-        // Remove visual markers
+        // Remove visual markers and range highlight
         this.updateExportMarkers();
+        const timelineMarkers = document.getElementById('timeline-markers');
+        if (timelineMarkers) {
+            const rangeHighlight = timelineMarkers.querySelector('.export-range-highlight');
+            if (rangeHighlight) rangeHighlight.remove();
+        }
 
         // Update export controls state
         this.updateExportControlsState();
@@ -1907,6 +1912,10 @@ class SentrySixApp {
         // Clear existing export markers
         const existingMarkers = timelineMarkers.querySelectorAll('.export-marker');
         existingMarkers.forEach(marker => marker.remove());
+
+        // Remove any existing range highlight before adding a new one
+        const existingHighlight = timelineMarkers.querySelector('.export-range-highlight');
+        if (existingHighlight) existingHighlight.remove();
 
         // Add start marker
         if (this.exportMarkers.start !== null) {
@@ -1961,29 +1970,39 @@ class SentrySixApp {
 
     makeMarkerDraggable(marker, type) {
         let isDragging = false;
+        let dragListener = null;
+        let upListener = null;
+
+        marker.style.cursor = 'grab';
 
         marker.addEventListener('mousedown', (e) => {
             isDragging = true;
+            marker.style.cursor = 'grabbing';
             e.preventDefault();
-        });
 
-        document.addEventListener('mousemove', (e) => {
-            if (!isDragging) return;
+            dragListener = (moveEvent) => {
+                if (!isDragging) return;
+                const timelineScrubber = document.getElementById('timeline-scrubber');
+                const rect = timelineScrubber.getBoundingClientRect();
+                const percentage = Math.max(0, Math.min(100, ((moveEvent.clientX - rect.left) / rect.width) * 100));
+                const newPosition = (percentage / 100) * this.currentTimeline.displayDuration;
+                this.exportMarkers[type] = newPosition;
+                this.updateExportMarkers();
+                this.seekToGlobalPosition(newPosition);
+            };
 
-            const timelineScrubber = document.getElementById('timeline-scrubber');
-            const rect = timelineScrubber.getBoundingClientRect();
-            const percentage = Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100));
-            const newPosition = (percentage / 100) * this.currentTimeline.displayDuration;
+            upListener = () => {
+                if (isDragging) {
+                    isDragging = false;
+                    marker.style.cursor = 'grab';
+                    this.updateExportControlsState();
+                    document.removeEventListener('mousemove', dragListener);
+                    document.removeEventListener('mouseup', upListener);
+                }
+            };
 
-            this.exportMarkers[type] = newPosition;
-            this.updateExportMarkers();
-        });
-
-        document.addEventListener('mouseup', () => {
-            if (isDragging) {
-                isDragging = false;
-                this.updateExportControlsState();
-            }
+            document.addEventListener('mousemove', dragListener);
+            document.addEventListener('mouseup', upListener);
         });
     }
 
