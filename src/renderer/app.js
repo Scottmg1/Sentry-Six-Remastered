@@ -3007,27 +3007,58 @@ class SentrySixApp {
     }
 
     frameStep(direction) {
-        // Tesla dashcam videos are ~36 fps, so frame ≈ 1/36s
-        const frameDuration = 1 / 36.0;
-        Object.values(this.videos).forEach(video => {
-            if (video && !isNaN(video.duration)) {
-                let newTime = video.currentTime + direction * frameDuration;
-                newTime = Math.max(0, Math.min(newTime, video.duration));
-                video.currentTime = newTime;
-            }
-        });
-        // Pause after frame step
-        this.pauseAllVideos();
+        if (this.currentTimeline) {
+            // Timeline mode - use Tesla's actual frame rate (36.02 FPS)
+            const teslaFps = 36.02;
+            const frameDurationMs = 1000.0 / teslaFps; // ≈ 27.8ms per frame
+            const offsetMs = direction * frameDurationMs;
+
+            // Calculate new global position
+            const currentGlobalMs = this.currentTimeline.currentPosition;
+            const newGlobalMs = Math.max(0, Math.min(currentGlobalMs + offsetMs, this.currentTimeline.displayDuration));
+
+            console.log(`🎯 Frame step ${direction > 0 ? 'forward' : 'back'}: ${currentGlobalMs.toFixed(1)}ms -> ${newGlobalMs.toFixed(1)}ms`);
+
+            // Seek to new position
+            this.seekToGlobalPosition(newGlobalMs);
+
+            // Pause after frame step
+            this.pauseAllVideos();
+        } else {
+            // Single clip mode - use original logic
+            const frameDuration = 1 / 36.0;
+            Object.values(this.videos).forEach(video => {
+                if (video && !isNaN(video.duration)) {
+                    let newTime = video.currentTime + direction * frameDuration;
+                    newTime = Math.max(0, Math.min(newTime, video.duration));
+                    video.currentTime = newTime;
+                }
+            });
+            this.pauseAllVideos();
+        }
     }
 
     skipSeconds(seconds) {
-        Object.values(this.videos).forEach(video => {
-            if (video && !isNaN(video.duration)) {
-                let newTime = video.currentTime + seconds;
-                newTime = Math.max(0, Math.min(newTime, video.duration));
-                video.currentTime = newTime;
-            }
-        });
+        if (this.currentTimeline) {
+            // Timeline mode - seek across clips properly
+            const offsetMs = seconds * 1000; // Convert seconds to milliseconds
+            const currentGlobalMs = this.currentTimeline.currentPosition;
+            const newGlobalMs = Math.max(0, Math.min(currentGlobalMs + offsetMs, this.currentTimeline.displayDuration));
+
+            console.log(`🎯 Skip ${seconds}s: ${Math.round(currentGlobalMs/1000)}s -> ${Math.round(newGlobalMs/1000)}s`);
+
+            // Seek to new position
+            this.seekToGlobalPosition(newGlobalMs);
+        } else {
+            // Single clip mode - use original logic
+            Object.values(this.videos).forEach(video => {
+                if (video && !isNaN(video.duration)) {
+                    let newTime = video.currentTime + seconds;
+                    newTime = Math.max(0, Math.min(newTime, video.duration));
+                    video.currentTime = newTime;
+                }
+            });
+        }
     }
 
     // ===== EVENT MARKER SYSTEM =====
