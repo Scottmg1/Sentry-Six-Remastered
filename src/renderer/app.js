@@ -2011,6 +2011,9 @@ class SentrySixApp {
         const modal = document.getElementById('export-modal');
         if (!modal) return;
 
+        // Sync camera visibility from main grid to export modal
+        this.syncExportCameraVisibility();
+
         // Update export range display
         this.updateExportRangeDisplay();
 
@@ -2022,6 +2025,68 @@ class SentrySixApp {
 
         // Show modal
         modal.classList.remove('hidden');
+
+        // Validate export settings and update error message/button state
+        this.validateExportSettings();
+
+        // Re-validate on any change
+        const cameraToggles = document.querySelectorAll('.camera-export-toggle');
+        cameraToggles.forEach(toggle => toggle.addEventListener('change', () => this.validateExportSettings()));
+        const qualityInputs = document.querySelectorAll('input[name="export-quality"]');
+        qualityInputs.forEach(input => input.addEventListener('change', () => this.validateExportSettings()));
+        const startBtn = document.getElementById('set-start-marker');
+        const endBtn = document.getElementById('set-end-marker');
+        if (startBtn) startBtn.addEventListener('click', () => setTimeout(() => this.validateExportSettings(), 10));
+        if (endBtn) endBtn.addEventListener('click', () => setTimeout(() => this.validateExportSettings(), 10));
+    }
+
+    syncExportCameraVisibility() {
+        // For each camera, check if it is visible in the main grid (using cameraVisibility state)
+        const cameraNames = ['left_pillar', 'front', 'right_pillar', 'left_repeater', 'back', 'right_repeater'];
+        cameraNames.forEach(camera => {
+            const isVisible = this.cameraVisibility && this.cameraVisibility[camera];
+            const toggle = document.querySelector(`.camera-slot[data-camera="${camera}"] .camera-export-toggle`);
+            if (toggle) {
+                toggle.checked = !!isVisible;
+                // Do NOT disable or dim the toggle; allow user to re-enable for export
+            }
+        });
+    }
+
+    validateExportSettings() {
+        const errorDiv = document.getElementById('export-error-message');
+        const startExportBtn = document.getElementById('start-export');
+        let error = '';
+
+        if (!this.currentTimeline) {
+            error = 'No timeline loaded.';
+        } else {
+            // At least one camera selected
+            const selectedCameras = Array.from(document.querySelectorAll('.camera-export-toggle:checked'));
+            if (selectedCameras.length === 0) {
+                error = 'Please select at least one camera to export.';
+            }
+            // Export range valid
+            const start = this.exportMarkers.start;
+            const end = this.exportMarkers.end;
+            if (start !== null && end !== null && start >= end) {
+                error = 'Export start marker must be before end marker.';
+            }
+        }
+
+        if (error) {
+            if (errorDiv) {
+                errorDiv.textContent = error;
+                errorDiv.style.display = '';
+            }
+            if (startExportBtn) startExportBtn.disabled = true;
+        } else {
+            if (errorDiv) {
+                errorDiv.textContent = '';
+                errorDiv.style.display = 'none';
+            }
+            if (startExportBtn) startExportBtn.disabled = false;
+        }
     }
 
     closeExportDialog() {
@@ -2124,23 +2189,24 @@ class SentrySixApp {
 
     updateCameraExportToggles() {
         const cameraToggles = document.querySelectorAll('.camera-export-toggle');
-
         cameraToggles.forEach(toggle => {
             const cameraSlot = toggle.closest('.camera-slot');
             const camera = cameraSlot?.dataset.camera;
-
             if (camera) {
-                // Check if camera is currently visible in the main view
-                const videoElement = document.getElementById(`video-${camera}`);
-                const isVisible = videoElement && !videoElement.closest('.video-container').classList.contains('hidden');
-
-                toggle.checked = isVisible;
-
-                // Disable if camera is not available
-                if (!videoElement) {
-                    toggle.disabled = true;
-                    cameraSlot.style.opacity = '0.5';
-                }
+                // Use cameraVisibility state, not DOM
+                const isVisible = this.cameraVisibility && this.cameraVisibility[camera];
+                toggle.checked = !!isVisible;
+                // Do NOT disable or dim the toggle; allow user to re-enable for export
+                // (No toggle.disabled or cameraSlot.style.opacity)
+            }
+            if (cameraSlot) {
+                cameraSlot.onclick = null;
+                cameraSlot.onclick = (e) => {
+                    if (e.target !== toggle) {
+                        toggle.checked = !toggle.checked;
+                        toggle.dispatchEvent(new Event('change', { bubbles: true }));
+                    }
+                };
             }
         });
     }
