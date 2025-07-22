@@ -1956,7 +1956,13 @@ class SentrySixApp {
         marker.style.left = `${percentage}%`;
 
         marker.innerHTML = type === 'start' ? '📍' : '🏁';
-        marker.title = `${type.charAt(0).toUpperCase() + type.slice(1)} marker: ${this.formatTime(Math.floor(position/1000))}`;
+
+        // Show actual timestamp in tooltip
+        const actualTimestamp = this.calculateActualTimestamp(position);
+        const timeDisplay = actualTimestamp ?
+            actualTimestamp.toLocaleTimeString('en-US', { hour12: true }) :
+            this.formatTime(Math.floor(position/1000));
+        marker.title = `${type.charAt(0).toUpperCase() + type.slice(1)} marker: ${timeDisplay}`;
 
         // Make marker draggable
         this.makeMarkerDraggable(marker, type);
@@ -2145,23 +2151,27 @@ class SentrySixApp {
             const startPos = Math.min(this.exportMarkers.start, this.exportMarkers.end);
             const endPos = Math.max(this.exportMarkers.start, this.exportMarkers.end);
 
-            startTime = this.formatTime(Math.floor(startPos / 1000));
-            endTime = this.formatTime(Math.floor(endPos / 1000));
+            // Calculate actual timestamps for the export range
+            const startTimestamp = this.calculateActualTimestamp(startPos);
+            const endTimestamp = this.calculateActualTimestamp(endPos);
             duration = Math.floor((endPos - startPos) / 1000);
+
+            startTime = startTimestamp ? startTimestamp.toLocaleTimeString('en-US', { hour12: true }) : this.formatTime(Math.floor(startPos / 1000));
+            endTime = endTimestamp ? endTimestamp.toLocaleTimeString('en-US', { hour12: true }) : this.formatTime(Math.floor(endPos / 1000));
 
             rangeDisplay.textContent = `${startTime} - ${endTime}`;
             
             // Check for sync issues in the export range
             this.checkExportRangeSync(startPos, endPos);
         } else if (this.exportMarkers.start !== null) {
-            startTime = this.formatTime(Math.floor(this.exportMarkers.start / 1000));
-            endTime = this.formatTime(Math.floor(this.currentTimeline.displayDuration / 1000));
+            const startTimestamp = this.calculateActualTimestamp(this.exportMarkers.start);
+            startTime = startTimestamp ? startTimestamp.toLocaleTimeString('en-US', { hour12: true }) : this.formatTime(Math.floor(this.exportMarkers.start / 1000));
             duration = Math.floor((this.currentTimeline.displayDuration - this.exportMarkers.start) / 1000);
 
             rangeDisplay.textContent = `${startTime} - End`;
         } else if (this.exportMarkers.end !== null) {
-            startTime = '0:00';
-            endTime = this.formatTime(Math.floor(this.exportMarkers.end / 1000));
+            const endTimestamp = this.calculateActualTimestamp(this.exportMarkers.end);
+            endTime = endTimestamp ? endTimestamp.toLocaleTimeString('en-US', { hour12: true }) : this.formatTime(Math.floor(this.exportMarkers.end / 1000));
             duration = Math.floor(this.exportMarkers.end / 1000);
 
             rangeDisplay.textContent = `Start - ${endTime}`;
@@ -2592,7 +2602,27 @@ class SentrySixApp {
     updateTimestampDisplay() {
         const timestampDisplay = document.getElementById('timestamp-display');
 
-        if (this.currentClipGroup) {
+        if (this.currentTimeline) {
+            // Timeline mode - calculate timestamp based on current timeline position
+            const currentTimestamp = this.calculateActualTimestamp(this.currentTimeline.currentPosition);
+
+            if (currentTimestamp) {
+                const formatted = currentTimestamp.toLocaleString('en-US', {
+                    month: '2-digit',
+                    day: '2-digit',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit',
+                    hour12: true
+                });
+
+                timestampDisplay.textContent = formatted;
+            } else {
+                timestampDisplay.textContent = '--/--/---- --:--:-- --';
+            }
+        } else if (this.currentClipGroup) {
+            // Single clip mode - use original logic
             const timestamp = new Date(this.currentClipGroup.timestamp);
             // Add current playback time to the base timestamp
             timestamp.setSeconds(timestamp.getSeconds() + this.currentTime);
@@ -2638,6 +2668,18 @@ class SentrySixApp {
         const minutes = Math.floor(seconds / 60);
         const remainingSeconds = Math.floor(seconds % 60);
         return `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
+    }
+
+    calculateActualTimestamp(timelinePosition) {
+        // Calculate the actual timestamp for a given timeline position
+        if (!this.currentTimeline || !this.currentTimeline.startTime) {
+            return null;
+        }
+
+        const timelineStartTime = new Date(this.currentTimeline.startTime);
+        const actualTimestamp = new Date(timelineStartTime.getTime() + timelinePosition);
+
+        return actualTimestamp;
     }
 
     showLoadingScreen(message) {

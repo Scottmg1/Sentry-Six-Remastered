@@ -404,8 +404,12 @@ class SentrySixApp {
             
             // Add timestamp overlay if enabled
             if (timestamp.enabled) {
-                const startTimeUnix = new Date(timeline.startTime).getTime() / 1000;
-                const basetimeUs = Math.floor(startTimeUnix * 1000000);
+                // Calculate the actual timestamp for the export start time
+                const timelineStartUnix = new Date(timeline.startTime).getTime();
+                const exportStartUnix = (timelineStartUnix + startTime) / 1000; // startTime is in milliseconds
+                const basetimeUs = Math.floor(exportStartUnix * 1000000);
+
+                console.log(`🕐 Timestamp calculation: timeline start=${new Date(timelineStartUnix).toISOString()}, export offset=${startTime}ms, export start=${new Date(exportStartUnix * 1000).toISOString()}`);
                 
                 const drawtextFilter = [
                     'drawtext=font=Arial',
