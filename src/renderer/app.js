@@ -186,82 +186,89 @@ class SentrySixApp {
     setupEventListeners() {
         // Folder selection
         const openFolderBtn = document.getElementById('open-folder-btn');
-        openFolderBtn.addEventListener('click', () => this.selectTeslaFolder());
+        if (openFolderBtn) openFolderBtn.addEventListener('click', () => this.selectTeslaFolder());
 
         // Playback controls
         const playPauseBtn = document.getElementById('play-pause-btn');
-        playPauseBtn.addEventListener('click', () => this.togglePlayPause());
+        if (playPauseBtn) playPauseBtn.addEventListener('click', () => this.togglePlayPause());
 
         const stopBtn = document.getElementById('stop-btn');
-        stopBtn.addEventListener('click', () => this.stopPlayback());
+        if (stopBtn) stopBtn.addEventListener('click', () => this.stopPlayback());
 
-        const prevClipBtn = document.getElementById('prev-clip-btn');
-        prevClipBtn.addEventListener('click', () => this.previousClip());
-
-        const nextClipBtn = document.getElementById('next-clip-btn');
-        nextClipBtn.addEventListener('click', () => this.manualNextClip());
+        // Frame-by-frame and skip buttons
+        const frameBackBtn = document.getElementById('frame-back-btn');
+        if (frameBackBtn) frameBackBtn.addEventListener('click', () => this.frameStep(-1));
+        const frameForwardBtn = document.getElementById('frame-forward-btn');
+        if (frameForwardBtn) frameForwardBtn.addEventListener('click', () => this.frameStep(1));
+        const skipBackBtn = document.getElementById('skip-back-15-btn');
+        if (skipBackBtn) skipBackBtn.addEventListener('click', () => this.skipSeconds(-15));
+        const skipForwardBtn = document.getElementById('skip-forward-15-btn');
+        if (skipForwardBtn) skipForwardBtn.addEventListener('click', () => this.skipSeconds(15));
 
         // Timeline scrubber with debouncing
         const timelineScrubber = document.getElementById('timeline-scrubber');
-        timelineScrubber.addEventListener('input', (e) => this.debouncedSeek(e.target.value));
-        timelineScrubber.addEventListener('mousedown', () => {
-            this.isSeekingTimeline = true;
-            console.log('🎯 Started seeking');
-        });
-        timelineScrubber.addEventListener('mouseup', () => {
-            // Keep seeking flag for a bit longer to prevent immediate override
-            setTimeout(() => {
-                this.isSeekingTimeline = false;
-                console.log('🎯 Finished seeking');
-            }, 500);
-        });
-        timelineScrubber.addEventListener('touchstart', () => this.isSeekingTimeline = true);
-        timelineScrubber.addEventListener('touchend', () => {
-            setTimeout(() => {
-                this.isSeekingTimeline = false;
-            }, 500);
-        });
+        if (timelineScrubber) {
+            timelineScrubber.addEventListener('input', (e) => this.debouncedSeek(e.target.value));
+            timelineScrubber.addEventListener('mousedown', () => {
+                this.isSeekingTimeline = true;
+                console.log('🎯 Started seeking');
+            });
+            timelineScrubber.addEventListener('mouseup', () => {
+                setTimeout(() => {
+                    this.isSeekingTimeline = false;
+                    console.log('🎯 Finished seeking');
+                }, 500);
+            });
+            timelineScrubber.addEventListener('touchstart', () => this.isSeekingTimeline = true);
+            timelineScrubber.addEventListener('touchend', () => {
+                setTimeout(() => {
+                    this.isSeekingTimeline = false;
+                }, 500);
+            });
+        }
 
         // Speed control
         const speedSelect = document.getElementById('speed-select');
-        speedSelect.addEventListener('change', (e) => this.setPlaybackSpeed(parseFloat(e.target.value)));
+        if (speedSelect) speedSelect.addEventListener('change', (e) => this.setPlaybackSpeed(parseFloat(e.target.value)));
 
         // Volume control
         const volumeSlider = document.getElementById('volume-slider');
-        volumeSlider.addEventListener('input', (e) => this.setVolume(parseFloat(e.target.value)));
+        if (volumeSlider) volumeSlider.addEventListener('input', (e) => this.setVolume(parseFloat(e.target.value)));
 
         // Settings button
         const settingsBtn = document.getElementById('settings-btn');
-        settingsBtn.addEventListener('click', () => this.openSettings());
+        if (settingsBtn) settingsBtn.addEventListener('click', () => this.openSettings());
 
         // Camera visibility panel
         const cameraToggleBtn = document.getElementById('camera-toggle-btn');
-        cameraToggleBtn.addEventListener('click', () => this.toggleCameraPanel());
+        if (cameraToggleBtn) cameraToggleBtn.addEventListener('click', () => this.toggleCameraPanel());
 
         const closeCameraPanel = document.getElementById('close-camera-panel');
-        closeCameraPanel.addEventListener('click', () => this.hideCameraPanel());
+        if (closeCameraPanel) closeCameraPanel.addEventListener('click', () => this.hideCameraPanel());
 
         // Camera visibility toggles
         const cameras = ['left_pillar', 'front', 'right_pillar', 'left_repeater', 'back', 'right_repeater'];
         cameras.forEach(camera => {
             const toggle = document.getElementById(`toggle-${camera}`);
-            toggle.addEventListener('change', (e) => this.toggleCameraVisibility(camera, e.target.checked));
+            if (toggle) toggle.addEventListener('change', (e) => this.toggleCameraVisibility(camera, e.target.checked));
         });
 
         // Show/Hide all cameras
         const showAllBtn = document.getElementById('show-all-cameras');
-        showAllBtn.addEventListener('click', () => this.showAllCameras());
+        if (showAllBtn) showAllBtn.addEventListener('click', () => this.showAllCameras());
 
         const hideAllBtn = document.getElementById('hide-all-cameras');
-        hideAllBtn.addEventListener('click', () => this.hideAllCameras());
+        if (hideAllBtn) hideAllBtn.addEventListener('click', () => this.hideAllCameras());
 
         // Keyboard shortcuts
         document.addEventListener('keydown', (e) => this.handleKeyboardShortcuts(e));
 
         // Listen for folder selection from main process
-        window.electronAPI.on('folder-selected', (folderPath) => {
-            this.loadTeslaFolder(folderPath);
-        });
+        if (window.electronAPI && window.electronAPI.on) {
+            window.electronAPI.on('folder-selected', (folderPath) => {
+                this.loadTeslaFolder(folderPath);
+            });
+        }
     }
 
     initializeVideoPlayers() {
@@ -2582,55 +2589,59 @@ class SentrySixApp {
 
     // Keyboard Shortcuts
     handleKeyboardShortcuts(event) {
-        // Prevent shortcuts when typing in inputs
-        if (event.target.tagName === 'INPUT' || event.target.tagName === 'SELECT') {
-            return;
+        // Space or Enter: Play/Pause
+        if (event.code === 'Space' || event.code === 'Enter') {
+            event.preventDefault();
+            this.togglePlayPause();
+            this.showStatus('Play/Pause');
         }
+        // Shift+Left: Skip Back 15s
+        else if (event.code === 'ArrowLeft' && event.shiftKey) {
+            event.preventDefault();
+            this.skipSeconds(-15);
+            this.showStatus('⏪ Skip Back 15s');
+        }
+        // Shift+Right: Skip Forward 15s
+        else if (event.code === 'ArrowRight' && event.shiftKey) {
+            event.preventDefault();
+            this.skipSeconds(15);
+            this.showStatus('⏩ Skip Forward 15s');
+        }
+        // Left: Frame Back
+        else if (event.code === 'ArrowLeft') {
+            event.preventDefault();
+            this.frameStep(-1);
+            this.showStatus('⬅️ Frame Back');
+        }
+        // Right: Frame Forward
+        else if (event.code === 'ArrowRight') {
+            event.preventDefault();
+            this.frameStep(1);
+            this.showStatus('➡️ Frame Forward');
+        }
+        // Up: Increase speed
+        else if (event.code === 'ArrowUp') {
+            event.preventDefault();
+            this.adjustPlaybackSpeed(1);
+        }
+        // Down: Decrease speed
+        else if (event.code === 'ArrowDown') {
+            event.preventDefault();
+            this.adjustPlaybackSpeed(-1);
+        }
+    }
 
-        switch (event.code) {
-            case 'Space':
-                event.preventDefault();
-                this.togglePlayPause();
-                break;
-
-            case 'ArrowLeft':
-                event.preventDefault();
-                if (event.ctrlKey) {
-                    this.previousClip();
-                } else {
-                    // Seek backward 5 seconds
-                    const newTime = Math.max(0, this.currentTime - 5);
-                    this.seekToPosition((newTime / this.duration) * 100);
-                }
-                break;
-
-            case 'ArrowRight':
-                event.preventDefault();
-                if (event.ctrlKey) {
-                    this.nextClip();
-                } else {
-                    // Seek forward 5 seconds
-                    const newTime = Math.min(this.duration, this.currentTime + 5);
-                    this.seekToPosition((newTime / this.duration) * 100);
-                }
-                break;
-
-            case 'Home':
-                event.preventDefault();
-                this.seekToPosition(0);
-                break;
-
-            case 'End':
-                event.preventDefault();
-                this.seekToPosition(100);
-                break;
-
-            case 'KeyS':
-                if (event.ctrlKey) {
-                    event.preventDefault();
-                    this.stopPlayback();
-                }
-                break;
+    adjustPlaybackSpeed(direction) {
+        const speedSelect = document.getElementById('speed-select');
+        if (!speedSelect) return;
+        const options = Array.from(speedSelect.options);
+        const currentIdx = options.findIndex(opt => opt.selected);
+        let newIdx = currentIdx + direction;
+        newIdx = Math.max(0, Math.min(newIdx, options.length - 1));
+        if (newIdx !== currentIdx) {
+            options[newIdx].selected = true;
+            speedSelect.dispatchEvent(new Event('change'));
+            this.showStatus(`Speed: ${options[newIdx].text}`);
         }
     }
 
@@ -2844,6 +2855,30 @@ class SentrySixApp {
         } else {
             onboardingModal.classList.add('hidden');
         }
+    }
+
+    frameStep(direction) {
+        // Tesla dashcam videos are ~36 fps, so frame ≈ 1/36s
+        const frameDuration = 1 / 36.0;
+        Object.values(this.videos).forEach(video => {
+            if (video && !isNaN(video.duration)) {
+                let newTime = video.currentTime + direction * frameDuration;
+                newTime = Math.max(0, Math.min(newTime, video.duration));
+                video.currentTime = newTime;
+            }
+        });
+        // Pause after frame step
+        this.pauseAllVideos();
+    }
+
+    skipSeconds(seconds) {
+        Object.values(this.videos).forEach(video => {
+            if (video && !isNaN(video.duration)) {
+                let newTime = video.currentTime + seconds;
+                newTime = Math.max(0, Math.min(newTime, video.duration));
+                video.currentTime = newTime;
+            }
+        });
     }
 }
 

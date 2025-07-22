@@ -20,20 +20,20 @@
             </div>
             <div class="header-center">
                 <div class="playback-controls">
+                    <button id="skip-back-15-btn" class="control-btn" title="Skip Back 15s">
+                        <span class="icon">⏪</span>
+                    </button>
+                    <button id="frame-back-btn" class="control-btn" title="Frame Back">
+                        <span class="icon">⬅️</span>
+                    </button>
                     <button id="play-pause-btn" class="control-btn" title="Play/Pause">
                         <span class="icon">⏯️</span>
                     </button>
-                    <button id="stop-btn" class="control-btn" title="Stop">
-                        <span class="icon">⏹️</span>
+                    <button id="frame-forward-btn" class="control-btn" title="Frame Forward">
+                        <span class="icon">➡️</span>
                     </button>
-                    <button id="next-clip-btn" class="control-btn" title="Next Clip">
-                        <span class="icon">⏭️</span>
-                    </button>
-                    <button id="prev-clip-btn" class="control-btn" title="Previous Clip">
-                        <span class="icon">⏮️</span>
-                    </button>
-                    <button id="next-clip-btn" class="control-btn" title="Next Clip">
-                        <span class="icon">⏭️</span>
+                    <button id="skip-forward-15-btn" class="control-btn" title="Skip Forward 15s">
+                        <span class="icon">⏩</span>
                     </button>
                 </div>
             </div>
@@ -329,11 +329,16 @@
                     <div class="speed-control">
                         <label for="speed-select">Speed:</label>
                         <select id="speed-select" class="speed-select">
+                            <option value="0.1">0.1x</option>
                             <option value="0.25">0.25x</option>
                             <option value="0.5">0.5x</option>
+                            <option value="0.75">0.75x</option>
                             <option value="1" selected>1x</option>
+                            <option value="1.25">1.25x</option>
                             <option value="1.5">1.5x</option>
                             <option value="2">2x</option>
+                            <option value="3">3x</option>
+                            <option value="4">4x</option>
                         </select>
                     </div>
                     <div class="volume-control">
