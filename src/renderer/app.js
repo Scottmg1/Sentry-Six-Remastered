@@ -3264,15 +3264,61 @@ class SentrySixApp {
         const locationElement = document.getElementById('event-tooltip-location');
         const imgElement = document.getElementById('event-tooltip-img');
 
-        if (reasonElement) reasonElement.textContent = eventMarker.reason;
-        if (timeElement) timeElement.textContent = eventMarker.timestamp.toLocaleString();
+        // Format user-friendly reason text
+        let friendlyReason = eventMarker.reason;
+        if (eventMarker.reason === 'user_interaction') {
+            friendlyReason = 'User Saved';
+        } else if (eventMarker.reason === 'sentry_aware_object_detection') {
+            friendlyReason = 'Sentry Detected Object';
+        } else if (eventMarker.reason === 'sentry_aware_acceleration') {
+            friendlyReason = 'Sentry Detected Acceleration';
+        } else if (eventMarker.reason === 'sentry_aware_turning') {
+            friendlyReason = 'Sentry Detected Turning';
+        } else if (eventMarker.reason.toLowerCase().includes('sentry')) {
+            friendlyReason = 'Sentry Detection';
+        } else {
+            // Capitalize first letter and replace underscores with spaces
+            friendlyReason = eventMarker.reason.replace(/_/g, ' ')
+                .split(' ')
+                .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+                .join(' ');
+        }
+
+        // Format date and time in user-friendly format
+        const eventDate = eventMarker.timestamp;
+        const dateStr = eventDate.toLocaleDateString('en-US', {
+            month: '2-digit',
+            day: '2-digit',
+            year: 'numeric'
+        });
+        const timeStr = eventDate.toLocaleTimeString('en-US', {
+            hour: 'numeric',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: true
+        });
+
+        if (reasonElement) reasonElement.textContent = friendlyReason;
+        if (timeElement) timeElement.textContent = `${dateStr} ${timeStr}`;
         if (locationElement) locationElement.textContent = eventMarker.city || 'Unknown location';
 
         if (imgElement) {
             if (thumbnailSrc) {
+                console.log('Setting thumbnail src:', thumbnailSrc.substring(0, 50) + '...');
                 imgElement.src = thumbnailSrc;
                 imgElement.style.display = 'block';
+
+                // Add error handler to debug loading issues
+                imgElement.onerror = (e) => {
+                    console.error('Failed to load thumbnail image:', e);
+                    imgElement.style.display = 'none';
+                };
+
+                imgElement.onload = () => {
+                    console.log('Thumbnail loaded successfully');
+                };
             } else {
+                console.log('No thumbnail src provided');
                 imgElement.style.display = 'none';
             }
         }
@@ -3281,27 +3327,56 @@ class SentrySixApp {
     showEventTooltip(x, y) {
         if (!this.eventTooltip) return;
 
-        // Position tooltip near cursor but keep it on screen
+        // Make tooltip visible temporarily to get its dimensions
+        this.eventTooltip.style.visibility = 'hidden';
+        this.eventTooltip.classList.remove('hidden');
+
         const tooltipRect = this.eventTooltip.getBoundingClientRect();
         const viewportWidth = window.innerWidth;
         const viewportHeight = window.innerHeight;
 
+        // Calculate preferred position (above cursor)
         let left = x - tooltipRect.width / 2;
-        let top = y - tooltipRect.height - 10;
+        let top = y - tooltipRect.height - 15; // 15px gap above cursor
 
-        // Keep tooltip on screen
-        if (left < 10) left = 10;
-        if (left + tooltipRect.width > viewportWidth - 10) left = viewportWidth - tooltipRect.width - 10;
-        if (top < 10) top = y + 10; // Show below cursor if no room above
+        // Check if tooltip would go off the bottom of the screen
+        const wouldGoOffBottom = (y + tooltipRect.height + 15) > viewportHeight;
+        const hasRoomAbove = (y - tooltipRect.height - 15) > 0;
 
+        // If tooltip would go off bottom and there's room above, show above
+        // Otherwise, show below cursor
+        if (wouldGoOffBottom && hasRoomAbove) {
+            top = y - tooltipRect.height - 15; // Above cursor
+        } else {
+            top = y + 15; // Below cursor
+        }
+
+        // Keep tooltip horizontally on screen
+        if (left < 10) {
+            left = 10;
+        } else if (left + tooltipRect.width > viewportWidth - 10) {
+            left = viewportWidth - tooltipRect.width - 10;
+        }
+
+        // Keep tooltip vertically on screen
+        if (top < 10) {
+            top = 10;
+        } else if (top + tooltipRect.height > viewportHeight - 10) {
+            top = viewportHeight - tooltipRect.height - 10;
+        }
+
+        // Apply final position and make visible
         this.eventTooltip.style.left = `${left}px`;
         this.eventTooltip.style.top = `${top}px`;
-        this.eventTooltip.classList.remove('hidden');
+        this.eventTooltip.style.visibility = 'visible';
+
+        console.log(`Tooltip positioned at (${left}, ${top}), cursor at (${x}, ${y}), viewport: ${viewportWidth}x${viewportHeight}`);
     }
 
     hideEventTooltip() {
         if (this.eventTooltip) {
             this.eventTooltip.classList.add('hidden');
+            this.eventTooltip.style.visibility = 'visible'; // Reset visibility for next time
         }
     }
 

@@ -1738,6 +1738,15 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
+    position: relative;
+}
+
+.event-tooltip-image::before {
+    content: "📷";
+    font-size: 24px;
+    color: #666;
+    position: absolute;
+    z-index: 1;
 }
 
 .event-tooltip-image img {
@@ -1745,6 +1754,9 @@ body {
     height: 100%;
     object-fit: cover;
     border-radius: 8px 8px 0 0;
+    position: relative;
+    z-index: 2;
+    background: #2d2d2d;
 }
 
 .event-tooltip-info {
