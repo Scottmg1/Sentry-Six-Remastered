@@ -271,6 +271,16 @@ body {
     opacity: 1;
 }
 
+.video-container.drag-over {
+  outline: 3px dashed #0078d7;
+  background: #e6f0fa;
+  z-index: 2;
+}
+.video-container.dragging {
+  opacity: 0.5;
+  z-index: 3;
+}
+
 .camera-label {
     font-size: 12px;
     font-weight: 600;

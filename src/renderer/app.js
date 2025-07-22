@@ -119,6 +119,24 @@ class SentrySixApp {
 
         // Enable drag-and-drop for camera grid
         this.setupCameraGridDragAndDrop();
+        // Setup reset layout button
+        const resetBtn = document.getElementById('reset-camera-layout');
+        if (resetBtn) {
+            resetBtn.onclick = () => this.resetCameraGridLayout();
+        }
+    }
+
+    resetCameraGridLayout() {
+        const grid = document.getElementById('video-grid');
+        if (!grid) return;
+        const defaultOrder = ['left_pillar', 'front', 'right_pillar', 'left_repeater', 'back', 'right_repeater'];
+        const containers = {};
+        Array.from(grid.querySelectorAll('.video-container')).forEach(c => {
+            containers[c.dataset.camera] = c;
+        });
+        defaultOrder.forEach(cam => {
+            if (containers[cam]) grid.appendChild(containers[cam]);
+        });
     }
 
     setupCameraGridDragAndDrop() {
