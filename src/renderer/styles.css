@@ -189,6 +189,17 @@ body {
     border-width: 4px;
 }
 
+.spinner.small {
+  width: 18px;
+  height: 18px;
+  border: 3px solid #f3f3f3;
+  border-top: 3px solid #0078d7;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  display: inline-block;
+  vertical-align: middle;
+}
+
 @keyframes spin {
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
@@ -1522,4 +1533,88 @@ body {
 /* Adjust debug panel position when camera panel is open */
 .debug-panel {
     right: 340px; /* Moved left to avoid camera panel */
+}
+
+/* Onboarding Modal Styles */
+#onboarding-modal.modal {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+#onboarding-modal .modal-content {
+  color: #222;
+  background: #fff;
+  border-radius: 8px;
+  max-width: 400px;
+  width: 90%;
+  padding: 24px 20px 16px 20px;
+  box-shadow: 0 4px 32px rgba(0,0,0,0.2);
+  text-align: center;
+  min-height: 220px;
+}
+#onboarding-modal .modal-header,
+#onboarding-modal .modal-body,
+#onboarding-modal .modal-footer {
+  color: #222;
+}
+#onboarding-modal .modal-header h2 {
+  color: #222;
+  margin: 0;
+}
+#onboarding-modal .modal-body p,
+#onboarding-modal .modal-body ul {
+  color: #222;
+  margin: 0 0 8px 0;
+}
+#onboarding-modal .modal-body ul {
+  padding-left: 18px;
+  text-align: left;
+  display: inline-block;
+}
+#onboarding-modal .modal-footer {
+  margin-top: 8px;
+}
+#onboarding-modal .btn.primary {
+  background: #0078d7;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  padding: 8px 20px;
+  font-size: 1em;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+#onboarding-modal .btn.primary:hover {
+  background: #005fa3;
+}
+#onboarding-modal.dark .modal-content {
+  background: #23272e;
+  color: #f1f1f1;
+}
+#onboarding-modal.dark .modal-header,
+#onboarding-modal.dark .modal-body,
+#onboarding-modal.dark .modal-footer {
+  color: #f1f1f1;
+}
+#onboarding-modal.dark .modal-header h2,
+#onboarding-modal.dark .modal-body p,
+#onboarding-modal.dark .modal-body ul {
+  color: #f1f1f1;
+}
+#onboarding-modal.dark .btn.primary {
+  background: #005fa3;
+  color: #fff;
+}
+#onboarding-modal.dark .btn.primary:hover {
+  background: #0078d7;
+}
+#onboarding-modal.dark label {
+  color: #f1f1f1;
+}
+#onboarding-modal.dark .modal-footer {
+  background: #181a20;
 }

@@ -39,6 +39,9 @@ class SentrySixApp {
             // Load configuration
             await this.loadConfiguration();
             
+            // Onboarding: Show welcome modal if first run or no folder selected
+            this.checkOnboarding();
+            
             // Initialize UI components
             this.initializeUI();
             
@@ -84,6 +87,21 @@ class SentrySixApp {
     }
 
     initializeUI() {
+        // Detect and apply system dark mode preference, and listen for changes
+        const applySystemDarkMode = () => {
+            if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                document.body.classList.add('dark');
+            } else {
+                document.body.classList.remove('dark');
+            }
+            // Update onboarding modal theme immediately
+            if (this.checkOnboarding) this.checkOnboarding();
+        };
+        applySystemDarkMode();
+        if (window.matchMedia) {
+            window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applySystemDarkMode);
+        }
+        
         // Set up timestamp display
         this.updateTimestampDisplay();
         
@@ -212,7 +230,7 @@ class SentrySixApp {
         }
     }
 
-    async selectTeslaFolder() {
+    async selectTeslaFolder(fromOnboarding = false, dontShow = false) {
         try {
             this.showLoadingIndicator(true);
 
@@ -221,6 +239,18 @@ class SentrySixApp {
             if (result && result.success && result.videoFiles) {
                 this.clipSections = result.videoFiles;
                 this.renderCollapsibleClipList();
+                // Save folder path for onboarding persistence
+                localStorage.setItem('teslaFolder', result.path);
+                if (dontShow) {
+                    localStorage.setItem('onboardingNeverShow', 'true');
+                } else {
+                    // If user did NOT check 'Don't show again', clear onboarding flags so modal shows next time
+                    localStorage.removeItem('onboardingShown');
+                    localStorage.removeItem('onboardingNeverShow');
+                }
+                // Hide onboarding modal only after successful folder selection
+                const onboardingModal = document.getElementById('onboarding-modal');
+                if (onboardingModal) onboardingModal.classList.add('hidden');
 
                 // Count total clips across all sections
                 let totalClips = 0;
@@ -2697,6 +2727,57 @@ class SentrySixApp {
         } else {
             console.log(`🏁 Corrupted clip ${clipIndex + 1} was the last clip, ending timeline`);
             this.pauseAllVideos();
+        }
+    }
+
+    checkOnboarding() {
+        const onboardingNeverShow = localStorage.getItem('onboardingNeverShow');
+        const onboardingShown = localStorage.getItem('onboardingShown');
+        const lastFolder = localStorage.getItem('teslaFolder');
+        const onboardingModal = document.getElementById('onboarding-modal');
+        // Dark mode support
+        if (document.body.classList.contains('dark')) {
+            onboardingModal.classList.add('dark');
+        } else {
+            onboardingModal.classList.remove('dark');
+        }
+        if (onboardingNeverShow === 'true') {
+            onboardingModal.classList.add('hidden');
+            return;
+        }
+        // Show onboarding if not suppressed
+        if (!onboardingShown || !lastFolder) {
+            onboardingModal.classList.remove('hidden');
+            // Wire up modal buttons
+            document.getElementById('onboarding-select-folder').onclick = () => {
+                const dontShow = document.getElementById('onboarding-dont-show').checked;
+                if (dontShow) {
+                    localStorage.setItem('onboardingNeverShow', 'true');
+                } else {
+                    localStorage.removeItem('onboardingNeverShow');
+                }
+                // Show spinner and disable button
+                const btn = document.getElementById('onboarding-select-folder');
+                const spinner = document.getElementById('onboarding-folder-spinner');
+                if (btn) btn.disabled = true;
+                if (spinner) spinner.style.display = '';
+                this.selectTeslaFolder(true, dontShow).finally(() => {
+                    if (btn) btn.disabled = false;
+                    if (spinner) spinner.style.display = 'none';
+                });
+            };
+            document.getElementById('close-onboarding-modal').onclick = () => {
+                const dontShow = document.getElementById('onboarding-dont-show').checked;
+                if (dontShow) {
+                    localStorage.setItem('onboardingNeverShow', 'true');
+                } else {
+                    localStorage.removeItem('onboardingNeverShow');
+                }
+                onboardingModal.classList.add('hidden');
+                localStorage.setItem('onboardingShown', 'true');
+            };
+        } else {
+            onboardingModal.classList.add('hidden');
         }
     }
 }

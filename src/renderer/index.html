@@ -496,6 +496,34 @@
         </div>
     </div>
 
+    <!-- Onboarding/Welcome Modal -->
+    <div id="onboarding-modal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Welcome to Sentry-Six</h2>
+                <button id="close-onboarding-modal" class="close-btn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p>Thank you for installing Sentry-Six, the Tesla Dashcam Viewer.</p>
+                <p>To get started, please select your TeslaCam folder (SavedClips, SentryClips, or RecentClips).</p>
+                <ul>
+                    <li>Click the button below to choose your Tesla dashcam folder.</li>
+                    <li>You can change this folder later from the sidebar.</li>
+                </ul>
+            </div>
+            <div class="modal-footer">
+                <label style="display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 10px;">
+                    <input type="checkbox" id="onboarding-dont-show" />
+                    Don't show this again
+                </label>
+                <button id="onboarding-select-folder" class="btn primary">
+                    <span id="onboarding-folder-spinner" class="spinner small" style="display:none; margin-right:8px;"></span>
+                    Select TeslaCam Folder
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- Scripts -->
     <script src="debug-manager.js"></script>
     <script src="app.js"></script>
