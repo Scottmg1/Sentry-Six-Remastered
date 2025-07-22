@@ -686,6 +686,16 @@ body {
     transform: none;
 }
 
+.export-btn.warning {
+    background: #ff6b35;
+    border-color: #ff6b35;
+}
+
+.export-btn.warning:hover {
+    background: #ff5722;
+    border-color: #ff5722;
+}
+
 /* Export Modal */
 .modal {
     position: fixed;

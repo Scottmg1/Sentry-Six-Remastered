@@ -295,8 +295,16 @@ class SentrySixApp {
                 const input = inputs[i];
                 cmd.push('-i', input.path);
                 
+                // Apply sync offset for right_repeater (starts 1 second early)
+                let ptsFilter = 'setpts=PTS-STARTPTS';
+                if (input.camera === 'right_repeater') {
+                    // Delay right_repeater by 1 second to sync with other cameras
+                    ptsFilter = 'setpts=PTS-STARTPTS+1/TB';
+                    console.log(`🔍 Applying 1-second delay to right_repeater`);
+                }
+                
                 // Scale each stream to standard Tesla camera resolution
-                const scaleFilter = `[${i}:v]setpts=PTS-STARTPTS,scale=1448:938[v${i}]`;
+                const scaleFilter = `[${i}:v]${ptsFilter},scale=1448:938[v${i}]`;
                 initialFilters.push(scaleFilter);
                 streamMaps.push(`[v${i}]`);
             }

@@ -7,6 +7,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { spawn } from 'child_process';
+import { FFmpegHandler, ExportData, ExportProgress } from './ffmpeg-handler';
 
 export interface VideoMetadata {
     duration: number;
@@ -30,11 +31,13 @@ export interface ExportOptions {
 export class VideoProcessor {
     private ffmpegPath: string;
     private ffprobePath: string;
+    private ffmpegHandler: FFmpegHandler;
 
     constructor() {
         // Try to find FFmpeg in common locations or use bundled version
         this.ffmpegPath = this.findFFmpegPath();
         this.ffprobePath = this.findFFprobePath();
+        this.ffmpegHandler = new FFmpegHandler();
     }
 
     /**
@@ -93,7 +96,7 @@ export class VideoProcessor {
     }
 
     /**
-     * Export video with specified options
+     * Export video with specified options (legacy method)
      */
     async exportVideo(options: ExportOptions): Promise<boolean> {
         try {
@@ -114,6 +117,51 @@ export class VideoProcessor {
             console.error('Error during video export:', error);
             return false;
         }
+    }
+
+    /**
+     * Export Tesla dashcam video with advanced features
+     * Uses the new FFMPEG handler with timeline support, corruption detection, and timestamp overlays
+     */
+    async exportTeslaVideo(
+        exportId: string,
+        exportData: ExportData,
+        progressCallback: (progress: ExportProgress) => void
+    ): Promise<boolean> {
+        try {
+            console.log(`🚀 Starting Tesla video export ${exportId}`);
+            return await this.ffmpegHandler.startExport(exportId, exportData, progressCallback);
+        } catch (error: any) {
+            console.error(`💥 Tesla video export failed:`, error);
+            progressCallback({
+                type: 'complete',
+                success: false,
+                message: `Export failed: ${error.message}`,
+                error: error.message
+            });
+            return false;
+        }
+    }
+
+    /**
+     * Cancel active Tesla video export
+     */
+    cancelTeslaExport(exportId: string): boolean {
+        return this.ffmpegHandler.cancelExport(exportId);
+    }
+
+    /**
+     * Get Tesla export status
+     */
+    getTeslaExportStatus(exportId: string): boolean {
+        return this.ffmpegHandler.getExportStatus(exportId);
+    }
+
+    /**
+     * Cleanup video processor resources
+     */
+    cleanup(): void {
+        this.ffmpegHandler.cleanup();
     }
 
     /**

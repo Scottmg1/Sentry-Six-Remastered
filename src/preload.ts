@@ -13,6 +13,9 @@ export interface ElectronAPI {
         selectFolder: () => Promise<any>;
         getVideoFiles: (folderPath: string) => Promise<any>;
         getVideoMetadata: (filePath: string) => Promise<any>;
+        exportVideo: (exportId: string, exportData: any) => Promise<boolean>;
+        cancelExport: (exportId: string) => Promise<boolean>;
+        getExportStatus: (exportId: string) => Promise<boolean>;
     };
 
     // Configuration management
@@ -31,6 +34,12 @@ export interface ElectronAPI {
     fs: {
         exists: (filePath: string) => Promise<boolean>;
         readFile: (filePath: string) => Promise<string>;
+        showItemInFolder: (filePath: string) => Promise<void>;
+    };
+
+    // Dialog operations
+    dialog: {
+        saveFile: (options: any) => Promise<string | null>;
     };
 
     // Application info
@@ -43,6 +52,10 @@ export interface ElectronAPI {
     on: (channel: string, callback: (...args: any[]) => void) => void;
     off: (channel: string, callback: (...args: any[]) => void) => void;
     once: (channel: string, callback: (...args: any[]) => void) => void;
+    removeListener: (channel: string, callback: (...args: any[]) => void) => void;
+
+    // Generic invoke for backward compatibility
+    invoke: (channel: string, ...args: any[]) => Promise<any>;
 }
 
 // Expose the API to the renderer process
@@ -52,6 +65,9 @@ const electronAPI: ElectronAPI = {
         selectFolder: () => ipcRenderer.invoke('tesla:select-folder'),
         getVideoFiles: (folderPath: string) => ipcRenderer.invoke('tesla:get-video-files', folderPath),
         getVideoMetadata: (filePath: string) => ipcRenderer.invoke('tesla:get-video-metadata', filePath),
+        exportVideo: (exportId: string, exportData: any) => ipcRenderer.invoke('tesla:export-video', exportId, exportData),
+        cancelExport: (exportId: string) => ipcRenderer.invoke('tesla:cancel-export', exportId),
+        getExportStatus: (exportId: string) => ipcRenderer.invoke('tesla:get-export-status', exportId),
     },
 
     // Configuration management
@@ -70,6 +86,12 @@ const electronAPI: ElectronAPI = {
     fs: {
         exists: (filePath: string) => ipcRenderer.invoke('fs:exists', filePath),
         readFile: (filePath: string) => ipcRenderer.invoke('fs:read-file', filePath),
+        showItemInFolder: (filePath: string) => ipcRenderer.invoke('fs:show-item-in-folder', filePath),
+    },
+
+    // Dialog operations
+    dialog: {
+        saveFile: (options: any) => ipcRenderer.invoke('dialog:save-file', options),
     },
 
     // Application info
@@ -86,6 +108,7 @@ const electronAPI: ElectronAPI = {
             'video-loaded',
             'export-progress',
             'export-complete',
+            'tesla:export-progress',
             'config-changed'
         ];
 
@@ -106,6 +129,7 @@ const electronAPI: ElectronAPI = {
             'video-loaded',
             'export-progress',
             'export-complete',
+            'tesla:export-progress',
             'config-changed'
         ];
 
@@ -114,11 +138,32 @@ const electronAPI: ElectronAPI = {
         } else {
             console.warn(`Attempted to listen to unauthorized channel: ${channel}`);
         }
+    },
+
+    removeListener: (channel: string, callback: (...args: any[]) => void) => {
+        ipcRenderer.removeListener(channel, callback);
+    },
+
+    // Generic invoke for backward compatibility
+    invoke: (channel: string, ...args: any[]) => {
+        return ipcRenderer.invoke(channel, ...args);
     }
 };
 
+// Debug: Log what we're exposing
+console.log('🔧 Preload: Creating electronAPI object...');
+console.log('🔧 Preload: electronAPI keys:', Object.keys(electronAPI));
+console.log('🔧 Preload: electronAPI.dialog exists:', !!electronAPI.dialog);
+console.log('🔧 Preload: electronAPI.dialog.saveFile type:', typeof electronAPI.dialog?.saveFile);
+console.log('🔧 Preload: Full electronAPI object:', electronAPI);
+
 // Expose the API to the global window object
-contextBridge.exposeInMainWorld('electronAPI', electronAPI);
+try {
+    contextBridge.exposeInMainWorld('electronAPI', electronAPI);
+    console.log('✅ Preload: electronAPI exposed successfully');
+} catch (error) {
+    console.error('❌ Preload: Failed to expose electronAPI:', error);
+}
 
 // Also expose it as a typed interface for TypeScript
 declare global {

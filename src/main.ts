@@ -40,6 +40,9 @@ class SentrySixApp {
 
         // Handle app window closed
         app.on('window-all-closed', () => {
+            // Cleanup video processor resources
+            this.videoProcessor.cleanup();
+
             if (process.platform !== 'darwin') {
                 app.quit();
             }
@@ -135,6 +138,37 @@ class SentrySixApp {
             return await this.videoProcessor.exportVideo(exportOptions);
         });
 
+        // Tesla video export with advanced features
+        ipcMain.handle('tesla:export-video', async (event, exportId: string, exportData: any) => {
+            const progressCallback = (progress: any) => {
+                event.sender.send('tesla:export-progress', exportId, progress);
+            };
+
+            return await this.videoProcessor.exportTeslaVideo(exportId, exportData, progressCallback);
+        });
+
+        ipcMain.handle('tesla:cancel-export', async (_, exportId: string) => {
+            return this.videoProcessor.cancelTeslaExport(exportId);
+        });
+
+        ipcMain.handle('tesla:get-export-status', async (_, exportId: string) => {
+            return this.videoProcessor.getTeslaExportStatus(exportId);
+        });
+
+        // File save dialog for exports
+        ipcMain.handle('dialog:save-file', async (_, options: any) => {
+            const result = await dialog.showSaveDialog(this.mainWindow!, {
+                title: options.title || 'Save Export',
+                defaultPath: options.defaultPath || 'tesla_export.mp4',
+                filters: options.filters || [
+                    { name: 'Video Files', extensions: ['mp4'] },
+                    { name: 'All Files', extensions: ['*'] }
+                ]
+            });
+
+            return result.canceled ? null : result.filePath;
+        });
+
         // File system operations
         ipcMain.handle('fs:exists', async (_, filePath: string) => {
             return fs.existsSync(filePath);
@@ -146,6 +180,11 @@ class SentrySixApp {
             } catch (error) {
                 throw new Error(`Failed to read file: ${error}`);
             }
+        });
+
+        ipcMain.handle('fs:show-item-in-folder', async (_, filePath: string) => {
+            const { shell } = require('electron');
+            shell.showItemInFolder(filePath);
         });
 
         // Application info

@@ -1504,6 +1504,8 @@ class SentrySixApp {
         }
 
         const currentPosition = this.currentTimeline.currentPosition;
+        
+        // Sync is now handled at the FFmpeg level, so we use the original position
         this.exportMarkers[type] = currentPosition;
 
         // Update visual markers on timeline
@@ -1512,7 +1514,275 @@ class SentrySixApp {
         // Update export controls state
         this.updateExportControlsState();
 
-        console.log(`Export ${type} marker set at ${Math.floor(currentPosition/1000)}s`);
+        const time = Math.floor(currentPosition/1000);
+        console.log(`Export ${type} marker set at ${time}s (sync handled at FFmpeg level)`);
+        this.showStatus(`📹 ${type.charAt(0).toUpperCase() + type.slice(1)} marker set (sync handled at export level)`);
+    }
+
+    findSyncStartPosition(targetPosition) {
+        // Find the earliest position where all cameras are available and synchronized
+        const cameras = ['left_pillar', 'front', 'right_pillar', 'left_repeater', 'back', 'right_repeater'];
+        let earliestSyncPosition = targetPosition;
+
+        // Sync is now handled at the FFmpeg level, so we don't need to adjust the start marker
+        // The right_repeater will be delayed by 1 second in the FFmpeg command
+        console.log(`📹 Sync handled at FFmpeg level - using original position`);
+        return targetPosition;
+
+        // Fallback to original logic if no sync offset detected
+        for (let i = 0; i < this.currentTimeline.clips.length; i++) {
+            const clip = this.currentTimeline.clips[i];
+            const clipStartTime = this.calculateClipStartTime(i);
+            const clipEndTime = clipStartTime + (clip.duration || 60) * 1000;
+
+            // Check if this clip has all cameras
+            const availableCameras = cameras.filter(camera => clip.files[camera]);
+            
+            if (availableCameras.length === cameras.length) {
+                if (clipStartTime <= targetPosition && clipEndTime > targetPosition) {
+                    return targetPosition;
+                } else if (clipStartTime > targetPosition) {
+                    earliestSyncPosition = clipStartTime;
+                    break;
+                }
+            } else {
+                console.log(`📹 Clip ${i + 1} missing cameras: ${cameras.filter(c => !clip.files[c]).join(', ')}`);
+            }
+        }
+
+        return earliestSyncPosition;
+    }
+
+    getCameraSyncOffset(clip) {
+        // Check for timing differences between cameras in the same clip
+        // This is a simplified approach - in a real implementation, you'd analyze video metadata
+        // For now, we'll use a conservative estimate based on common Tesla camera sync issues
+        
+        const cameras = ['left_pillar', 'front', 'right_pillar', 'left_repeater', 'back', 'right_repeater'];
+        let maxOffset = 0;
+
+        // Check if right_repeater is present and might have sync issues
+        if (clip.files.right_repeater) {
+            // Right repeater often starts 0.5-1.5 seconds after other cameras
+            // Based on user feedback, it can be up to 1 second delay
+            maxOffset = Math.max(maxOffset, 1000); // 1 second
+        }
+
+        // Check if left_repeater is present and might have sync issues
+        if (clip.files.left_repeater) {
+            // Left repeater can also have slight delays
+            maxOffset = Math.max(maxOffset, 800); // 0.8 seconds
+        }
+
+        // Check if back camera is present and might have sync issues
+        if (clip.files.back) {
+            // Back camera can have timing differences
+            maxOffset = Math.max(maxOffset, 600); // 0.6 seconds
+        }
+
+        // Try to get actual sync offset from current video playback if available
+        const actualOffset = this.getActualSyncOffset();
+        if (actualOffset > 0) {
+            maxOffset = Math.max(maxOffset, actualOffset);
+        }
+
+        return maxOffset;
+    }
+
+    getActualSyncOffsetWithDirection() {
+        // Try to detect actual sync offset and direction from current video playback
+        if (!this.videos || !this.currentTimeline) {
+            console.log(`📹 Sync detection: No videos or timeline available`);
+            return { offset: 0, direction: 'none' };
+        }
+
+        const cameras = ['left_pillar', 'front', 'right_pillar', 'left_repeater', 'back', 'right_repeater'];
+        let maxOffset = 0;
+        let maxDirection = 'none';
+        
+        console.log(`📹 Starting sync detection for cameras: ${cameras.join(', ')}`);
+
+        // Check each camera's current time (even if paused)
+        cameras.forEach(camera => {
+            const video = this.videos[camera];
+            console.log(`📹 Checking ${camera}: video=${!!video}, src=${!!video?.src}, readyState=${video?.readyState}`);
+            
+            if (video && video.src && video.readyState >= 2) { // HAVE_CURRENT_DATA or higher
+                const currentTime = video.currentTime * 1000; // Convert to milliseconds
+                console.log(`📹 ${camera} current time: ${currentTime}ms`);
+                
+                // Compare with front camera (usually the reference)
+                const frontVideo = this.videos.front;
+                if (frontVideo && frontVideo.src && frontVideo.readyState >= 2) {
+                    const frontTime = frontVideo.currentTime * 1000;
+                    const offset = Math.abs(currentTime - frontTime);
+                    const direction = currentTime > frontTime ? 'ahead' : 'behind';
+                    
+                    console.log(`📹 ${camera} vs front: offset=${offset}ms, direction=${direction}`);
+                    
+                    if (offset > maxOffset && offset > 100) { // Only consider significant offsets
+                        maxOffset = offset;
+                        maxDirection = direction;
+                        console.log(`📹 Detected sync offset for ${camera}: ${offset}ms ${direction} of front camera`);
+                    }
+                } else {
+                    console.log(`📹 Front camera not available for comparison`);
+                }
+            } else {
+                console.log(`📹 ${camera} not ready: video=${!!video}, src=${!!video?.src}, readyState=${video?.readyState}`);
+            }
+        });
+
+        // If no sync offset detected from current playback, use conservative estimate
+        if (maxOffset === 0) {
+            // Based on user feedback, right_repeater often starts ahead of front camera
+            const rightRepeater = this.videos.right_repeater;
+            const frontVideo = this.videos.front;
+            
+            if (rightRepeater && frontVideo && rightRepeater.readyState >= 2 && frontVideo.readyState >= 2) {
+                const rightTime = rightRepeater.currentTime * 1000;
+                const frontTime = frontVideo.currentTime * 1000;
+                const offset = Math.abs(rightTime - frontTime);
+                
+                if (offset > 50) { // Even small offsets
+                    maxOffset = offset;
+                    maxDirection = rightTime > frontTime ? 'ahead' : 'behind';
+                    console.log(`📹 Conservative sync detection for right_repeater: ${offset}ms ${maxDirection} of front camera`);
+                } else {
+                    // Use default conservative estimate
+                    maxOffset = 1000; // 1 second
+                    maxDirection = 'ahead'; // Right repeater typically starts ahead
+                    console.log(`📹 Using default sync estimate: ${maxOffset}ms ${maxDirection} for right_repeater`);
+                }
+            }
+        }
+
+        return { offset: maxOffset, direction: maxDirection };
+    }
+
+    getActualSyncOffset() {
+        // Legacy function for backward compatibility
+        const { offset } = this.getActualSyncOffsetWithDirection();
+        return offset;
+    }
+
+    getInitialSyncOffsetWithDirection() {
+        // Check for initial sync delays when videos first start
+        const cameras = ['left_pillar', 'front', 'right_pillar', 'left_repeater', 'back', 'right_repeater'];
+        let maxOffset = 0;
+        let maxDirection = 'none';
+
+        // Check if right_repeater is significantly ahead or behind
+        const rightRepeater = this.videos.right_repeater;
+        const frontVideo = this.videos.front;
+        
+        if (rightRepeater && frontVideo && rightRepeater.src && frontVideo.src) {
+            const rightTime = rightRepeater.currentTime * 1000;
+            const frontTime = frontVideo.currentTime * 1000;
+            const offset = Math.abs(frontTime - rightTime);
+            
+            if (offset > 100 && offset < 2000) { // Between 0.1-2 seconds difference
+                maxOffset = Math.max(maxOffset, offset);
+                maxDirection = frontTime > rightTime ? 'behind' : 'ahead';
+                console.log(`📹 Right repeater initial sync: ${offset}ms ${maxDirection} of front camera`);
+            }
+        }
+
+        return { offset: maxOffset, direction: maxDirection };
+    }
+
+    getInitialSyncOffset() {
+        // Legacy function for backward compatibility
+        const { offset } = this.getInitialSyncOffsetWithDirection();
+        return offset;
+    }
+
+    getSyncAdjustedExportRange() {
+        // Get the sync-adjusted export range that ensures all cameras are synchronized
+        let startTime = 0;
+        let endTime = this.currentTimeline.displayDuration;
+
+        if (this.exportMarkers.start !== null && this.exportMarkers.end !== null) {
+            // Both markers set - apply sync adjustments
+            const originalStart = Math.min(this.exportMarkers.start, this.exportMarkers.end);
+            const originalEnd = Math.max(this.exportMarkers.start, this.exportMarkers.end);
+            
+            // Apply sync adjustments
+            startTime = this.findSyncStartPosition(originalStart);
+            endTime = this.findSyncEndPosition(originalEnd);
+            
+            console.log(`📹 Export range adjusted: ${Math.floor(originalStart/1000)}s → ${Math.floor(startTime/1000)}s, ${Math.floor(originalEnd/1000)}s → ${Math.floor(endTime/1000)}s`);
+            
+        } else if (this.exportMarkers.start !== null) {
+            // Only start marker set - apply sync adjustment
+            startTime = this.findSyncStartPosition(this.exportMarkers.start);
+            console.log(`📹 Start marker adjusted: ${Math.floor(this.exportMarkers.start/1000)}s → ${Math.floor(startTime/1000)}s`);
+            
+        } else if (this.exportMarkers.end !== null) {
+            // Only end marker set - apply sync adjustment
+            endTime = this.findSyncEndPosition(this.exportMarkers.end);
+            console.log(`📹 End marker adjusted: ${Math.floor(this.exportMarkers.end/1000)}s → ${Math.floor(endTime/1000)}s`);
+        }
+
+        return { startTime, endTime };
+    }
+
+    findSyncEndPosition(targetPosition) {
+        // Find the latest position where all cameras are still available and synchronized
+        const cameras = ['left_pillar', 'front', 'right_pillar', 'left_repeater', 'back', 'right_repeater'];
+        let latestSyncPosition = targetPosition;
+
+        // Check each clip from the end to find where cameras start dropping
+        for (let i = this.currentTimeline.clips.length - 1; i >= 0; i--) {
+            const clip = this.currentTimeline.clips[i];
+            const clipStartTime = this.calculateClipStartTime(i);
+            const clipEndTime = clipStartTime + (clip.duration || 60) * 1000;
+
+            // Check if this clip has all cameras
+            const availableCameras = cameras.filter(camera => clip.files[camera]);
+            
+            if (availableCameras.length === cameras.length) {
+                // All cameras available in this clip, now check sync timing
+                const syncOffset = this.getCameraSyncOffset(clip);
+                
+                if (syncOffset > 0) {
+                    // Cameras have sync offset, adjust end position
+                    const adjustedClipEnd = clipEndTime - syncOffset;
+                    
+                    if (clipStartTime <= targetPosition && adjustedClipEnd > targetPosition) {
+                        // Target position is within this clip, but need to account for sync
+                        return Math.min(targetPosition, adjustedClipEnd);
+                    } else if (adjustedClipEnd <= targetPosition) {
+                        // This clip ends before target, use adjusted clip end
+                        latestSyncPosition = adjustedClipEnd;
+                        break;
+                    }
+                } else {
+                    // No sync offset, use original logic
+                    if (clipStartTime <= targetPosition && clipEndTime > targetPosition) {
+                        return targetPosition;
+                    } else if (clipEndTime <= targetPosition) {
+                        latestSyncPosition = clipEndTime;
+                        break;
+                    }
+                }
+            } else {
+                // Some cameras missing, continue to previous clip
+                console.log(`📹 Clip ${i + 1} missing cameras: ${cameras.filter(c => !clip.files[c]).join(', ')}`);
+            }
+        }
+
+        return latestSyncPosition;
+    }
+
+    calculateClipStartTime(clipIndex) {
+        // Calculate the start time of a clip in the timeline
+        let startTime = 0;
+        for (let i = 0; i < clipIndex; i++) {
+            const clipDuration = (this.currentTimeline.clips[i].duration || 60) * 1000;
+            startTime += clipDuration;
+        }
+        return startTime;
     }
 
     clearExportMarkers() {
@@ -1682,6 +1952,9 @@ class SentrySixApp {
             duration = Math.floor((endPos - startPos) / 1000);
 
             rangeDisplay.textContent = `${startTime} - ${endTime}`;
+            
+            // Check for sync issues in the export range
+            this.checkExportRangeSync(startPos, endPos);
         } else if (this.exportMarkers.start !== null) {
             startTime = this.formatTime(Math.floor(this.exportMarkers.start / 1000));
             endTime = this.formatTime(Math.floor(this.currentTimeline.displayDuration / 1000));
@@ -1700,6 +1973,51 @@ class SentrySixApp {
         }
 
         durationDisplay.textContent = `(${this.formatTime(duration)})`;
+    }
+
+    checkExportRangeSync(startPos, endPos) {
+        const cameras = ['left_pillar', 'front', 'right_pillar', 'left_repeater', 'back', 'right_repeater'];
+        const syncIssues = [];
+
+        // Check each clip in the export range
+        for (let i = 0; i < this.currentTimeline.clips.length; i++) {
+            const clip = this.currentTimeline.clips[i];
+            const clipStartTime = this.calculateClipStartTime(i);
+            const clipEndTime = clipStartTime + (clip.duration || 60) * 1000;
+
+            // Check if this clip overlaps with the export range
+            if (clipStartTime < endPos && clipEndTime > startPos) {
+                const availableCameras = cameras.filter(camera => clip.files[camera]);
+                if (availableCameras.length < cameras.length) {
+                    const missingCameras = cameras.filter(c => !clip.files[c]);
+                    syncIssues.push({
+                        clipIndex: i,
+                        missingCameras: missingCameras,
+                        timeRange: `${this.formatTime(Math.floor(Math.max(startPos, clipStartTime) / 1000))} - ${this.formatTime(Math.floor(Math.min(endPos, clipEndTime) / 1000))}`
+                    });
+                }
+            }
+        }
+
+        // Show warning if sync issues found
+        if (syncIssues.length > 0) {
+            const missingCameras = [...new Set(syncIssues.flatMap(issue => issue.missingCameras))];
+            console.warn(`⚠️ Export range has sync issues: ${syncIssues.length} clips missing cameras: ${missingCameras.join(', ')}`);
+            
+            // Update export button to show warning
+            const exportBtn = document.getElementById('start-export');
+            if (exportBtn) {
+                exportBtn.title = `Warning: Some clips in export range are missing cameras (${missingCameras.join(', ')})`;
+                exportBtn.classList.add('warning');
+            }
+        } else {
+            // Clear warning
+            const exportBtn = document.getElementById('start-export');
+            if (exportBtn) {
+                exportBtn.title = 'Start export';
+                exportBtn.classList.remove('warning');
+            }
+        }
     }
 
     updateCameraExportToggles() {
@@ -1738,19 +2056,9 @@ class SentrySixApp {
         // Get selected cameras
         const selectedCameras = Array.from(document.querySelectorAll('.camera-export-toggle:checked')).length;
 
-        // Calculate export duration
-        let exportDuration;
-        if (this.exportMarkers.start !== null && this.exportMarkers.end !== null) {
-            const startPos = Math.min(this.exportMarkers.start, this.exportMarkers.end);
-            const endPos = Math.max(this.exportMarkers.start, this.exportMarkers.end);
-            exportDuration = Math.floor((endPos - startPos) / 1000);
-        } else if (this.exportMarkers.start !== null) {
-            exportDuration = Math.floor((this.currentTimeline.displayDuration - this.exportMarkers.start) / 1000);
-        } else if (this.exportMarkers.end !== null) {
-            exportDuration = Math.floor(this.exportMarkers.end / 1000);
-        } else {
-            exportDuration = Math.floor(this.currentTimeline.displayDuration / 1000);
-        }
+        // Calculate export duration using sync-adjusted range
+        const { startTime, endTime } = this.getSyncAdjustedExportRange();
+        const exportDuration = Math.floor((endTime - startTime) / 1000);
 
         // More accurate file size estimation based on quality and camera count
         let baseSizePerMinute;
@@ -1805,18 +2113,8 @@ class SentrySixApp {
         const timestampEnabled = document.getElementById('timestamp-overlay-enabled')?.checked || false;
         const timestampPosition = document.getElementById('timestamp-position')?.value || 'bottom-center';
 
-        // Calculate export range
-        let startTime = 0;
-        let endTime = this.currentTimeline.displayDuration;
-
-        if (this.exportMarkers.start !== null && this.exportMarkers.end !== null) {
-            startTime = Math.min(this.exportMarkers.start, this.exportMarkers.end);
-            endTime = Math.max(this.exportMarkers.start, this.exportMarkers.end);
-        } else if (this.exportMarkers.start !== null) {
-            startTime = this.exportMarkers.start;
-        } else if (this.exportMarkers.end !== null) {
-            endTime = this.exportMarkers.end;
-        }
+        // Calculate export range with sync adjustments
+        const { startTime, endTime } = this.getSyncAdjustedExportRange();
 
         // Show progress section
         const progressSection = document.getElementById('export-progress');
