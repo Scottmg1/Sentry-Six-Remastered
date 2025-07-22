@@ -116,6 +116,53 @@ class SentrySixApp {
         if (speedSelect && this.config.playbackSpeed !== undefined) {
             speedSelect.value = this.config.playbackSpeed;
         }
+
+        // Enable drag-and-drop for camera grid
+        this.setupCameraGridDragAndDrop();
+    }
+
+    setupCameraGridDragAndDrop() {
+        const grid = document.getElementById('video-grid');
+        if (!grid) return;
+        const containers = Array.from(grid.querySelectorAll('.video-container'));
+        containers.forEach(container => {
+            container.setAttribute('draggable', 'true');
+            container.addEventListener('dragstart', (e) => {
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData('text/plain', container.dataset.camera);
+                container.classList.add('dragging');
+            });
+            container.addEventListener('dragend', () => {
+                container.classList.remove('dragging');
+            });
+            container.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+                container.classList.add('drag-over');
+            });
+            container.addEventListener('dragleave', () => {
+                container.classList.remove('drag-over');
+            });
+            container.addEventListener('drop', (e) => {
+                e.preventDefault();
+                container.classList.remove('drag-over');
+                const draggedCamera = e.dataTransfer.getData('text/plain');
+                if (!draggedCamera || draggedCamera === container.dataset.camera) return;
+                const allContainers = Array.from(grid.querySelectorAll('.video-container'));
+                const draggedElem = grid.querySelector(`.video-container[data-camera="${draggedCamera}"]`);
+                const targetElem = container;
+                const draggedIdx = allContainers.indexOf(draggedElem);
+                const targetIdx = allContainers.indexOf(targetElem);
+                if (draggedElem && targetElem && draggedIdx !== -1 && targetIdx !== -1 && draggedElem !== targetElem) {
+                    // Swap in array
+                    const newOrder = [...allContainers];
+                    newOrder[draggedIdx] = targetElem;
+                    newOrder[targetIdx] = draggedElem;
+                    // Re-append in new order
+                    newOrder.forEach(el => grid.appendChild(el));
+                }
+            });
+        });
     }
 
     setupEventListeners() {
