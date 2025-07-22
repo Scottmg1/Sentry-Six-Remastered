@@ -8,7 +8,6 @@
     "build": "tsc",
     "build:watch": "tsc --watch",
     "start": "electron .",
-    "test-simple": "electron simple-main.js",
     "dev": "concurrently \"npm run build:watch\" \"wait-on dist/main.js && electron .\"",
     "pack": "electron-builder",
     "dist": "electron-builder --publish=never",
