@@ -47,6 +47,9 @@ class SentrySixApp {
 
         // Set up sticky header behavior
         this.setupStickyHeaders();
+
+        // Set up export system
+        this.setupExportSystem();
             
             // Initialize video players
             this.initializeVideoPlayers();
@@ -1444,6 +1447,535 @@ class SentrySixApp {
 
         // Store observer for cleanup
         this.stickyHeaderObserver = observer;
+    }
+
+    setupExportSystem() {
+        // Initialize export markers
+        this.exportMarkers = {
+            start: null,
+            end: null
+        };
+
+        // Set up export control event listeners
+        const setStartMarkerBtn = document.getElementById('set-start-marker');
+        const setEndMarkerBtn = document.getElementById('set-end-marker');
+        const clearMarkersBtn = document.getElementById('clear-markers');
+        const exportVideoBtn = document.getElementById('export-video');
+
+        setStartMarkerBtn?.addEventListener('click', () => this.setExportMarker('start'));
+        setEndMarkerBtn?.addEventListener('click', () => this.setExportMarker('end'));
+        clearMarkersBtn?.addEventListener('click', () => this.clearExportMarkers());
+        exportVideoBtn?.addEventListener('click', () => this.openExportDialog());
+
+        // Set up export modal event listeners
+        const exportModal = document.getElementById('export-modal');
+        const closeModalBtn = document.getElementById('close-export-modal');
+        const cancelExportBtn = document.getElementById('cancel-export');
+        const startExportBtn = document.getElementById('start-export');
+
+        closeModalBtn?.addEventListener('click', () => this.closeExportDialog());
+        cancelExportBtn?.addEventListener('click', () => this.closeExportDialog());
+        startExportBtn?.addEventListener('click', () => this.startVideoExport());
+
+        // Close modal when clicking outside
+        exportModal?.addEventListener('click', (e) => {
+            if (e.target === exportModal) {
+                this.closeExportDialog();
+            }
+        });
+
+        // Update export info when settings change
+        const qualityInputs = document.querySelectorAll('input[name="export-quality"]');
+        const cameraToggles = document.querySelectorAll('.camera-export-toggle');
+
+        qualityInputs.forEach(input => {
+            input.addEventListener('change', () => this.updateExportEstimates());
+        });
+
+        cameraToggles.forEach(toggle => {
+            toggle.addEventListener('change', () => this.updateExportEstimates());
+        });
+    }
+
+    setExportMarker(type) {
+        if (!this.currentTimeline) {
+            alert('Please load a timeline first');
+            return;
+        }
+
+        const currentPosition = this.currentTimeline.currentPosition;
+        this.exportMarkers[type] = currentPosition;
+
+        // Update visual markers on timeline
+        this.updateExportMarkers();
+
+        // Update export controls state
+        this.updateExportControlsState();
+
+        console.log(`Export ${type} marker set at ${Math.floor(currentPosition/1000)}s`);
+    }
+
+    clearExportMarkers() {
+        this.exportMarkers.start = null;
+        this.exportMarkers.end = null;
+
+        // Remove visual markers
+        this.updateExportMarkers();
+
+        // Update export controls state
+        this.updateExportControlsState();
+
+        console.log('Export markers cleared');
+    }
+
+    updateExportMarkers() {
+        const timelineMarkers = document.getElementById('timeline-markers');
+        if (!timelineMarkers || !this.currentTimeline) return;
+
+        // Clear existing export markers
+        const existingMarkers = timelineMarkers.querySelectorAll('.export-marker');
+        existingMarkers.forEach(marker => marker.remove());
+
+        // Add start marker
+        if (this.exportMarkers.start !== null) {
+            const startMarker = this.createExportMarker('start', this.exportMarkers.start);
+            timelineMarkers.appendChild(startMarker);
+        }
+
+        // Add end marker
+        if (this.exportMarkers.end !== null) {
+            const endMarker = this.createExportMarker('end', this.exportMarkers.end);
+            timelineMarkers.appendChild(endMarker);
+        }
+
+        // Add range highlight if both markers are set
+        if (this.exportMarkers.start !== null && this.exportMarkers.end !== null) {
+            const rangeHighlight = this.createExportRangeHighlight();
+            timelineMarkers.appendChild(rangeHighlight);
+        }
+    }
+
+    createExportMarker(type, position) {
+        const marker = document.createElement('div');
+        marker.className = `export-marker export-marker-${type}`;
+
+        const percentage = (position / this.currentTimeline.displayDuration) * 100;
+        marker.style.left = `${percentage}%`;
+
+        marker.innerHTML = type === 'start' ? '📍' : '🏁';
+        marker.title = `${type.charAt(0).toUpperCase() + type.slice(1)} marker: ${this.formatTime(Math.floor(position/1000))}`;
+
+        // Make marker draggable
+        this.makeMarkerDraggable(marker, type);
+
+        return marker;
+    }
+
+    createExportRangeHighlight() {
+        const highlight = document.createElement('div');
+        highlight.className = 'export-range-highlight';
+
+        const startPos = Math.min(this.exportMarkers.start, this.exportMarkers.end);
+        const endPos = Math.max(this.exportMarkers.start, this.exportMarkers.end);
+
+        const startPercentage = (startPos / this.currentTimeline.displayDuration) * 100;
+        const endPercentage = (endPos / this.currentTimeline.displayDuration) * 100;
+
+        highlight.style.left = `${startPercentage}%`;
+        highlight.style.width = `${endPercentage - startPercentage}%`;
+
+        return highlight;
+    }
+
+    makeMarkerDraggable(marker, type) {
+        let isDragging = false;
+
+        marker.addEventListener('mousedown', (e) => {
+            isDragging = true;
+            e.preventDefault();
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (!isDragging) return;
+
+            const timelineScrubber = document.getElementById('timeline-scrubber');
+            const rect = timelineScrubber.getBoundingClientRect();
+            const percentage = Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100));
+            const newPosition = (percentage / 100) * this.currentTimeline.displayDuration;
+
+            this.exportMarkers[type] = newPosition;
+            this.updateExportMarkers();
+        });
+
+        document.addEventListener('mouseup', () => {
+            if (isDragging) {
+                isDragging = false;
+                this.updateExportControlsState();
+            }
+        });
+    }
+
+    updateExportControlsState() {
+        const exportBtn = document.getElementById('export-video');
+        const clearBtn = document.getElementById('clear-markers');
+
+        const hasMarkers = this.exportMarkers.start !== null || this.exportMarkers.end !== null;
+
+        if (clearBtn) {
+            clearBtn.disabled = !hasMarkers;
+        }
+
+        if (exportBtn) {
+            exportBtn.disabled = !this.currentTimeline;
+        }
+    }
+
+    openExportDialog() {
+        if (!this.currentTimeline) {
+            alert('Please load a timeline first');
+            return;
+        }
+
+        const modal = document.getElementById('export-modal');
+        if (!modal) return;
+
+        // Update export range display
+        this.updateExportRangeDisplay();
+
+        // Update camera toggles based on current visibility
+        this.updateCameraExportToggles();
+
+        // Calculate initial estimates
+        this.updateExportEstimates();
+
+        // Show modal
+        modal.classList.remove('hidden');
+    }
+
+    closeExportDialog() {
+        const modal = document.getElementById('export-modal');
+        if (!modal) return;
+
+        modal.classList.add('hidden');
+
+        // Hide progress if visible
+        const progressSection = document.getElementById('export-progress');
+        if (progressSection) {
+            progressSection.classList.add('hidden');
+        }
+    }
+
+    updateExportRangeDisplay() {
+        const rangeDisplay = document.getElementById('export-range-display');
+        const durationDisplay = document.getElementById('export-duration-display');
+
+        if (!rangeDisplay || !durationDisplay) return;
+
+        let startTime, endTime, duration;
+
+        if (this.exportMarkers.start !== null && this.exportMarkers.end !== null) {
+            const startPos = Math.min(this.exportMarkers.start, this.exportMarkers.end);
+            const endPos = Math.max(this.exportMarkers.start, this.exportMarkers.end);
+
+            startTime = this.formatTime(Math.floor(startPos / 1000));
+            endTime = this.formatTime(Math.floor(endPos / 1000));
+            duration = Math.floor((endPos - startPos) / 1000);
+
+            rangeDisplay.textContent = `${startTime} - ${endTime}`;
+        } else if (this.exportMarkers.start !== null) {
+            startTime = this.formatTime(Math.floor(this.exportMarkers.start / 1000));
+            endTime = this.formatTime(Math.floor(this.currentTimeline.displayDuration / 1000));
+            duration = Math.floor((this.currentTimeline.displayDuration - this.exportMarkers.start) / 1000);
+
+            rangeDisplay.textContent = `${startTime} - End`;
+        } else if (this.exportMarkers.end !== null) {
+            startTime = '0:00';
+            endTime = this.formatTime(Math.floor(this.exportMarkers.end / 1000));
+            duration = Math.floor(this.exportMarkers.end / 1000);
+
+            rangeDisplay.textContent = `Start - ${endTime}`;
+        } else {
+            duration = Math.floor(this.currentTimeline.displayDuration / 1000);
+            rangeDisplay.textContent = 'Full Timeline';
+        }
+
+        durationDisplay.textContent = `(${this.formatTime(duration)})`;
+    }
+
+    updateCameraExportToggles() {
+        const cameraToggles = document.querySelectorAll('.camera-export-toggle');
+
+        cameraToggles.forEach(toggle => {
+            const cameraSlot = toggle.closest('.camera-slot');
+            const camera = cameraSlot?.dataset.camera;
+
+            if (camera) {
+                // Check if camera is currently visible in the main view
+                const videoElement = document.getElementById(`video-${camera}`);
+                const isVisible = videoElement && !videoElement.closest('.video-container').classList.contains('hidden');
+
+                toggle.checked = isVisible;
+
+                // Disable if camera is not available
+                if (!videoElement) {
+                    toggle.disabled = true;
+                    cameraSlot.style.opacity = '0.5';
+                }
+            }
+        });
+    }
+
+    updateExportEstimates() {
+        const fileSizeElement = document.getElementById('estimated-file-size');
+        const durationElement = document.getElementById('export-duration-estimate');
+
+        if (!fileSizeElement || !durationElement || !this.currentTimeline) return;
+
+        // Get selected quality
+        const qualityInput = document.querySelector('input[name="export-quality"]:checked');
+        const quality = qualityInput?.value || 'full';
+
+        // Get selected cameras
+        const selectedCameras = Array.from(document.querySelectorAll('.camera-export-toggle:checked')).length;
+
+        // Calculate export duration
+        let exportDuration;
+        if (this.exportMarkers.start !== null && this.exportMarkers.end !== null) {
+            const startPos = Math.min(this.exportMarkers.start, this.exportMarkers.end);
+            const endPos = Math.max(this.exportMarkers.start, this.exportMarkers.end);
+            exportDuration = Math.floor((endPos - startPos) / 1000);
+        } else if (this.exportMarkers.start !== null) {
+            exportDuration = Math.floor((this.currentTimeline.displayDuration - this.exportMarkers.start) / 1000);
+        } else if (this.exportMarkers.end !== null) {
+            exportDuration = Math.floor(this.exportMarkers.end / 1000);
+        } else {
+            exportDuration = Math.floor(this.currentTimeline.displayDuration / 1000);
+        }
+
+        // More accurate file size estimation based on quality and camera count
+        let baseSizePerMinute;
+        if (quality === 'full') {
+            // Full quality: higher bitrate, more cameras = larger file
+            baseSizePerMinute = selectedCameras <= 2 ? 80 : 
+                               selectedCameras <= 4 ? 120 : 
+                               selectedCameras <= 6 ? 180 : 200;
+        } else {
+            // Mobile quality: lower bitrate, scaled down
+            baseSizePerMinute = selectedCameras <= 2 ? 25 : 
+                               selectedCameras <= 4 ? 40 : 
+                               selectedCameras <= 6 ? 60 : 80;
+        }
+        
+        // Adjust for duration (longer videos may have better compression)
+        const durationFactor = exportDuration < 60 ? 1.2 : 
+                              exportDuration < 300 ? 1.0 : 
+                              exportDuration < 600 ? 0.9 : 0.8;
+        
+        const estimatedSize = Math.round((exportDuration / 60) * baseSizePerMinute * durationFactor);
+
+        // Estimate processing time (rough calculation)
+        const processingTime = Math.round(exportDuration * 0.5); // Assume 0.5x real-time processing
+
+        fileSizeElement.textContent = `~${estimatedSize} MB`;
+        durationElement.textContent = `~${Math.max(1, Math.round(processingTime / 60))} minutes`;
+    }
+
+    async startVideoExport() {
+        console.log('🚀 Debug: startVideoExport called');
+        console.log('🔍 Debug: window.electronAPI at start:', window.electronAPI);
+
+        if (!this.currentTimeline) {
+            alert('No timeline loaded');
+            return;
+        }
+
+        // Get export settings
+        const qualityInput = document.querySelector('input[name="export-quality"]:checked');
+        const quality = qualityInput?.value || 'full';
+
+        const selectedCameras = Array.from(document.querySelectorAll('.camera-export-toggle:checked'))
+            .map(toggle => toggle.closest('.camera-slot').dataset.camera)
+            .filter(Boolean);
+
+        if (selectedCameras.length === 0) {
+            alert('Please select at least one camera to export');
+            return;
+        }
+
+        const timestampEnabled = document.getElementById('timestamp-overlay-enabled')?.checked || false;
+        const timestampPosition = document.getElementById('timestamp-position')?.value || 'bottom-center';
+
+        // Calculate export range
+        let startTime = 0;
+        let endTime = this.currentTimeline.displayDuration;
+
+        if (this.exportMarkers.start !== null && this.exportMarkers.end !== null) {
+            startTime = Math.min(this.exportMarkers.start, this.exportMarkers.end);
+            endTime = Math.max(this.exportMarkers.start, this.exportMarkers.end);
+        } else if (this.exportMarkers.start !== null) {
+            startTime = this.exportMarkers.start;
+        } else if (this.exportMarkers.end !== null) {
+            endTime = this.exportMarkers.end;
+        }
+
+        // Show progress section
+        const progressSection = document.getElementById('export-progress');
+        const startButton = document.getElementById('start-export');
+
+        if (progressSection) progressSection.classList.remove('hidden');
+        if (startButton) startButton.disabled = true;
+
+        try {
+            // Prepare export data
+            const exportData = {
+                timeline: this.currentTimeline,
+                startTime,
+                endTime,
+                quality,
+                cameras: selectedCameras,
+                timestamp: {
+                    enabled: timestampEnabled,
+                    position: timestampPosition
+                }
+            };
+
+            console.log('Starting video export with settings:', exportData);
+
+            // Call backend export function
+            await this.performVideoExport(exportData);
+
+            // Export completed
+            this.updateExportProgress(100, 'Export completed successfully!');
+
+            // Re-enable the export button
+            if (startButton) startButton.disabled = false;
+
+            setTimeout(() => {
+                this.closeExportDialog();
+            }, 2000);
+
+        } catch (error) {
+            console.error('Export failed:', error);
+            this.updateExportProgress(0, `Export failed: ${error.message}`);
+
+            // Re-enable the export button on error too
+            if (startButton) startButton.disabled = false;
+        }
+    }
+
+    async performVideoExport(exportData) {
+        try {
+            // Debug: Check what's available
+            const apiKeys = Object.keys(window.electronAPI || {});
+            console.log('🔍 Debug: window.electronAPI keys:', apiKeys);
+            console.log('🔍 Debug: Keys are:', apiKeys.join(', '));
+            console.log('🔍 Debug: window.electronAPI:', window.electronAPI);
+            console.log('🔍 Debug: window.electronAPI.dialog:', window.electronAPI?.dialog);
+            console.log('🔍 Debug: window.electronAPI.dialog.saveFile:', window.electronAPI?.dialog?.saveFile);
+            console.log('🔍 Debug: typeof window.electronAPI:', typeof window.electronAPI);
+
+            if (!window.electronAPI) {
+                throw new Error('electronAPI is not available');
+            }
+            if (!window.electronAPI.dialog) {
+                // Try to add dialog API manually as a workaround
+                console.log('🔧 Attempting to add dialog API manually...');
+                if (window.electronAPI.invoke) {
+                    window.electronAPI.dialog = {
+                        saveFile: (options) => window.electronAPI.invoke('dialog:save-file', options)
+                    };
+                    console.log('✅ Dialog API added manually');
+                } else {
+                    throw new Error('electronAPI.dialog is not available and cannot be added manually');
+                }
+            }
+            if (!window.electronAPI.dialog.saveFile) {
+                throw new Error('electronAPI.dialog.saveFile is not available');
+            }
+
+            // Get save location from user
+            const outputPath = await window.electronAPI.dialog.saveFile({
+                title: 'Save Tesla Dashcam Export',
+                defaultPath: `tesla_export_${new Date().toISOString().slice(0, 10)}.mp4`,
+                filters: [
+                    { name: 'Video Files', extensions: ['mp4'] },
+                    { name: 'All Files', extensions: ['*'] }
+                ]
+            });
+
+            if (!outputPath) {
+                throw new Error('Export cancelled by user');
+            }
+
+            // Add output path to export data
+            exportData.outputPath = outputPath;
+
+            // Generate unique export ID
+            const exportId = `export_${Date.now()}`;
+
+            // Set up progress listener
+            const progressHandler = (event, receivedExportId, progress) => {
+                if (receivedExportId === exportId) {
+                    if (progress.type === 'progress') {
+                        this.updateExportProgress(progress.percentage, progress.message);
+                    } else if (progress.type === 'complete') {
+                        if (progress.success) {
+                            this.updateExportProgress(100, progress.message);
+
+                            // Re-enable export button
+                            const startButton = document.getElementById('start-export');
+                            if (startButton) startButton.disabled = false;
+
+                            // Show success message with option to open file location
+                            setTimeout(() => {
+                                const openLocation = confirm(`${progress.message}\n\nWould you like to open the file location?`);
+                                if (openLocation) {
+                                    window.electronAPI.fs.showItemInFolder(outputPath);
+                                }
+                                this.closeExportDialog();
+                            }, 1000);
+                        } else {
+                            this.updateExportProgress(0, progress.message);
+                            
+                            // Re-enable export button on failure
+                            const startButton = document.getElementById('start-export');
+                            if (startButton) startButton.disabled = false;
+                            
+                            alert(`Export failed: ${progress.message}`);
+                        }
+
+                        // Remove progress listener
+                        window.electronAPI.removeListener('tesla:export-progress', progressHandler);
+                    }
+                }
+            };
+
+            // Add progress listener
+            window.electronAPI.on('tesla:export-progress', progressHandler);
+
+            // Start the export
+            console.log('🚀 Starting Tesla video export with data:', exportData);
+            const success = await window.electronAPI.tesla.exportVideo(exportId, exportData);
+
+            if (!success) {
+                throw new Error('Failed to start export process');
+            }
+
+        } catch (error) {
+            console.error('💥 Export failed:', error);
+            this.updateExportProgress(0, `Export failed: ${error.message}`);
+            alert(`Export failed: ${error.message}`);
+        }
+    }
+
+    updateExportProgress(percentage, status) {
+        const progressFill = document.getElementById('progress-fill');
+        const progressPercentage = document.getElementById('progress-percentage');
+        const progressStatus = document.getElementById('progress-status');
+
+        if (progressFill) progressFill.style.width = `${percentage}%`;
+        if (progressPercentage) progressPercentage.textContent = `${percentage}%`;
+        if (progressStatus) progressStatus.textContent = status;
     }
 
     renderTimelineGaps() {

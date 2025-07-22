@@ -7,12 +7,22 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('electronAPI', {
     // Tesla file operations
     tesla: {
-        selectFolder: () => ipcRenderer.invoke('tesla:select-folder')
+        selectFolder: () => ipcRenderer.invoke('tesla:select-folder'),
+        getVideoFiles: (folderPath) => ipcRenderer.invoke('tesla:get-video-files', folderPath),
+        exportVideo: (exportId, exportData) => ipcRenderer.invoke('tesla:export-video', exportId, exportData),
+        cancelExport: (exportId) => ipcRenderer.invoke('tesla:cancel-export', exportId),
+        getExportStatus: (exportId) => ipcRenderer.invoke('tesla:get-export-status', exportId)
     },
 
     // File system operations
     fs: {
-        exists: (filePath) => ipcRenderer.invoke('fs:exists', filePath)
+        exists: (filePath) => ipcRenderer.invoke('fs:exists', filePath),
+        showItemInFolder: (filePath) => ipcRenderer.invoke('fs:show-item-in-folder', filePath)
+    },
+
+    // Dialog operations
+    dialog: {
+        saveFile: (options) => ipcRenderer.invoke('dialog:save-file', options)
     },
 
     // Application info
@@ -22,7 +32,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
     // Event listeners
     on: (channel, callback) => {
-        const allowedChannels = ['folder-selected', 'videos-loaded'];
+        const allowedChannels = ['folder-selected', 'videos-loaded', 'tesla:export-progress'];
         if (allowedChannels.includes(channel)) {
             ipcRenderer.on(channel, callback);
         }
@@ -30,6 +40,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
     off: (channel, callback) => {
         ipcRenderer.off(channel, callback);
+    },
+
+    removeListener: (channel, callback) => {
+        ipcRenderer.removeListener(channel, callback);
     },
 
     // Utility functions

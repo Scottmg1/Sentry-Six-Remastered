@@ -631,6 +631,394 @@ body {
     background: #404040;
 }
 
+/* Export Controls */
+.export-controls {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-left: 16px;
+    padding-left: 16px;
+    border-left: 1px solid #555555;
+}
+
+.export-btn {
+    padding: 6px 12px;
+    border: none;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: #4a4a4a;
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.export-btn:hover {
+    background: #555555;
+    transform: translateY(-1px);
+}
+
+.export-btn.secondary {
+    background: #666666;
+    color: #cccccc;
+}
+
+.export-btn.secondary:hover {
+    background: #777777;
+}
+
+.export-btn.primary {
+    background: #007acc;
+    color: #ffffff;
+}
+
+.export-btn.primary:hover {
+    background: #0066aa;
+}
+
+.export-btn:disabled {
+    background: #333333;
+    color: #666666;
+    cursor: not-allowed;
+    transform: none;
+}
+
+/* Export Modal */
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.modal.hidden {
+    display: none;
+}
+
+.modal-content {
+    background: #2a2a2a;
+    border-radius: 8px;
+    width: 90%;
+    max-width: 800px;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+
+.modal-header {
+    display: flex;
+    justify-content: between;
+    align-items: center;
+    padding: 20px 24px;
+    border-bottom: 1px solid #444444;
+}
+
+.modal-header h2 {
+    margin: 0;
+    color: #ffffff;
+    font-size: 20px;
+}
+
+.modal-body {
+    padding: 24px;
+}
+
+.modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    padding: 20px 24px;
+    border-top: 1px solid #444444;
+    background: #333333;
+    border-radius: 0 0 8px 8px;
+}
+
+.export-section {
+    margin-bottom: 24px;
+}
+
+.export-section h3 {
+    margin: 0 0 12px 0;
+    color: #ffffff;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.export-range-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px;
+    background: #333333;
+    border-radius: 4px;
+    color: #cccccc;
+}
+
+.quality-options {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.quality-option {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 16px;
+    background: #333333;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.quality-option:hover {
+    background: #3a3a3a;
+}
+
+.quality-option input[type="radio"] {
+    margin-top: 2px;
+}
+
+.quality-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.quality-info strong {
+    color: #ffffff;
+    font-size: 14px;
+}
+
+.quality-info span {
+    color: #cccccc;
+    font-size: 12px;
+}
+
+/* Camera Layout Preview */
+.camera-layout-preview {
+    background: #333333;
+    border-radius: 6px;
+    padding: 16px;
+}
+
+.camera-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(2, 1fr);
+    gap: 8px;
+    max-width: 400px;
+}
+
+.camera-slot {
+    background: #444444;
+    border-radius: 4px;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    min-height: 60px;
+    border: 2px solid transparent;
+    transition: all 0.2s;
+}
+
+.camera-slot:hover {
+    background: #4a4a4a;
+    border-color: #007acc;
+}
+
+.camera-label {
+    font-size: 11px;
+    color: #cccccc;
+    text-align: center;
+    font-weight: 500;
+}
+
+.camera-export-toggle {
+    transform: scale(1.2);
+}
+
+/* Timestamp Options */
+.timestamp-options {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.timestamp-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #cccccc;
+    cursor: pointer;
+}
+
+.timestamp-position {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #cccccc;
+}
+
+.timestamp-position select {
+    background: #444444;
+    color: #ffffff;
+    border: 1px solid #555555;
+    border-radius: 4px;
+    padding: 6px 8px;
+    font-size: 12px;
+}
+
+/* Export Information */
+.export-info {
+    background: #333333;
+    border-radius: 6px;
+    padding: 16px;
+}
+
+.info-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    color: #cccccc;
+    font-size: 14px;
+}
+
+.info-row:not(:last-child) {
+    border-bottom: 1px solid #444444;
+}
+
+/* Export Progress */
+.export-progress {
+    background: #333333;
+    border-radius: 6px;
+    padding: 20px;
+    margin-top: 16px;
+}
+
+.progress-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.progress-header h3 {
+    margin: 0;
+    color: #ffffff;
+    font-size: 16px;
+}
+
+.progress-percentage {
+    color: #007acc;
+    font-weight: 600;
+}
+
+.progress-bar {
+    width: 100%;
+    height: 8px;
+    background: #444444;
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 8px;
+}
+
+.progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #007acc, #0099ff);
+    width: 0%;
+    transition: width 0.3s ease;
+}
+
+.progress-info {
+    color: #cccccc;
+    font-size: 12px;
+}
+
+/* Button Styles */
+.btn {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 4px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn.primary {
+    background: #007acc;
+    color: #ffffff;
+}
+
+.btn.primary:hover {
+    background: #0066aa;
+}
+
+.btn.secondary {
+    background: #555555;
+    color: #ffffff;
+}
+
+.btn.secondary:hover {
+    background: #666666;
+}
+
+.btn:disabled {
+    background: #333333;
+    color: #666666;
+    cursor: not-allowed;
+}
+
+/* Export Markers */
+.export-marker {
+    position: absolute;
+    top: -8px;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    cursor: grab;
+    z-index: 15;
+    transform: translateX(-50%);
+    user-select: none;
+}
+
+.export-marker:active {
+    cursor: grabbing;
+}
+
+.export-marker-start {
+    color: #00ff00;
+}
+
+.export-marker-end {
+    color: #ff4444;
+}
+
+.export-range-highlight {
+    position: absolute;
+    top: 0;
+    height: 100%;
+    background: rgba(0, 123, 204, 0.3);
+    border: 1px solid rgba(0, 123, 204, 0.6);
+    z-index: 5;
+    pointer-events: none;
+}
+
 .section-toggle {
     margin-right: 8px;
     font-size: 12px;

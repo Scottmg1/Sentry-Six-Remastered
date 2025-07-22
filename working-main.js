@@ -113,9 +113,36 @@ class SentrySixApp {
             return { success: false };
         });
 
+        // Get video files for a specific folder
+        ipcMain.handle('tesla:get-video-files', async (_, folderPath) => {
+            console.log('Getting video files for folder:', folderPath);
+            const videoFiles = await this.scanTeslaFolder(folderPath);
+            return videoFiles;
+        });
+
         // Simple file system check
         ipcMain.handle('fs:exists', async (_, filePath) => {
             return fs.existsSync(filePath);
+        });
+
+        // Show item in folder
+        ipcMain.handle('fs:show-item-in-folder', async (_, filePath) => {
+            const { shell } = require('electron');
+            shell.showItemInFolder(filePath);
+        });
+
+        // File save dialog for exports
+        ipcMain.handle('dialog:save-file', async (_, options) => {
+            const result = await dialog.showSaveDialog(this.mainWindow, {
+                title: options.title || 'Save Export',
+                defaultPath: options.defaultPath || 'tesla_export.mp4',
+                filters: options.filters || [
+                    { name: 'Video Files', extensions: ['mp4'] },
+                    { name: 'All Files', extensions: ['*'] }
+                ]
+            });
+
+            return result.canceled ? null : result.filePath;
         });
 
         // Get app version
@@ -123,7 +150,440 @@ class SentrySixApp {
             return app.getVersion();
         });
 
+        // Tesla video export
+        ipcMain.handle('tesla:export-video', async (event, exportId, exportData) => {
+            console.log('🚀 Starting Tesla video export:', exportId);
+            
+            try {
+                console.log('📋 Export data received:', exportData);
+                
+                // Validate export data
+                if (!exportData.timeline || !exportData.outputPath) {
+                    throw new Error('Invalid export data: missing timeline or output path');
+                }
+
+                console.log('🔍 Validating FFmpeg availability...');
+                // Check if FFmpeg is available
+                const { spawn } = require('child_process');
+                const ffmpegPath = this.findFFmpegPath();
+                
+                console.log('🔍 FFmpeg path found:', ffmpegPath);
+                
+                if (!ffmpegPath) {
+                    throw new Error('FFmpeg not found. Please install FFmpeg or place it in the ffmpeg_bin directory.');
+                }
+
+                console.log('🔍 Starting video export process...');
+                // Start the export process
+                const result = await this.performVideoExport(event, exportId, exportData, ffmpegPath);
+                console.log('🔍 Export process completed with result:', result);
+
+                return result;
+            } catch (error) {
+                console.error('💥 Export failed:', error);
+                event.sender.send('tesla:export-progress', exportId, {
+                    type: 'complete',
+                    success: false,
+                    message: `Export failed: ${error.message}`
+                });
+                return false;
+            }
+        });
+
+        // Tesla export cancellation
+        ipcMain.handle('tesla:cancel-export', async (_, exportId) => {
+            console.log('🚫 Cancelling export:', exportId);
+            return true;
+        });
+
+        // Tesla export status
+        ipcMain.handle('tesla:get-export-status', async (_, exportId) => {
+            console.log('📊 Getting export status:', exportId);
+            return false; // Not currently exporting
+        });
+
         console.log('IPC handlers set up successfully');
+    }
+
+    // FFmpeg path finding
+    findFFmpegPath() {
+        const possiblePaths = [
+            'ffmpeg', // System PATH
+            path.join(__dirname, 'ffmpeg_bin', 'ffmpeg.exe'), // Bundled Windows
+            path.join(__dirname, 'ffmpeg_bin', 'ffmpeg'), // Bundled Unix
+            path.join(process.cwd(), 'ffmpeg_bin', 'ffmpeg.exe'), // Current working directory
+            path.join(process.cwd(), 'ffmpeg_bin', 'ffmpeg'), // Current working directory Unix
+            '/usr/local/bin/ffmpeg', // Homebrew macOS
+            '/usr/bin/ffmpeg' // Linux
+        ];
+
+        for (const ffmpegPath of possiblePaths) {
+            try {
+                const { spawnSync } = require('child_process');
+                const result = spawnSync(ffmpegPath, ['-version'], { 
+                    timeout: 5000,
+                    stdio: 'pipe'
+                });
+                if (result.status === 0) {
+                    console.log(`✅ Found FFMPEG at: ${ffmpegPath}`);
+                    return ffmpegPath;
+                }
+            } catch (error) {
+                // Continue to next path
+            }
+        }
+
+        return null;
+    }
+
+    // Video export implementation
+    async performVideoExport(event, exportId, exportData, ffmpegPath) {
+        const { spawn } = require('child_process');
+        const fs = require('fs');
+        const os = require('os');
+        const { timeline, startTime, endTime, quality, cameras, timestamp, outputPath } = exportData;
+        
+        try {
+            console.log('🔍 Starting performVideoExport...');
+            console.log('🔍 Timeline clips:', timeline.clips?.length);
+            console.log('🔍 Selected cameras:', cameras);
+            
+            // Calculate duration and offset
+            const durationMs = endTime - startTime;
+            const durationSeconds = durationMs / 1000;
+            const offsetSeconds = startTime / 1000;
+
+            console.log(`🎬 Building export command: ${durationSeconds}s duration, ${offsetSeconds}s offset`);
+
+            const firstClip = timeline.clips[0];
+            if (!firstClip || !firstClip.files) {
+                throw new Error('No video clips found for export');
+            }
+
+            // Create input streams for all selected cameras
+            const inputs = [];
+            const tempFiles = [];
+            
+            for (let i = 0; i < cameras.length; i++) {
+                const camera = cameras[i];
+                const cameraData = firstClip.files[camera];
+                
+                if (!cameraData || !cameraData.path) {
+                    console.log(`⚠️ Skipping camera ${camera}: no file available`);
+                    continue;
+                }
+                
+                console.log(`🔍 Adding camera ${camera}: ${cameraData.path}`);
+                inputs.push({
+                    camera: camera,
+                    path: cameraData.path,
+                    index: i
+                });
+            }
+            
+            if (inputs.length === 0) {
+                throw new Error('No valid camera files found for export');
+            }
+
+            // Build FFmpeg command with multi-camera support
+            const cmd = [ffmpegPath, '-y'];
+            const initialFilters = [];
+            const streamMaps = [];
+            
+            // Add input streams
+            for (let i = 0; i < inputs.length; i++) {
+                const input = inputs[i];
+                cmd.push('-i', input.path);
+                
+                // Scale each stream to standard Tesla camera resolution
+                const scaleFilter = `[${i}:v]setpts=PTS-STARTPTS,scale=1448:938[v${i}]`;
+                initialFilters.push(scaleFilter);
+                streamMaps.push(`[v${i}]`);
+            }
+            
+            // Build grid layout using xstack
+            const numStreams = inputs.length;
+            const w = 1448; // Camera width
+            const h = 938;  // Camera height
+            
+            let mainProcessingChain = [];
+            let lastOutputTag = '';
+            
+            if (numStreams > 1) {
+                // Calculate grid layout for better aspect ratio (16:9)
+                let cols, rows;
+                
+                if (numStreams === 2) {
+                    cols = 2; rows = 1; // 2x1 layout
+                } else if (numStreams === 3) {
+                    cols = 3; rows = 1; // 3x1 layout
+                } else if (numStreams === 4) {
+                    cols = 2; rows = 2; // 2x2 layout
+                } else if (numStreams === 5) {
+                    cols = 3; rows = 2; // 3x2 layout (one empty space)
+                } else if (numStreams === 6) {
+                    cols = 3; rows = 2; // 3x2 layout (16:9 aspect ratio)
+                } else {
+                    // For more than 6 cameras, use 3 columns
+                    cols = 3; rows = Math.ceil(numStreams / 3);
+                }
+                
+                // Create layout positions
+                const layout = [];
+                for (let i = 0; i < numStreams; i++) {
+                    const row = Math.floor(i / cols);
+                    const col = i % cols;
+                    layout.push(`${col * w}_${row * h}`);
+                }
+                
+                const layoutStr = layout.join('|');
+                const xstackFilter = `${streamMaps.join('')}xstack=inputs=${numStreams}:layout=${layoutStr}[stacked]`;
+                mainProcessingChain.push(xstackFilter);
+                lastOutputTag = '[stacked]';
+                
+                console.log(`🔍 Grid layout: ${cols}x${rows}, cameras: ${numStreams}, layout: ${layoutStr}`);
+            } else {
+                lastOutputTag = '[v0]';
+            }
+            
+            // Add timestamp overlay if enabled
+            if (timestamp.enabled) {
+                const startTimeUnix = new Date(timeline.startTime).getTime() / 1000;
+                const basetimeUs = Math.floor(startTimeUnix * 1000000);
+                
+                const drawtextFilter = [
+                    'drawtext=font=Arial',
+                    'expansion=strftime',
+                    `basetime=${basetimeUs}`,
+                    "text='%m/%d/%Y %I\\:%M\\:%S %p'",
+                    'fontcolor=white',
+                    'fontsize=36',
+                    'box=1',
+                    'boxcolor=black@0.4',
+                    'boxborderw=5',
+                    'x=(w-text_w)/2:y=h-th-10'
+                ].join(':');
+                
+                mainProcessingChain.push(`${lastOutputTag}${drawtextFilter}[timestamped]`);
+                lastOutputTag = '[timestamped]';
+            }
+            
+            // Add mobile scaling if requested
+            if (quality === 'mobile') {
+                // Calculate grid dimensions for proper scaling
+                let cols, rows;
+                if (numStreams === 2) {
+                    cols = 2; rows = 1;
+                } else if (numStreams === 3) {
+                    cols = 3; rows = 1;
+                } else if (numStreams === 4) {
+                    cols = 2; rows = 2;
+                } else if (numStreams === 5) {
+                    cols = 3; rows = 2;
+                } else if (numStreams === 6) {
+                    cols = 3; rows = 2;
+                } else {
+                    cols = 3; rows = Math.ceil(numStreams / 3);
+                }
+                
+                const totalWidth = w * cols;
+                const totalHeight = h * rows;
+                const mobileWidth = Math.floor(1080 * (totalWidth / totalHeight) / 2) * 2; // Ensure even width
+                
+                mainProcessingChain.push(`${lastOutputTag}scale=${mobileWidth}:1080[final]`);
+                lastOutputTag = '[final]';
+            } else {
+                // Rename final output for consistency
+                if (lastOutputTag !== '[final]') {
+                    mainProcessingChain.push(`${lastOutputTag}copy[final]`);
+                    lastOutputTag = '[final]';
+                }
+            }
+            
+            // Combine all filter chains
+            const filterComplex = [...initialFilters, ...mainProcessingChain].join(';');
+            cmd.push('-filter_complex', filterComplex);
+            cmd.push('-map', '[final]');
+            
+            // Add audio from front camera if available
+            const frontCameraIndex = inputs.findIndex(input => input.camera === 'front');
+            if (frontCameraIndex !== -1) {
+                cmd.push('-map', `${frontCameraIndex}:a?`);
+            }
+            
+            // Add encoding settings
+            const vCodec = quality === 'mobile' ? 
+                ['-c:v', 'libx264', '-preset', 'fast', '-crf', '23'] :
+                ['-c:v', 'libx264', '-preset', 'medium', '-crf', '18'];
+            
+            cmd.push('-t', durationSeconds.toString(), ...vCodec, '-c:a', 'aac', '-b:a', '128k', outputPath);
+            
+            console.log('🚀 FFmpeg command:', cmd.join(' '));
+
+            // Send initial progress
+            event.sender.send('tesla:export-progress', exportId, {
+                type: 'progress',
+                percentage: 10,
+                message: 'Starting multi-camera video export...'
+            });
+
+            // Execute FFmpeg
+            return new Promise((resolve, reject) => {
+                const process = spawn(cmd[0], cmd.slice(1));
+                let stderr = '';
+                let startTime = Date.now();
+                let lastProgressUpdate = 0;
+                let lastProgressTime = 0;
+                let ffmpegProgressStarted = false;
+                
+                // Fallback timer that only runs if FFmpeg doesn't provide progress
+                const fallbackTimer = setInterval(() => {
+                    if (!ffmpegProgressStarted) {
+                        const elapsed = (Date.now() - startTime) / 1000;
+                        const estimatedTotal = durationSeconds * 2; // Assume 2x real-time
+                        const progress = Math.min(90, Math.floor((elapsed / estimatedTotal) * 100));
+                        
+                        if (progress > lastProgressUpdate) {
+                            lastProgressUpdate = progress;
+                            event.sender.send('tesla:export-progress', exportId, {
+                                type: 'progress',
+                                percentage: progress,
+                                message: `Initializing... (${progress}%)`
+                            });
+                        }
+                    }
+                }, 2000); // Update every 2 seconds
+                
+                process.stderr.on('data', (data) => {
+                    const dataStr = data.toString();
+                    stderr += dataStr;
+                    
+                    // Debug: Log all FFmpeg output to see what we're getting
+                    console.log(`[FFmpeg stderr]: ${dataStr.trim()}`);
+                    
+                    // Parse FFmpeg time output like PyQt6 version
+                    const timeMatch = dataStr.match(/time=(\d{2}):(\d{2}):(\d{2})\.(\d{2})/);
+                    if (timeMatch && durationSeconds > 0) {
+                        const hours = parseInt(timeMatch[1]);
+                        const minutes = parseInt(timeMatch[2]);
+                        const seconds = parseInt(timeMatch[3]);
+                        const centiseconds = parseInt(timeMatch[4]);
+                        
+                        const currentProgressSeconds = (hours * 3600) + (minutes * 60) + seconds + (centiseconds / 100);
+                        const percentage = Math.max(0, Math.min(90, Math.floor((currentProgressSeconds / durationSeconds) * 100)));
+                        
+                        console.log(`[Progress] Time: ${hours}:${minutes}:${seconds}.${centiseconds}, Progress: ${percentage}%`);
+                        
+                        // Only update if progress has increased
+                        if (percentage > lastProgressUpdate) {
+                            lastProgressUpdate = percentage;
+                            ffmpegProgressStarted = true;
+                            
+                            event.sender.send('tesla:export-progress', exportId, {
+                                type: 'progress',
+                                percentage: percentage,
+                                message: `Exporting... (${percentage}%)`
+                            });
+                        }
+                    }
+                });
+
+                // Add timeout to prevent hanging
+                const timeout = setTimeout(() => {
+                    console.log('⚠️ Export timeout - killing process');
+                    process.kill('SIGTERM');
+                    clearInterval(progressTimer);
+                    event.sender.send('tesla:export-progress', exportId, {
+                        type: 'complete',
+                        success: false,
+                        message: 'Export timed out after 5 minutes'
+                    });
+                    reject(new Error('Export timed out'));
+                }, 5 * 60 * 1000); // 5 minute timeout
+                
+                process.on('close', (code) => {
+                    // Clear the timeout and fallback timer
+                    clearTimeout(timeout);
+                    clearInterval(fallbackTimer);
+                    
+                    if (code === 0) {
+                        // Get final file size and show comparison
+                        try {
+                            const stats = fs.statSync(outputPath);
+                            const fileSizeMB = (stats.size / (1024 * 1024)).toFixed(1);
+                            
+                            // Calculate estimated size for comparison
+                            const durationMinutes = durationSeconds / 60;
+                            const numCameras = inputs.length;
+                            const quality = quality;
+                            
+                            let estimatedSize;
+                            if (quality === 'full') {
+                                estimatedSize = Math.round(durationMinutes * (numCameras <= 2 ? 80 : numCameras <= 4 ? 120 : 180));
+                            } else {
+                                estimatedSize = Math.round(durationMinutes * (numCameras <= 2 ? 25 : numCameras <= 4 ? 40 : 60));
+                            }
+                            
+                            const sizeDifference = Math.abs(parseFloat(fileSizeMB) - estimatedSize);
+                            const accuracy = sizeDifference < 10 ? 'accurate' : sizeDifference < 30 ? 'close' : 'off';
+                            
+                            let message = `Export completed! File size: ${fileSizeMB} MB (${numStreams} cameras)`;
+                            if (accuracy !== 'accurate') {
+                                message += ` (estimated: ~${estimatedSize} MB)`;
+                            }
+                            
+                            event.sender.send('tesla:export-progress', exportId, {
+                                type: 'complete',
+                                success: true,
+                                message: message,
+                                outputPath: outputPath
+                            });
+                        } catch (error) {
+                            event.sender.send('tesla:export-progress', exportId, {
+                                type: 'complete',
+                                success: true,
+                                message: `Export completed successfully! (${numStreams} cameras)`,
+                                outputPath: outputPath
+                            });
+                        }
+                        resolve(true);
+                    } else {
+                        const error = `FFmpeg failed with code ${code}: ${stderr}`;
+                        console.error(error);
+                        event.sender.send('tesla:export-progress', exportId, {
+                            type: 'complete',
+                            success: false,
+                            message: `Export failed: ${error}`
+                        });
+                        reject(new Error(error));
+                    }
+                });
+
+                process.on('error', (error) => {
+                    // Clear the timeout and fallback timer
+                    clearTimeout(timeout);
+                    clearInterval(fallbackTimer);
+                    
+                    const errorMsg = `Failed to start FFmpeg: ${error.message}`;
+                    console.error(errorMsg);
+                    event.sender.send('tesla:export-progress', exportId, {
+                        type: 'complete',
+                        success: false,
+                        message: errorMsg
+                    });
+                    reject(new Error(errorMsg));
+                });
+            });
+
+        } catch (error) {
+            console.error('💥 Export process failed:', error);
+            event.sender.send('tesla:export-progress', exportId, {
+                type: 'complete',
+                success: false,
+                message: `Export failed: ${error.message}`
+            });
+            throw error;
+        }
     }
 
     createApplicationMenu() {
