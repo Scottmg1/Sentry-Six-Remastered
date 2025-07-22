@@ -19,6 +19,7 @@ class SentrySixApp {
         this.seekTimeout = null; // Debounce timer for seeking
         this.eventMarkers = []; // Store event markers for timeline
         this.eventTooltip = null; // Event tooltip element
+        this.cameraZoomLevels = {}; // Store zoom levels for each camera
         this.cameraVisibility = {
             left_pillar: true,
             front: true,
@@ -58,6 +59,9 @@ class SentrySixApp {
 
         // Set up event markers
         this.setupEventMarkers();
+
+        // Set up camera zoom functionality
+        this.setupCameraZoom();
 
             // Initialize video players
             this.initializeVideoPlayers();
@@ -2768,6 +2772,12 @@ class SentrySixApp {
             event.preventDefault();
             this.adjustPlaybackSpeed(-1);
         }
+        // R: Reset all camera zoom levels
+        else if (event.code === 'KeyR' && !event.ctrlKey && !event.altKey && !event.shiftKey) {
+            event.preventDefault();
+            this.resetAllCameraZoom();
+            this.showStatus('🔍 Camera zoom reset');
+        }
     }
 
     adjustPlaybackSpeed(direction) {
@@ -3277,6 +3287,90 @@ class SentrySixApp {
 
         // Hide tooltip
         this.hideEventTooltip();
+    }
+
+    // ===== CAMERA ZOOM SYSTEM =====
+
+    setupCameraZoom() {
+        console.log('Setting up camera zoom system...');
+
+        // Initialize zoom levels for all cameras
+        const cameras = ['left_pillar', 'front', 'right_pillar', 'left_repeater', 'back', 'right_repeater'];
+        cameras.forEach(camera => {
+            this.cameraZoomLevels[camera] = 1.0; // Default zoom level
+
+            // Add wheel event listener to each video container
+            const container = document.querySelector(`[data-camera="${camera}"]`);
+            if (container) {
+                container.addEventListener('wheel', (e) => this.handleCameraZoom(e, camera), { passive: false });
+            }
+        });
+
+        console.log('Camera zoom system initialized');
+    }
+
+    handleCameraZoom(event, camera) {
+        event.preventDefault();
+
+        // Calculate zoom factor (similar to PyQt6 implementation)
+        const zoomFactor = event.deltaY > 0 ? 1 / 1.15 : 1.15;
+        const currentZoom = this.cameraZoomLevels[camera];
+        const newZoom = currentZoom * zoomFactor;
+
+        // Apply zoom limits (1.0 to 7.0, same as PyQt6)
+        if (newZoom < 1.0) {
+            this.resetCameraZoom(camera);
+        } else if (newZoom > 7.0) {
+            // Don't zoom beyond maximum
+            return;
+        } else {
+            this.setCameraZoom(camera, newZoom);
+        }
+    }
+
+    setCameraZoom(camera, zoomLevel) {
+        const video = document.getElementById(`video-${camera}`);
+        if (!video) return;
+
+        // Store zoom level
+        this.cameraZoomLevels[camera] = zoomLevel;
+
+        // Apply CSS transform for zoom
+        video.style.transform = `scale(${zoomLevel})`;
+        video.style.transformOrigin = 'center center';
+
+        // Add smooth transition for better UX
+        video.style.transition = 'transform 0.1s ease-out';
+
+        console.log(`Camera ${camera} zoom set to ${zoomLevel.toFixed(2)}x`);
+    }
+
+    resetCameraZoom(camera) {
+        const video = document.getElementById(`video-${camera}`);
+        if (!video) return;
+
+        // Reset zoom level
+        this.cameraZoomLevels[camera] = 1.0;
+
+        // Reset CSS transform
+        video.style.transform = 'scale(1.0)';
+        video.style.transformOrigin = 'center center';
+        video.style.transition = 'transform 0.2s ease-out';
+
+        console.log(`Camera ${camera} zoom reset to 1.0x`);
+    }
+
+    resetAllCameraZoom() {
+        const cameras = ['left_pillar', 'front', 'right_pillar', 'left_repeater', 'back', 'right_repeater'];
+        cameras.forEach(camera => {
+            this.resetCameraZoom(camera);
+        });
+
+        console.log('All camera zoom levels reset');
+    }
+
+    getCameraZoomLevel(camera) {
+        return this.cameraZoomLevels[camera] || 1.0;
     }
 }
 

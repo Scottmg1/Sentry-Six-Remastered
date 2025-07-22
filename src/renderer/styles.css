@@ -318,6 +318,13 @@ body {
     height: 100%;
     object-fit: contain;
     background: #000;
+    cursor: grab;
+    transition: transform 0.1s ease-out;
+    transform-origin: center center;
+}
+
+.video-player:active {
+    cursor: grabbing;
 }
 
 .video-overlay {
