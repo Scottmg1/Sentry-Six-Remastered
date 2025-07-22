@@ -107,13 +107,30 @@ class SentrySixApp {
             });
 
             if (!result.canceled && result.filePaths.length > 0) {
-                return await this.teslaFileManager.scanFolder(result.filePaths[0]!);
+                const selectedPath = result.filePaths[0]!;
+                console.log('Selected folder:', selectedPath);
+
+                // Scan for Tesla video files and organize them
+                const clipGroups = await this.teslaFileManager.scanFolder(selectedPath);
+                console.log(`Scan result: ${clipGroups ? clipGroups.length : 'undefined'} clip groups`);
+
+                const organizedSections = this.teslaFileManager.organizeClipGroupsIntoSections(clipGroups);
+                console.log('Organized sections:', Object.keys(organizedSections).map(key => `${key}: ${organizedSections[key]?.length || 0} days`));
+
+                console.log(`Found ${clipGroups?.length || 0} clip groups organized into sections`);
+
+                return {
+                    success: true,
+                    path: selectedPath,
+                    videoFiles: organizedSections
+                };
             }
-            return null;
+            return { success: false };
         });
 
         ipcMain.handle('tesla:get-video-files', async (_, folderPath: string) => {
-            return await this.teslaFileManager.getVideoFiles(folderPath);
+            const clipGroups = await this.teslaFileManager.scanFolder(folderPath);
+            return this.teslaFileManager.organizeClipGroupsIntoSections(clipGroups);
         });
 
         ipcMain.handle('tesla:get-video-metadata', async (_, filePath: string) => {

@@ -52,20 +52,32 @@ export class TeslaFileManager {
      */
     async scanFolder(folderPath: string): Promise<TeslaClipGroup[]> {
         console.log(`Scanning Tesla folder: ${folderPath}`);
-        
+
         if (!fs.existsSync(folderPath)) {
             throw new Error(`Folder does not exist: ${folderPath}`);
         }
 
         const allFiles: TeslaVideoFile[] = [];
 
-        // Scan each Tesla folder type
-        for (const folderType of this.TESLA_FOLDERS) {
-            const subFolderPath = path.join(folderPath, folderType);
-            
-            if (fs.existsSync(subFolderPath)) {
-                const files = await this.scanSubFolder(subFolderPath, folderType);
-                allFiles.push(...files);
+        // Check if this is a direct Tesla clip folder (SavedClips, RecentClips, SentryClips)
+        const isDirectClipFolder = this.isDirectClipFolder(folderPath);
+
+        if (isDirectClipFolder) {
+            console.log('Direct clip folder detected, scanning directly...');
+            const folderType = this.detectFolderType(folderPath);
+            console.log(`Detected folder type: ${folderType}`);
+            const files = await this.scanSubFolder(folderPath, folderType);
+            console.log(`Found ${files.length} files in direct scan`);
+            allFiles.push(...files);
+        } else {
+            // Scan each Tesla folder type
+            for (const folderType of this.TESLA_FOLDERS) {
+                const subFolderPath = path.join(folderPath, folderType);
+
+                if (fs.existsSync(subFolderPath)) {
+                    const files = await this.scanSubFolder(subFolderPath, folderType);
+                    allFiles.push(...files);
+                }
             }
         }
 
@@ -106,12 +118,109 @@ export class TeslaFileManager {
     }
 
     /**
+     * Check if a folder is a direct Tesla clip folder (contains video files directly)
+     */
+    private isDirectClipFolder(folderPath: string): boolean {
+        const folderName = path.basename(folderPath);
+        return this.TESLA_FOLDERS.includes(folderName as any);
+    }
+
+    /**
+     * Detect the folder type based on the folder name
+     */
+    private detectFolderType(folderPath: string): 'SavedClips' | 'RecentClips' | 'SentryClips' | 'Unknown' {
+        const folderName = path.basename(folderPath);
+        return this.TESLA_FOLDERS.includes(folderName as any)
+            ? (folderName as 'SavedClips' | 'RecentClips' | 'SentryClips')
+            : 'Unknown';
+    }
+
+    /**
+     * Check if a folder contains date subfolders (YYYY-MM-DD pattern)
+     */
+    private hasDateSubfolders(folderPath: string): boolean {
+        try {
+            const entries = fs.readdirSync(folderPath, { withFileTypes: true });
+            const datePattern = /^\d{4}-\d{2}-\d{2}$/;
+
+            return entries.some(entry =>
+                entry.isDirectory() && datePattern.test(entry.name)
+            );
+        } catch (error) {
+            console.error(`Error checking for date subfolders in ${folderPath}:`, error);
+            return false;
+        }
+    }
+
+    /**
+     * Scan RecentClips folder with date subfolders
+     */
+    private async scanRecentClipsWithDateFolders(recentClipsPath: string, folderType: string): Promise<TeslaVideoFile[]> {
+        const files: TeslaVideoFile[] = [];
+
+        try {
+            const entries = fs.readdirSync(recentClipsPath, { withFileTypes: true });
+            const datePattern = /^\d{4}-\d{2}-\d{2}$/;
+
+            for (const entry of entries) {
+                if (entry.isDirectory() && datePattern.test(entry.name)) {
+                    console.log(`Scanning date folder: ${entry.name}`);
+                    const dateFolderPath = path.join(recentClipsPath, entry.name);
+                    const dateFiles = await this.scanDateFolder(dateFolderPath, folderType);
+                    console.log(`Found ${dateFiles.length} files in date folder ${entry.name}`);
+                    files.push(...dateFiles);
+                }
+            }
+        } catch (error) {
+            console.error(`Error scanning RecentClips with date folders ${recentClipsPath}:`, error);
+        }
+
+        return files;
+    }
+
+    /**
+     * Scan a date folder (YYYY-MM-DD) for video files
+     */
+    private async scanDateFolder(dateFolderPath: string, folderType: string): Promise<TeslaVideoFile[]> {
+        const files: TeslaVideoFile[] = [];
+
+        try {
+            const entries = fs.readdirSync(dateFolderPath, { withFileTypes: true });
+
+            for (const entry of entries) {
+                if (entry.isFile() && this.isVideoFile(entry.name)) {
+                    const filePath = path.join(dateFolderPath, entry.name);
+                    console.log(`Parsing video file: ${entry.name}`);
+                    const videoFile = await this.parseVideoFile(filePath, folderType as any);
+
+                    if (videoFile) {
+                        console.log(`Successfully parsed: ${entry.name} -> ${videoFile.camera} at ${videoFile.timestamp}`);
+                        files.push(videoFile);
+                    } else {
+                        console.log(`Failed to parse: ${entry.name}`);
+                    }
+                }
+            }
+        } catch (error) {
+            console.error(`Error scanning date folder ${dateFolderPath}:`, error);
+        }
+
+        return files;
+    }
+
+    /**
      * Scan a subfolder (SavedClips, RecentClips, SentryClips)
      */
     private async scanSubFolder(subFolderPath: string, folderType: string): Promise<TeslaVideoFile[]> {
         const files: TeslaVideoFile[] = [];
 
         try {
+            // Special handling for RecentClips with date subfolders
+            if (folderType === 'RecentClips' && this.hasDateSubfolders(subFolderPath)) {
+                console.log('RecentClips with date subfolders detected');
+                return await this.scanRecentClipsWithDateFolders(subFolderPath, folderType);
+            }
+
             const entries = fs.readdirSync(subFolderPath, { withFileTypes: true });
 
             for (const entry of entries) {
@@ -438,6 +547,114 @@ export class TeslaFileManager {
      */
     getEventForClipGroup(clipGroup: TeslaClipGroup): TeslaEventData | null {
         return clipGroup.event || null;
+    }
+
+    /**
+     * Organize clip groups into sections for the frontend
+     */
+    organizeClipGroupsIntoSections(clipGroups: TeslaClipGroup[]): Record<string, any[]> {
+        const sections: Record<string, any[]> = {
+            'User Saved': [],
+            'Sentry Detection': [],
+            'Recent Clips': []
+        };
+
+        // Group clips by section and date
+        const dateGroups = new Map<string, Map<string, Map<string, any>>>();
+
+        for (const group of clipGroups) {
+            const sectionKey = this.getSectionKey(group.type);
+            const dateKey = this.getDateKey(group.timestamp);
+
+            if (!dateGroups.has(sectionKey)) {
+                dateGroups.set(sectionKey, new Map());
+            }
+
+            const sectionMap = dateGroups.get(sectionKey)!;
+            if (!sectionMap.has(dateKey)) {
+                sectionMap.set(dateKey, new Map());
+            }
+
+            const dayMap = sectionMap.get(dateKey)!;
+            const timestampKey = group.timestamp.getTime().toString();
+
+            if (!dayMap.has(timestampKey)) {
+                dayMap.set(timestampKey, {
+                    timestamp: group.timestamp,
+                    files: group.files,
+                    type: group.type,
+                    date: dateKey
+                });
+            }
+        }
+
+        // Convert to organized structure
+        for (const [sectionKey, sectionMap] of dateGroups) {
+            for (const [dateKey, dayMap] of sectionMap) {
+                const allClips = Array.from(dayMap.values()).sort((a, b) =>
+                    a.timestamp.getTime() - b.timestamp.getTime()
+                );
+
+                // Parse date key as local time
+                const dateParts = dateKey.split('-').map(Number);
+                const year = dateParts[0] || 2025;
+                const month = dateParts[1] || 1;
+                const day = dateParts[2] || 1;
+                const dateObj = new Date(year, month - 1, day);
+                const displayDate = dateObj.toLocaleDateString('en-US', {
+                    month: '2-digit',
+                    day: '2-digit',
+                    year: '2-digit'
+                });
+
+                if (sections[sectionKey]) {
+                    sections[sectionKey].push({
+                        date: dateKey,
+                        displayDate: displayDate,
+                        clips: allClips,
+                        totalClips: allClips.length,
+                        originalClipCount: allClips.length,
+                        filteredClipCount: allClips.length,
+                        actualTotalDuration: null
+                    });
+                }
+            }
+        }
+
+        // Sort dates within each section (newest first)
+        for (const sectionKey in sections) {
+            if (sections[sectionKey]) {
+                sections[sectionKey].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+            }
+        }
+
+        return sections;
+    }
+
+    /**
+     * Get section key for folder type
+     */
+    private getSectionKey(folderType: string): string {
+        switch (folderType.toLowerCase()) {
+            case 'savedclips':
+                return 'User Saved';
+            case 'sentryclips':
+                return 'Sentry Detection';
+            case 'recentclips':
+                return 'Recent Clips';
+            default:
+                return 'User Saved';
+        }
+    }
+
+    /**
+     * Get date key from timestamp
+     */
+    private getDateKey(timestamp: Date): string {
+        const year = timestamp.getFullYear();
+        const month = String(timestamp.getMonth() + 1).padStart(2, '0');
+        const day = String(timestamp.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
     }
 
     /**

@@ -758,16 +758,51 @@ class SentrySixApp {
 
         try {
             if (folderType.toLowerCase() === 'recentclips') {
-                // RecentClips has direct MP4 files, no date subfolders
-                const files = fs.readdirSync(folderPath);
+                // RecentClips can have either direct MP4 files OR date subfolders
+                const items = fs.readdirSync(folderPath);
 
-                for (const filename of files) {
-                    if (filename.toLowerCase().endsWith('.mp4') && !this.shouldSkipFile(filename)) {
-                        const filePath = path.join(folderPath, filename);
-                        const videoFile = this.parseTeslaFilename(filePath, filename, folderType);
+                // Check if RecentClips has date subfolders (YYYY-MM-DD pattern)
+                const hasDateSubfolders = items.some(item => {
+                    const itemPath = path.join(folderPath, item);
+                    const stats = fs.statSync(itemPath);
+                    return stats.isDirectory() && /^\d{4}-\d{2}-\d{2}$/.test(item);
+                });
 
-                        if (videoFile) {
-                            videoFiles.push(videoFile);
+                if (hasDateSubfolders) {
+                    console.log('RecentClips with date subfolders detected');
+                    // Handle RecentClips with date subfolders (like SavedClips/SentryClips)
+                    for (const item of items) {
+                        const itemPath = path.join(folderPath, item);
+                        const stats = fs.statSync(itemPath);
+
+                        if (stats.isDirectory() && /^\d{4}-\d{2}-\d{2}$/.test(item)) {
+                            console.log(`Scanning RecentClips date folder: ${item}`);
+                            // Scan date subfolder
+                            const subFiles = fs.readdirSync(itemPath);
+
+                            for (const filename of subFiles) {
+                                if (filename.toLowerCase().endsWith('.mp4') && !this.shouldSkipFile(filename)) {
+                                    const filePath = path.join(itemPath, filename);
+                                    const videoFile = this.parseTeslaFilename(filePath, filename, folderType);
+
+                                    if (videoFile) {
+                                        videoFiles.push(videoFile);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    console.log('RecentClips with direct files detected');
+                    // Handle RecentClips with direct MP4 files (original behavior)
+                    for (const filename of items) {
+                        if (filename.toLowerCase().endsWith('.mp4') && !this.shouldSkipFile(filename)) {
+                            const filePath = path.join(folderPath, filename);
+                            const videoFile = this.parseTeslaFilename(filePath, filename, folderType);
+
+                            if (videoFile) {
+                                videoFiles.push(videoFile);
+                            }
                         }
                     }
                 }
