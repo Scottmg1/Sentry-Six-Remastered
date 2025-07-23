@@ -6,6 +6,7 @@ const fs = require('fs');
 const os = require('os');
 const https = require('https');
 const AdmZip = require('adm-zip');
+const { rmSync } = require('fs'); // For recursive directory removal
 
 // Try different ways to import Electron
 let electron;
@@ -299,6 +300,7 @@ class SentrySixApp {
         });
 
         ipcMain.handle('app:update-to-commit', async () => {
+            let tmpZipPath, extractDir;
             try {
                 // Fetch latest commit SHA from GitHub API
                 const apiUrl = 'https://api.github.com/repos/ChadR23/Sentry-Six/commits/Electron-rebuld';
@@ -326,8 +328,8 @@ class SentrySixApp {
                 const latestSha = await fetchLatestSha();
                 console.log('Latest commit SHA:', latestSha);
                 const zipUrl = `https://github.com/ChadR23/Sentry-Six/archive/${latestSha}.zip`;
-                const tmpZipPath = path.join(os.tmpdir(), `sentry-six-update-${latestSha}.zip`);
-                const extractDir = path.join(os.tmpdir(), `sentry-six-update-${latestSha}`);
+                tmpZipPath = path.join(os.tmpdir(), `sentry-six-update-${latestSha}.zip`);
+                extractDir = path.join(os.tmpdir(), `sentry-six-update-${latestSha}`);
                 console.log('Downloading update ZIP from:', zipUrl);
 
                 // Download ZIP
@@ -363,9 +365,15 @@ class SentrySixApp {
                 }
                 copyRecursive(updateRoot, process.cwd());
                 console.log('Update applied.');
+                // Cleanup temp files
+                try { if (fs.existsSync(tmpZipPath)) fs.unlinkSync(tmpZipPath); } catch (e) { console.warn('Failed to delete temp zip:', e); }
+                try { if (fs.existsSync(extractDir)) rmSync(extractDir, { recursive: true, force: true }); } catch (e) { console.warn('Failed to delete temp extract dir:', e); }
                 return { success: true };
             } catch (err) {
                 console.error('Update failed:', err);
+                // Cleanup temp files on failure too
+                try { if (tmpZipPath && fs.existsSync(tmpZipPath)) fs.unlinkSync(tmpZipPath); } catch (e) { console.warn('Failed to delete temp zip:', e); }
+                try { if (extractDir && fs.existsSync(extractDir)) rmSync(extractDir, { recursive: true, force: true }); } catch (e) { console.warn('Failed to delete temp extract dir:', e); }
                 return { success: false, error: err.message || String(err) };
             }
         });
