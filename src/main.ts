@@ -9,6 +9,35 @@ import * as fs from 'fs';
 import { TeslaFileManager } from './main/tesla-file-manager';
 import { VideoProcessor } from './main/video-processor';
 import { ConfigManager } from './main/config-manager';
+import { FFmpegHandler } from './main/ffmpeg-handler';
+
+// Global log buffer for all console output (except corruption checking)
+const terminalLogBuffer: string[] = [];
+const originalLog = console.log;
+const originalError = console.error;
+const originalWarn = console.warn;
+
+function bufferTerminalLog(type: string, ...args: any[]) {
+    const msg = args.map(a => (typeof a === 'string' ? a : JSON.stringify(a))).join(' ');
+    if (!/corrupt/i.test(msg) && !/corruption/i.test(msg)) {
+        const line = `[${type}] ${msg}`;
+        terminalLogBuffer.push(line);
+        FFmpegHandler.bufferLog(line); // Also buffer in FFmpegHandler for unified export
+    }
+}
+
+console.log = (...args) => {
+    bufferTerminalLog('LOG', ...args);
+    originalLog.apply(console, args);
+};
+console.error = (...args) => {
+    bufferTerminalLog('ERROR', ...args);
+    originalError.apply(console, args);
+};
+console.warn = (...args) => {
+    bufferTerminalLog('WARN', ...args);
+    originalWarn.apply(console, args);
+};
 
 class SentrySixApp {
     private mainWindow: BrowserWindow | null = null;
@@ -219,6 +248,12 @@ class SentrySixApp {
 
         ipcMain.handle('app:get-path', async (_, name: string) => {
             return app.getPath(name as any);
+        });
+
+        // Always register the debug:get-terminal-log handler
+        console.log('Registering debug:get-terminal-log handler');
+        ipcMain.handle('debug:get-terminal-log', async () => {
+            return terminalLogBuffer.join('\n');
         });
     }
 

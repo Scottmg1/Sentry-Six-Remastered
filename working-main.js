@@ -4,6 +4,8 @@
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
+const https = require('https');
+const AdmZip = require('adm-zip');
 
 // Try different ways to import Electron
 let electron;
@@ -21,6 +23,33 @@ if (!app) {
     console.error('Electron app is undefined - this might be a version compatibility issue');
     process.exit(1);
 }
+
+// Global log buffer for all console output (except corruption checking)
+global.terminalLogBuffer = [];
+const originalLog = console.log;
+const originalError = console.error;
+const originalWarn = console.warn;
+
+function bufferTerminalLog(type, ...args) {
+    const msg = args.map(a => (typeof a === 'string' ? a : JSON.stringify(a))).join(' ');
+    if (!/corrupt/i.test(msg) && !/corruption/i.test(msg)) {
+        const line = `[${type}] ${msg}`;
+        global.terminalLogBuffer.push(line);
+    }
+}
+
+console.log = (...args) => {
+    bufferTerminalLog('LOG', ...args);
+    originalLog.apply(console, args);
+};
+console.error = (...args) => {
+    bufferTerminalLog('ERROR', ...args);
+    originalError.apply(console, args);
+};
+console.warn = (...args) => {
+    bufferTerminalLog('WARN', ...args);
+    originalWarn.apply(console, args);
+};
 
 class SentrySixApp {
     constructor() {
@@ -244,6 +273,69 @@ class SentrySixApp {
             } catch (error) {
                 console.error('Error reading event thumbnail:', error);
                 return null;
+            }
+        });
+
+        console.log('Registering debug:get-terminal-log handler');
+        ipcMain.handle('debug:get-terminal-log', async () => {
+            return global.terminalLogBuffer.join('\n');
+        });
+
+        ipcMain.handle('app:update-to-commit', async () => {
+            try {
+                const commitSha = 'c659d723826aaa45e186b1b6246c01646ce9590d';
+                const zipUrl = `https://github.com/ChadR23/Sentry-Six/archive/${commitSha}.zip`;
+                const tmpZipPath = path.join(os.tmpdir(), `sentry-six-update-${commitSha}.zip`);
+                const extractDir = path.join(os.tmpdir(), `sentry-six-update-${commitSha}`);
+                console.log('Downloading update ZIP from:', zipUrl);
+
+                // Download ZIP
+                await new Promise((resolve, reject) => {
+                    const file = fs.createWriteStream(tmpZipPath);
+                    https.get(zipUrl, response => {
+                        if (response.statusCode !== 200) {
+                            reject(new Error('Failed to download update ZIP: ' + response.statusCode));
+                            return;
+                        }
+                        response.pipe(file);
+                        file.on('finish', () => {
+                            file.close(resolve);
+                        });
+                    }).on('error', err => {
+                        fs.unlinkSync(tmpZipPath);
+                        reject(err);
+                    });
+                });
+                console.log('ZIP downloaded to:', tmpZipPath);
+
+                // Extract ZIP
+                const zip = new AdmZip(tmpZipPath);
+                zip.extractAllTo(extractDir, true);
+                console.log('ZIP extracted to:', extractDir);
+
+                // Overwrite files (skip user data/configs)
+                const updateRoot = path.join(extractDir, `Sentry-Six-${commitSha}`);
+                const skipDirs = ['user_data', 'config', 'ffmpeg_bin'];
+                function copyRecursive(src, dest) {
+                    if (!fs.existsSync(src)) return;
+                    const stat = fs.statSync(src);
+                    if (stat.isDirectory()) {
+                        if (!fs.existsSync(dest)) fs.mkdirSync(dest);
+                        const items = fs.readdirSync(src);
+                        for (const item of items) {
+                            if (skipDirs.includes(item)) continue;
+                            copyRecursive(path.join(src, item), path.join(dest, item));
+                        }
+                    } else {
+                        fs.copyFileSync(src, dest);
+                    }
+                }
+                copyRecursive(updateRoot, process.cwd());
+                console.log('Update applied.');
+                return { success: true };
+            } catch (err) {
+                console.error('Update failed:', err);
+                return { success: false, error: err.message || String(err) };
             }
         });
 
@@ -522,12 +614,24 @@ class SentrySixApp {
             const initialFilters = [];
             const streamMaps = [];
             
-            // Add input streams with individual relative offsets
+            // Add input streams with individual relative offsets and HWACCEL if needed
             for (let i = 0; i < inputs.length; i++) {
                 const input = inputs[i];
                 // Add relative offset for this specific camera/clip
                 if (input.relativeOffset > 0) {
                     cmd.push('-ss', input.relativeOffset.toString());
+                }
+
+                // Insert HWACCEL options before each input if enabled
+                if (hwaccel && hwaccel.enabled && hwaccel.decoder) {
+                    // For NVIDIA: decoder is usually h264_cuvid, so -hwaccel cuvid -c:v h264_cuvid
+                    // For AMD/Intel: adjust as needed
+                    if (hwaccel.decoder.startsWith('h264_')) {
+                        const hwaccelType = hwaccel.decoder.replace('h264_', '');
+                        cmd.push('-hwaccel', hwaccelType, '-c:v', hwaccel.decoder);
+                    } else {
+                        cmd.push('-hwaccel', hwaccel.decoder);
+                    }
                 }
 
                 if (input.isConcat) {
@@ -687,11 +791,6 @@ class SentrySixApp {
 
             if (hwaccel && hwaccel.enabled && hwaccel.encoder) {
                 console.log(`🚀 Using hardware acceleration: ${hwaccel.type}`);
-
-                // Add hardware decoder if available
-                if (hwaccel.decoder) {
-                    cmd.push('-hwaccel', hwaccel.decoder.replace('h264_', ''));
-                }
 
                 // Hardware encoder settings
                 switch (hwaccel.encoder) {

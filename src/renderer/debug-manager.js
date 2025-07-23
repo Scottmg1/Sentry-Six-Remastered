@@ -42,6 +42,9 @@ class DebugManager {
         const testBtn = document.getElementById('test-timeline-btn');
         testBtn?.addEventListener('click', () => this.testTimeline());
 
+        const exportTerminalLogBtn = document.getElementById('export-terminal-log-btn');
+        exportTerminalLogBtn?.addEventListener('click', () => this.exportTerminalLog());
+
         // Auto-update when timeline changes
         document.addEventListener('timelineLoaded', (event) => {
             this.analyzeTimeline(event.detail.timeline);
@@ -531,6 +534,21 @@ class DebugManager {
         });
 
         console.log('✅ Timeline test complete - check output above');
+    }
+
+    async exportTerminalLog() {
+        try {
+            const log = await window.electronAPI.invoke('debug:get-terminal-log');
+            const blob = new Blob([log], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `sentry-six-terminal-log-${Date.now()}.txt`;
+            a.click();
+            URL.revokeObjectURL(url);
+        } catch (err) {
+            alert('Failed to export terminal log: ' + err);
+        }
     }
 }
 

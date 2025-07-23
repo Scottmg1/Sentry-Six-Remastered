@@ -48,11 +48,24 @@ export class FFmpegHandler {
     private ffmpegPath: string;
     private activeExports: Map<string, ActiveExport>;
     private tempFiles: Set<string>;
+    private static logBuffer: string[] = [];
 
     constructor() {
         this.ffmpegPath = this.findFFmpegPath();
         this.activeExports = new Map();
         this.tempFiles = new Set();
+    }
+
+    // Static method to add to log buffer, filtering out corruption logs
+    static bufferLog(message: string) {
+        if (!/corrupt/i.test(message) && !/corruption/i.test(message)) {
+            FFmpegHandler.logBuffer.push(message);
+        }
+    }
+
+    // Static method to get the full log as a string
+    static getBufferedLog(): string {
+        return FFmpegHandler.logBuffer.join('\n');
     }
 
     private findFFmpegPath(): string {
@@ -74,7 +87,7 @@ export class FFmpegHandler {
                     stdio: 'pipe'
                 });
                 if (result.status === 0) {
-                    console.log(`✅ Found FFMPEG at: ${ffmpegPath}`);
+                    FFmpegHandler.bufferLog(`✅ Found FFMPEG at: ${ffmpegPath}`);
                     return ffmpegPath;
                 }
             } catch (error) {
@@ -140,7 +153,7 @@ export class FFmpegHandler {
         fs.writeFileSync(tempFile, content, 'utf8');
         this.tempFiles.add(tempFile);
         
-        console.log(`📝 Created concat file: ${tempFile} with ${clipPaths.length} clips`);
+        FFmpegHandler.bufferLog(`📝 Created concat file: ${tempFile} with ${clipPaths.length} clips`);
         return tempFile;
     }
 
@@ -156,7 +169,7 @@ export class FFmpegHandler {
         const durationSeconds = durationMs / 1000;
         const offsetSeconds = startTime / 1000;
 
-        console.log(`🎬 Building export command: ${durationSeconds}s duration, ${offsetSeconds}s offset`);
+        FFmpegHandler.bufferLog(`🎬 Building export command: ${durationSeconds}s duration, ${offsetSeconds}s offset`);
 
         // Standard Tesla camera resolution (from PyQt6 analysis)
         const cameraWidth = 1448;
@@ -175,7 +188,7 @@ export class FFmpegHandler {
                 .filter((clipPath): clipPath is string => clipPath !== undefined);
 
             if (cameraClips.length === 0) {
-                console.warn(`⚠️ No clips found for camera: ${camera}`);
+                FFmpegHandler.bufferLog(`⚠️ No clips found for camera: ${camera}`);
                 return;
             }
 
@@ -192,7 +205,7 @@ export class FFmpegHandler {
             if (isMirroredCamera) {
                 // Add horizontal flip for mirrored cameras
                 filterChain += ',hflip';
-                console.log(`🔍 Applying horizontal flip to ${camera}`);
+                FFmpegHandler.bufferLog(`🔍 Applying horizontal flip to ${camera}`);
             }
 
             // Create scaling filter for this stream
@@ -280,8 +293,8 @@ export class FFmpegHandler {
         // Duration and output
         cmd.push('-t', durationSeconds.toString(), outputPath);
 
-        console.log(`🔧 FFMPEG command built: ${cmd.length} arguments`);
-        console.log(`📊 Export details: ${numCameras} cameras, ${cols}x${rows} grid, ${quality} quality`);
+        FFmpegHandler.bufferLog(`🔧 FFMPEG command built: ${cmd.length} arguments`);
+        FFmpegHandler.bufferLog(`📊 Export details: ${numCameras} cameras, ${cols}x${rows} grid, ${quality} quality`);
 
         return { command: cmd, duration: durationSeconds };
     }
@@ -291,7 +304,7 @@ export class FFmpegHandler {
      */
     async startExport(exportId: string, exportData: ExportData, progressCallback: (progress: ExportProgress) => void): Promise<boolean> {
         try {
-            console.log(`🚀 Starting export ${exportId}`);
+            FFmpegHandler.bufferLog(`🚀 Starting export ${exportId}`);
             
             const { command, duration } = this.buildExportCommand(exportData);
             
@@ -319,6 +332,7 @@ export class FFmpegHandler {
             // Handle FFMPEG output for progress tracking
             ffmpegProcess.stderr.on('data', (data: Buffer) => {
                 const output = data.toString();
+                FFmpegHandler.bufferLog(output); // Buffer all stderr output
 
                 // Parse progress
                 const match = timePattern.exec(output);
@@ -350,7 +364,7 @@ export class FFmpegHandler {
                 this.cleanupTempFiles();
 
                 if (code === 0) {
-                    console.log(`✅ Export ${exportId} completed successfully in ${exportDuration.toFixed(1)}s`);
+                    FFmpegHandler.bufferLog(`✅ Export ${exportId} completed successfully in ${exportDuration.toFixed(1)}s`);
                     progressCallback({
                         type: 'complete',
                         success: true,
@@ -358,7 +372,7 @@ export class FFmpegHandler {
                         outputPath: exportData.outputPath
                     });
                 } else {
-                    console.error(`❌ Export ${exportId} failed with code ${code}`);
+                    FFmpegHandler.bufferLog(`❌ Export ${exportId} failed with code ${code}`);
                     progressCallback({
                         type: 'complete',
                         success: false,
@@ -370,7 +384,7 @@ export class FFmpegHandler {
 
             // Handle process errors
             ffmpegProcess.on('error', (error: Error) => {
-                console.error(`💥 Export ${exportId} process error:`, error);
+                FFmpegHandler.bufferLog(`💥 Export ${exportId} process error: ${error}`);
                 this.activeExports.delete(exportId);
                 this.cleanupTempFiles();
 
@@ -385,7 +399,7 @@ export class FFmpegHandler {
             return true;
 
         } catch (error: any) {
-            console.error(`💥 Failed to start export ${exportId}:`, error);
+            FFmpegHandler.bufferLog(`💥 Failed to start export ${exportId}: ${error}`);
             this.cleanupTempFiles();
             
             progressCallback({
@@ -405,7 +419,7 @@ export class FFmpegHandler {
     cancelExport(exportId: string): boolean {
         const exportInfo = this.activeExports.get(exportId);
         if (exportInfo && exportInfo.process) {
-            console.log(`🛑 Cancelling export ${exportId}`);
+            FFmpegHandler.bufferLog(`🛑 Cancelling export ${exportId}`);
             exportInfo.process.kill('SIGTERM');
             this.activeExports.delete(exportId);
             this.cleanupTempFiles();
@@ -422,10 +436,10 @@ export class FFmpegHandler {
             try {
                 if (fs.existsSync(tempFile)) {
                     fs.unlinkSync(tempFile);
-                    console.log(`🗑️ Cleaned up temp file: ${tempFile}`);
+                    FFmpegHandler.bufferLog(`🗑️ Cleaned up temp file: ${tempFile}`);
                 }
             } catch (error: any) {
-                console.warn(`⚠️ Failed to clean up temp file ${tempFile}:`, error.message);
+                FFmpegHandler.bufferLog(`⚠️ Failed to clean up temp file ${tempFile}: ${error.message}`);
             }
         }
         this.tempFiles.clear();
@@ -442,7 +456,7 @@ export class FFmpegHandler {
      * Cleanup all exports and temp files
      */
     cleanup(): void {
-        console.log('🧹 Cleaning up FFMPEG handler...');
+        FFmpegHandler.bufferLog('🧹 Cleaning up FFMPEG handler...');
         
         // Cancel all active exports
         for (const [exportId] of this.activeExports) {

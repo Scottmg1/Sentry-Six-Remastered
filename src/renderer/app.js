@@ -133,6 +133,24 @@ class SentrySixApp {
         if (resetBtn) {
             resetBtn.onclick = () => this.resetCameraGridLayout();
         }
+
+        // Add Update button handler
+        const updateBtn = document.getElementById('update-btn');
+        if (updateBtn) {
+            updateBtn.addEventListener('click', async () => {
+                this.showStatus('Checking for update and downloading...');
+                try {
+                    const result = await window.electronAPI.invoke('app:update-to-commit');
+                    if (result && result.success) {
+                        this.showStatus('Update downloaded! Please restart the app.');
+                    } else {
+                        this.showStatus('Update failed: ' + (result && result.error ? result.error : 'Unknown error'));
+                    }
+                } catch (err) {
+                    this.showStatus('Update failed: ' + err);
+                }
+            });
+        }
     }
 
     resetCameraGridLayout() {
@@ -1592,7 +1610,13 @@ class SentrySixApp {
         const startExportBtn = document.getElementById('start-export');
 
         closeModalBtn?.addEventListener('click', () => this.closeExportDialog());
-        cancelExportBtn?.addEventListener('click', () => this.closeExportDialog());
+        cancelExportBtn?.addEventListener('click', async () => {
+            if (this.currentExportId) {
+                await window.electronAPI.tesla.cancelExport(this.currentExportId);
+                this.currentExportId = null;
+            }
+            this.closeExportDialog();
+        });
         startExportBtn?.addEventListener('click', () => this.startVideoExport());
 
         // Close modal when clicking outside
@@ -2551,6 +2575,8 @@ class SentrySixApp {
             if (!success) {
                 throw new Error('Failed to start export process');
             }
+
+            this.currentExportId = exportId;
 
         } catch (error) {
             console.error('💥 Export failed:', error);
