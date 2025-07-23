@@ -20,6 +20,7 @@ class SentrySixApp {
         this.eventMarkers = []; // Store event markers for timeline
         this.eventTooltip = null; // Event tooltip element
         this.cameraZoomLevels = {}; // Store zoom levels for each camera
+        this.cameraPanOffsets = {}; // Store pan offsets for each camera
         this.cameraVisibility = {
             left_pillar: true,
             front: true,
@@ -179,6 +180,10 @@ class SentrySixApp {
         containers.forEach(container => {
             container.setAttribute('draggable', 'true');
             container.addEventListener('dragstart', (e) => {
+                if (e.ctrlKey) {
+                    e.preventDefault(); // Disable drag-and-drop if Ctrl is held
+                    return;
+                }
                 e.dataTransfer.effectAllowed = 'move';
                 e.dataTransfer.setData('text/plain', container.dataset.camera);
                 container.classList.add('dragging');
@@ -3527,19 +3532,68 @@ class SentrySixApp {
     setupCameraZoom() {
         console.log('Setting up camera zoom system...');
 
-        // Initialize zoom levels for all cameras
+        // Initialize zoom and pan for all cameras
         const cameras = ['left_pillar', 'front', 'right_pillar', 'left_repeater', 'back', 'right_repeater'];
         cameras.forEach(camera => {
             this.cameraZoomLevels[camera] = 1.0; // Default zoom level
+            this.cameraPanOffsets[camera] = { x: 0, y: 0 }; // Default pan offset
 
             // Add wheel event listener to each video container
             const container = document.querySelector(`[data-camera="${camera}"]`);
+            const video = document.getElementById(`video-${camera}`);
             if (container) {
                 container.addEventListener('wheel', (e) => this.handleCameraZoom(e, camera), { passive: false });
+            }
+            if (video) {
+                this.setupCameraPan(video, camera);
             }
         });
 
         console.log('Camera zoom system initialized');
+    }
+
+    setupCameraPan(video, camera) {
+        let isPanning = false;
+        let lastX = 0, lastY = 0;
+        video.addEventListener('mousedown', (e) => {
+            if ((this.cameraZoomLevels[camera] || 1.0) <= 1.0) return;
+            // Allow panning if Ctrl+left click or right click (button 2)
+            if (!(e.ctrlKey || e.button === 2)) return;
+            isPanning = true;
+            lastX = e.clientX;
+            lastY = e.clientY;
+            video.style.cursor = 'grabbing';
+            if (e.button === 2) e.preventDefault(); // Prevent context menu on right drag
+        });
+        // Prevent context menu on right click
+        video.addEventListener('contextmenu', (e) => {
+            if ((this.cameraZoomLevels[camera] || 1.0) > 1.0) e.preventDefault();
+        });
+        window.addEventListener('mousemove', (e) => {
+            if (!isPanning) return;
+            const speed = 3.0;
+            const dx = (e.clientX - lastX) * speed;
+            const dy = (e.clientY - lastY) * speed;
+            lastX = e.clientX;
+            lastY = e.clientY;
+            const pan = this.cameraPanOffsets[camera] || { x: 0, y: 0 };
+            pan.x += dx / (this.cameraZoomLevels[camera] || 1.0);
+            pan.y += dy / (this.cameraZoomLevels[camera] || 1.0);
+            this.cameraPanOffsets[camera] = pan;
+            this.setCameraZoom(camera, this.cameraZoomLevels[camera]);
+        });
+        window.addEventListener('mouseup', () => {
+            if (isPanning) {
+                isPanning = false;
+                video.style.cursor = '';
+            }
+        });
+        video.addEventListener('mouseleave', () => {
+            if (isPanning) {
+                isPanning = false;
+                video.style.cursor = '';
+            }
+        });
     }
 
     handleCameraZoom(event, camera) {
@@ -3557,6 +3611,27 @@ class SentrySixApp {
             // Don't zoom beyond maximum
             return;
         } else {
+            // --- Mouse-centered zoom logic ---
+            const video = document.getElementById(`video-${camera}`);
+            if (video) {
+                const rect = video.getBoundingClientRect();
+                // Mouse position relative to video center
+                const mouseX = event.clientX - rect.left;
+                const mouseY = event.clientY - rect.top;
+                const centerX = rect.width / 2;
+                const centerY = rect.height / 2;
+                // Offset from center, in video pixels
+                const offsetX = mouseX - centerX;
+                const offsetY = mouseY - centerY;
+                // Calculate new pan so the point under the cursor stays fixed
+                const pan = this.cameraPanOffsets[camera] || { x: 0, y: 0 };
+                // The math: newPan = oldPan - (zoomDelta - 1) * offset
+                // (zoomDelta = newZoom/currentZoom)
+                const zoomDelta = newZoom / currentZoom;
+                pan.x = (pan.x - offsetX) * zoomDelta + offsetX;
+                pan.y = (pan.y - offsetY) * zoomDelta + offsetY;
+                this.cameraPanOffsets[camera] = pan;
+            }
             this.setCameraZoom(camera, newZoom);
         }
     }
@@ -3570,27 +3645,32 @@ class SentrySixApp {
 
         // Check if this camera should be mirrored (back and repeater cameras)
         const isMirroredCamera = ['back', 'left_repeater', 'right_repeater'].includes(camera);
+        const pan = this.cameraPanOffsets[camera] || { x: 0, y: 0 };
 
-        // Apply CSS transform for zoom, preserving mirroring for Tesla cameras
+        // Only allow panning if zoomed in
+        let transform = '';
         if (isMirroredCamera) {
-            video.style.transform = `scaleX(-1) scale(${zoomLevel})`;
-        } else {
-            video.style.transform = `scale(${zoomLevel})`;
+            transform += 'scaleX(-1) ';
         }
+        if (zoomLevel > 1.0) {
+            transform += `translate(${pan.x}px, ${pan.y}px) scale(${zoomLevel})`;
+        } else {
+            transform += 'scale(1.0)';
+        }
+        video.style.transform = transform;
         video.style.transformOrigin = 'center center';
-
-        // Add smooth transition for better UX
         video.style.transition = 'transform 0.1s ease-out';
 
-        console.log(`Camera ${camera} zoom set to ${zoomLevel.toFixed(2)}x${isMirroredCamera ? ' (mirrored)' : ''}`);
+        console.log(`Camera ${camera} zoom set to ${zoomLevel.toFixed(2)}x${isMirroredCamera ? ' (mirrored)' : ''}, pan: (${pan.x.toFixed(1)}, ${pan.y.toFixed(1)})`);
     }
 
     resetCameraZoom(camera) {
         const video = document.getElementById(`video-${camera}`);
         if (!video) return;
 
-        // Reset zoom level
+        // Reset zoom and pan
         this.cameraZoomLevels[camera] = 1.0;
+        this.cameraPanOffsets[camera] = { x: 0, y: 0 };
 
         // Check if this camera should be mirrored (back and repeater cameras)
         const isMirroredCamera = ['back', 'left_repeater', 'right_repeater'].includes(camera);
