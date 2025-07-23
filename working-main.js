@@ -300,10 +300,34 @@ class SentrySixApp {
 
         ipcMain.handle('app:update-to-commit', async () => {
             try {
-                const commitSha = 'c659d723826aaa45e186b1b6246c01646ce9590d';
-                const zipUrl = `https://github.com/ChadR23/Sentry-Six/archive/${commitSha}.zip`;
-                const tmpZipPath = path.join(os.tmpdir(), `sentry-six-update-${commitSha}.zip`);
-                const extractDir = path.join(os.tmpdir(), `sentry-six-update-${commitSha}`);
+                // Fetch latest commit SHA from GitHub API
+                const apiUrl = 'https://api.github.com/repos/ChadR23/Sentry-Six/commits/Electron-rebuld';
+                const https = require('https');
+                const fetchLatestSha = () => new Promise((resolve, reject) => {
+                    https.get(apiUrl, { headers: { 'User-Agent': 'Sentry-Six-Updater' } }, (res) => {
+                        let data = '';
+                        res.on('data', chunk => data += chunk);
+                        res.on('end', () => {
+                            if (res.statusCode === 200) {
+                                try {
+                                    const json = JSON.parse(data);
+                                    const sha = json.sha || (json[0] && json[0].sha);
+                                    if (sha) resolve(sha);
+                                    else reject(new Error('Could not parse latest commit SHA'));
+                                } catch (e) {
+                                    reject(e);
+                                }
+                            } else {
+                                reject(new Error('Failed to fetch latest commit: ' + res.statusCode));
+                            }
+                        });
+                    }).on('error', reject);
+                });
+                const latestSha = await fetchLatestSha();
+                console.log('Latest commit SHA:', latestSha);
+                const zipUrl = `https://github.com/ChadR23/Sentry-Six/archive/${latestSha}.zip`;
+                const tmpZipPath = path.join(os.tmpdir(), `sentry-six-update-${latestSha}.zip`);
+                const extractDir = path.join(os.tmpdir(), `sentry-six-update-${latestSha}`);
                 console.log('Downloading update ZIP from:', zipUrl);
 
                 // Download ZIP
@@ -321,7 +345,7 @@ class SentrySixApp {
                 console.log('ZIP extracted to:', extractDir);
 
                 // Overwrite files (skip user data/configs)
-                const updateRoot = path.join(extractDir, `Sentry-Six-${commitSha}`);
+                const updateRoot = path.join(extractDir, `Sentry-Six-${latestSha}`);
                 const skipDirs = ['user_data', 'config', 'ffmpeg_bin'];
                 function copyRecursive(src, dest) {
                     if (!fs.existsSync(src)) return;
