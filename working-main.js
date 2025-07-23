@@ -3,6 +3,7 @@
 
 const path = require('path');
 const fs = require('fs');
+const os = require('os');
 
 // Try different ways to import Electron
 let electron;
@@ -150,6 +151,22 @@ class SentrySixApp {
             return app.getVersion();
         });
 
+        // Hardware acceleration detection
+        ipcMain.handle('tesla:detect-hwaccel', async () => {
+            try {
+                const ffmpegPath = this.findFFmpegPath();
+                if (!ffmpegPath) {
+                    return { available: false, type: null, encoder: null, error: 'FFmpeg not found' };
+                }
+
+                const hwAccel = await this.detectHardwareAcceleration(ffmpegPath);
+                return hwAccel;
+            } catch (error) {
+                console.error('Error detecting hardware acceleration:', error);
+                return { available: false, type: null, encoder: null, error: error.message };
+            }
+        });
+
         // Tesla video export
         ipcMain.handle('tesla:export-video', async (event, exportId, exportData) => {
             console.log('🚀 Starting Tesla video export:', exportId);
@@ -264,13 +281,155 @@ class SentrySixApp {
         return null;
     }
 
+    // Detect available hardware acceleration
+    async detectHardwareAcceleration(ffmpegPath) {
+        if (!ffmpegPath) return { available: false, type: null, encoder: null };
+
+        const { spawnSync } = require('child_process');
+
+        try {
+            // Get FFmpeg encoders list
+            const result = spawnSync(ffmpegPath, ['-encoders'], {
+                timeout: 10000,
+                stdio: 'pipe'
+            });
+
+            if (result.status !== 0) {
+                return { available: false, type: null, encoder: null };
+            }
+
+            const encodersOutput = result.stdout.toString();
+            const platform = process.platform;
+
+            console.log('🔍 Checking hardware acceleration availability...');
+
+            // Test each hardware encoder by actually trying to use it
+            const hwAccelOptions = [];
+
+            // Test NVIDIA NVENC (Windows/Linux)
+            if (encodersOutput.includes('h264_nvenc')) {
+                console.log('🔍 Testing NVIDIA NVENC...');
+                if (await this.testHardwareEncoder(ffmpegPath, 'h264_nvenc')) {
+                    hwAccelOptions.push({
+                        type: 'NVIDIA NVENC',
+                        encoder: 'h264_nvenc',
+                        decoder: 'h264_cuvid',
+                        priority: 1
+                    });
+                    console.log('✅ NVIDIA NVENC test passed');
+                } else {
+                    console.log('❌ NVIDIA NVENC test failed');
+                }
+            }
+
+            // Test AMD AMF (Windows)
+            if (encodersOutput.includes('h264_amf') && platform === 'win32') {
+                console.log('🔍 Testing AMD AMF...');
+                if (await this.testHardwareEncoder(ffmpegPath, 'h264_amf')) {
+                    hwAccelOptions.push({
+                        type: 'AMD AMF',
+                        encoder: 'h264_amf',
+                        decoder: null,
+                        priority: 2
+                    });
+                    console.log('✅ AMD AMF test passed');
+                } else {
+                    console.log('❌ AMD AMF test failed');
+                }
+            }
+
+            // Test Intel Quick Sync (Windows/Linux)
+            if (encodersOutput.includes('h264_qsv')) {
+                console.log('🔍 Testing Intel Quick Sync...');
+                if (await this.testHardwareEncoder(ffmpegPath, 'h264_qsv')) {
+                    hwAccelOptions.push({
+                        type: 'Intel Quick Sync',
+                        encoder: 'h264_qsv',
+                        decoder: 'h264_qsv',
+                        priority: 3
+                    });
+                    console.log('✅ Intel Quick Sync test passed');
+                } else {
+                    console.log('❌ Intel Quick Sync test failed');
+                }
+            }
+
+            // Test Apple VideoToolbox (macOS)
+            if (encodersOutput.includes('h264_videotoolbox') && platform === 'darwin') {
+                console.log('🔍 Testing Apple VideoToolbox...');
+                if (await this.testHardwareEncoder(ffmpegPath, 'h264_videotoolbox')) {
+                    hwAccelOptions.push({
+                        type: 'Apple VideoToolbox',
+                        encoder: 'h264_videotoolbox',
+                        decoder: null,
+                        priority: 1
+                    });
+                    console.log('✅ Apple VideoToolbox test passed');
+                } else {
+                    console.log('❌ Apple VideoToolbox test failed');
+                }
+            }
+
+            // Sort by priority and return the best option
+            if (hwAccelOptions.length > 0) {
+                const bestOption = hwAccelOptions.sort((a, b) => a.priority - b.priority)[0];
+                console.log(`🚀 Hardware acceleration detected: ${bestOption.type}`);
+                return {
+                    available: true,
+                    type: bestOption.type,
+                    encoder: bestOption.encoder,
+                    decoder: bestOption.decoder
+                };
+            }
+
+            console.log('⚠️ No hardware acceleration detected');
+            return { available: false, type: null, encoder: null };
+
+        } catch (error) {
+            console.error('Error detecting hardware acceleration:', error);
+            return { available: false, type: null, encoder: null };
+        }
+    }
+
+    // Test if a hardware encoder actually works
+    async testHardwareEncoder(ffmpegPath, encoder) {
+        const { spawnSync } = require('child_process');
+
+        try {
+            // Create a minimal test command to see if the encoder initializes
+            const testArgs = [
+                '-f', 'lavfi',
+                '-i', 'testsrc2=duration=1:size=320x240:rate=1',
+                '-c:v', encoder,
+                '-frames:v', '1',
+                '-f', 'null',
+                '-'
+            ];
+
+            const result = spawnSync(ffmpegPath, testArgs, {
+                timeout: 5000,
+                stdio: 'pipe'
+            });
+
+            // If the command succeeds (exit code 0), the encoder works
+            return result.status === 0;
+
+        } catch (error) {
+            console.log(`❌ Hardware encoder test failed for ${encoder}:`, error.message);
+            return false;
+        }
+    }
+
     // Video export implementation
     async performVideoExport(event, exportId, exportData, ffmpegPath) {
         const { spawn } = require('child_process');
         const fs = require('fs');
         const os = require('os');
-        const { timeline, startTime, endTime, quality, cameras, timestamp, outputPath } = exportData;
-        
+        const { timeline, startTime, endTime, quality, cameras, timestamp, outputPath, hwaccel } = exportData;
+
+        // Initialize tempFiles array for cleanup
+        const tempFiles = [];
+
         try {
             console.log('🔍 Starting performVideoExport...');
             console.log('🔍 Timeline clips:', timeline.clips?.length);
@@ -294,35 +453,64 @@ class SentrySixApp {
 
             // Create input streams for all selected cameras from the relevant clips
             const inputs = [];
-            const tempFiles = [];
 
             for (let i = 0; i < cameras.length; i++) {
                 const camera = cameras[i];
 
-                // For now, use the first clip that has this camera
-                // TODO: Handle multi-clip exports properly
-                const clipWithCamera = exportClips.find(clip => clip.files[camera]);
+                // Collect all clips for this camera in the export range
+                const cameraClips = exportClips
+                    .filter(clip => clip.files && clip.files[camera])
+                    .map(clip => ({
+                        path: clip.files[camera].path,
+                        clipRelativeStart: clip.clipRelativeStart || 0,
+                        clipDuration: clip.clipDuration || 60000
+                    }))
+                    .sort((a, b) => a.clipRelativeStart - b.clipRelativeStart);
 
-                if (!clipWithCamera || !clipWithCamera.files[camera]) {
-                    console.log(`⚠️ Skipping camera ${camera}: no file available in export range`);
+                if (cameraClips.length === 0) {
+                    console.log(`⚠️ Skipping camera ${camera}: no files available in export range`);
                     continue;
                 }
 
-                const cameraData = clipWithCamera.files[camera];
-                console.log(`🔍 Adding camera ${camera}: ${cameraData.path}`);
+                if (cameraClips.length === 1) {
+                    // Single clip - use existing logic
+                    const clip = cameraClips[0];
+                    const relativeOffset = Math.max(0, startTime - clip.clipRelativeStart) / 1000;
 
-                // Calculate relative offset within this specific clip
-                const clipRelativeStart = clipWithCamera.clipRelativeStart || 0;
-                const relativeOffset = Math.max(0, startTime - clipRelativeStart) / 1000;
+                    console.log(`🔍 Adding camera ${camera}: ${clip.path}`);
+                    console.log(`📍 Camera ${camera}: clip starts at ${clip.clipRelativeStart}ms, relative offset: ${relativeOffset}s`);
 
-                console.log(`📍 Camera ${camera}: clip starts at ${clipRelativeStart}ms, relative offset: ${relativeOffset}s`);
+                    inputs.push({
+                        camera: camera,
+                        path: clip.path,
+                        index: i,
+                        relativeOffset: relativeOffset
+                    });
+                } else {
+                    // Multiple clips - create concat file
+                    console.log(`🔗 Camera ${camera}: creating concat file for ${cameraClips.length} clips`);
 
-                inputs.push({
-                    camera: camera,
-                    path: cameraData.path,
-                    index: i,
-                    relativeOffset: relativeOffset
-                });
+                    const concatFilePath = path.join(os.tmpdir(), `tesla_export_${camera}_${Date.now()}.txt`);
+                    const concatContent = cameraClips.map(clip => `file '${clip.path}'`).join('\n');
+
+                    fs.writeFileSync(concatFilePath, concatContent);
+                    tempFiles.push(concatFilePath);
+
+                    // Calculate offset for the concatenated stream
+                    const firstClipStart = cameraClips[0].clipRelativeStart;
+                    const relativeOffset = Math.max(0, startTime - firstClipStart) / 1000;
+
+                    console.log(`🔍 Adding camera ${camera}: concat file with ${cameraClips.length} clips`);
+                    console.log(`📍 Camera ${camera}: concat starts at ${firstClipStart}ms, relative offset: ${relativeOffset}s`);
+
+                    inputs.push({
+                        camera: camera,
+                        path: concatFilePath,
+                        index: i,
+                        relativeOffset: relativeOffset,
+                        isConcat: true
+                    });
+                }
             }
             
             if (inputs.length === 0) {
@@ -341,8 +529,21 @@ class SentrySixApp {
                 if (input.relativeOffset > 0) {
                     cmd.push('-ss', input.relativeOffset.toString());
                 }
-                cmd.push('-i', input.path);
-                
+
+                if (input.isConcat) {
+                    // Use concat demuxer for multiple clips
+                    cmd.push('-f', 'concat', '-safe', '0', '-i', input.path);
+                } else {
+                    // Regular single file input
+                    cmd.push('-i', input.path);
+                }
+            }
+
+            // Build filter chains for each input stream
+
+            for (let i = 0; i < inputs.length; i++) {
+                const input = inputs[i];
+
                 // Apply sync offset for right_repeater (starts 1 second early)
                 let ptsFilter = 'setpts=PTS-STARTPTS';
                 if (input.camera === 'right_repeater') {
@@ -366,7 +567,7 @@ class SentrySixApp {
                 initialFilters.push(scaleFilter);
                 streamMaps.push(`[v${i}]`);
             }
-            
+
             // Build grid layout using xstack
             const numStreams = inputs.length;
             const w = 1448; // Camera width
@@ -481,10 +682,52 @@ class SentrySixApp {
                 cmd.push('-map', `${frontCameraIndex}:a?`);
             }
             
-            // Add encoding settings
-            const vCodec = quality === 'mobile' ? 
-                ['-c:v', 'libx264', '-preset', 'fast', '-crf', '23'] :
-                ['-c:v', 'libx264', '-preset', 'medium', '-crf', '18'];
+            // Add encoding settings with hardware acceleration support
+            let vCodec;
+
+            if (hwaccel && hwaccel.enabled && hwaccel.encoder) {
+                console.log(`🚀 Using hardware acceleration: ${hwaccel.type}`);
+
+                // Add hardware decoder if available
+                if (hwaccel.decoder) {
+                    cmd.push('-hwaccel', hwaccel.decoder.replace('h264_', ''));
+                }
+
+                // Hardware encoder settings
+                switch (hwaccel.encoder) {
+                    case 'h264_nvenc':
+                        vCodec = quality === 'mobile' ?
+                            ['-c:v', 'h264_nvenc', '-preset', 'fast', '-cq', '25'] :
+                            ['-c:v', 'h264_nvenc', '-preset', 'medium', '-cq', '20'];
+                        break;
+                    case 'h264_amf':
+                        vCodec = quality === 'mobile' ?
+                            ['-c:v', 'h264_amf', '-quality', 'speed', '-rc', 'cqp', '-qp_i', '25', '-qp_p', '25'] :
+                            ['-c:v', 'h264_amf', '-quality', 'balanced', '-rc', 'cqp', '-qp_i', '20', '-qp_p', '20'];
+                        break;
+                    case 'h264_qsv':
+                        vCodec = quality === 'mobile' ?
+                            ['-c:v', 'h264_qsv', '-preset', 'fast', '-global_quality', '25'] :
+                            ['-c:v', 'h264_qsv', '-preset', 'medium', '-global_quality', '20'];
+                        break;
+                    case 'h264_videotoolbox':
+                        vCodec = quality === 'mobile' ?
+                            ['-c:v', 'h264_videotoolbox', '-q:v', '65'] :
+                            ['-c:v', 'h264_videotoolbox', '-q:v', '55'];
+                        break;
+                    default:
+                        // Fallback to software encoding
+                        vCodec = quality === 'mobile' ?
+                            ['-c:v', 'libx264', '-preset', 'fast', '-crf', '23'] :
+                            ['-c:v', 'libx264', '-preset', 'medium', '-crf', '18'];
+                }
+            } else {
+                // Software encoding (default)
+                console.log('🔧 Using software encoding (CPU)');
+                vCodec = quality === 'mobile' ?
+                    ['-c:v', 'libx264', '-preset', 'fast', '-crf', '23'] :
+                    ['-c:v', 'libx264', '-preset', 'medium', '-crf', '18'];
+            }
             
             // Use the calculated duration for the export
             cmd.push('-t', durationSeconds.toString(), ...vCodec, '-c:a', 'aac', '-b:a', '128k', outputPath);
@@ -563,7 +806,7 @@ class SentrySixApp {
                 const timeout = setTimeout(() => {
                     console.log('⚠️ Export timeout - killing process');
                     process.kill('SIGTERM');
-                    clearInterval(progressTimer);
+                    clearInterval(fallbackTimer);
                     event.sender.send('tesla:export-progress', exportId, {
                         type: 'complete',
                         success: false,
@@ -586,7 +829,6 @@ class SentrySixApp {
                             // Calculate estimated size for comparison
                             const durationMinutes = durationSeconds / 60;
                             const numCameras = inputs.length;
-                            const quality = quality;
                             
                             let estimatedSize;
                             if (quality === 'full') {
@@ -598,7 +840,7 @@ class SentrySixApp {
                             const sizeDifference = Math.abs(parseFloat(fileSizeMB) - estimatedSize);
                             const accuracy = sizeDifference < 10 ? 'accurate' : sizeDifference < 30 ? 'close' : 'off';
                             
-                            let message = `Export completed! File size: ${fileSizeMB} MB (${numStreams} cameras)`;
+                            let message = `Export completed! File size: ${fileSizeMB} MB (${numCameras} cameras)`;
                             if (accuracy !== 'accurate') {
                                 message += ` (estimated: ~${estimatedSize} MB)`;
                             }
@@ -613,10 +855,19 @@ class SentrySixApp {
                             event.sender.send('tesla:export-progress', exportId, {
                                 type: 'complete',
                                 success: true,
-                                message: `Export completed successfully! (${numStreams} cameras)`,
+                                message: `Export completed successfully! (${inputs.length} cameras)`,
                                 outputPath: outputPath
                             });
                         }
+                        // Clean up temporary concat files on success
+                        tempFiles.forEach(tempFile => {
+                            try {
+                                fs.unlinkSync(tempFile);
+                                console.log(`🗑️ Cleaned up temp file: ${tempFile}`);
+                            } catch (error) {
+                                console.warn(`⚠️ Failed to clean up temp file ${tempFile}:`, error.message);
+                            }
+                        });
                         resolve(true);
                     } else {
                         const error = `FFmpeg failed with code ${code}: ${stderr}`;
@@ -626,6 +877,15 @@ class SentrySixApp {
                             success: false,
                             message: `Export failed: ${error}`
                         });
+                        // Clean up temporary concat files on failure
+                        tempFiles.forEach(tempFile => {
+                            try {
+                                fs.unlinkSync(tempFile);
+                                console.log(`🗑️ Cleaned up temp file: ${tempFile}`);
+                            } catch (error) {
+                                console.warn(`⚠️ Failed to clean up temp file ${tempFile}:`, error.message);
+                            }
+                        });
                         reject(new Error(error));
                     }
                 });
@@ -634,13 +894,22 @@ class SentrySixApp {
                     // Clear the timeout and fallback timer
                     clearTimeout(timeout);
                     clearInterval(fallbackTimer);
-                    
+
                     const errorMsg = `Failed to start FFmpeg: ${error.message}`;
                     console.error(errorMsg);
                     event.sender.send('tesla:export-progress', exportId, {
                         type: 'complete',
                         success: false,
                         message: errorMsg
+                    });
+                    // Clean up temporary concat files on error
+                    tempFiles.forEach(tempFile => {
+                        try {
+                            fs.unlinkSync(tempFile);
+                            console.log(`🗑️ Cleaned up temp file: ${tempFile}`);
+                        } catch (error) {
+                            console.warn(`⚠️ Failed to clean up temp file ${tempFile}:`, error.message);
+                        }
                     });
                     reject(new Error(errorMsg));
                 });

@@ -48,6 +48,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
         ipcRenderer.removeListener(channel, callback);
     },
 
+    // Generic invoke for any IPC call
+    invoke: (channel, ...args) => {
+        return ipcRenderer.invoke(channel, ...args);
+    },
+
     // Utility functions
     log: (message) => {
         console.log('[Renderer]', message);

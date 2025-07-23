@@ -1605,6 +1605,7 @@ class SentrySixApp {
         // Update export info when settings change
         const qualityInputs = document.querySelectorAll('input[name="export-quality"]');
         const cameraToggles = document.querySelectorAll('.camera-export-toggle');
+        const hwaccelToggle = document.getElementById('hwaccel-enabled');
 
         qualityInputs.forEach(input => {
             input.addEventListener('change', () => this.updateExportEstimates());
@@ -1613,6 +1614,8 @@ class SentrySixApp {
         cameraToggles.forEach(toggle => {
             toggle.addEventListener('change', () => this.updateExportEstimates());
         });
+
+        hwaccelToggle?.addEventListener('change', () => this.updateExportEstimates());
     }
 
     setExportMarker(type) {
@@ -2064,6 +2067,9 @@ class SentrySixApp {
         // Calculate initial estimates
         this.updateExportEstimates();
 
+        // Detect hardware acceleration
+        this.detectHardwareAcceleration();
+
         // Show modal
         modal.classList.remove('hidden');
 
@@ -2256,6 +2262,68 @@ class SentrySixApp {
         });
     }
 
+    async detectHardwareAcceleration() {
+        const hwaccelCheckbox = document.getElementById('hwaccel-enabled');
+        const hwaccelStatus = document.getElementById('hwaccel-status');
+        const hwaccelDescription = document.getElementById('hwaccel-description');
+        const hwaccelOption = document.querySelector('.hwaccel-option');
+        const hwaccelSpinner = document.getElementById('hwaccel-spinner');
+
+        if (!hwaccelCheckbox || !hwaccelStatus || !hwaccelDescription || !hwaccelSpinner) return;
+
+        try {
+            // Show detecting status with spinner
+            hwaccelSpinner.classList.remove('hidden');
+            hwaccelStatus.textContent = 'Detecting GPU...';
+            hwaccelDescription.textContent = 'Testing hardware acceleration capabilities';
+            hwaccelCheckbox.disabled = true;
+            hwaccelOption.classList.add('disabled');
+
+            // Call main process to detect hardware acceleration
+            const hwAccel = await window.electronAPI.invoke('tesla:detect-hwaccel');
+
+            // Hide spinner when detection completes
+            hwaccelSpinner.classList.add('hidden');
+
+            if (hwAccel.available) {
+                // Hardware acceleration available
+                hwaccelStatus.textContent = `${hwAccel.type} Detected`;
+                hwaccelStatus.className = 'gpu-detected';
+                hwaccelDescription.textContent = `Hardware acceleration available (${hwAccel.encoder})`;
+                hwaccelCheckbox.disabled = false;
+                hwaccelOption.classList.remove('disabled');
+
+                // Store hardware acceleration info for export
+                this.hardwareAcceleration = hwAccel;
+
+                console.log(`🚀 Hardware acceleration available: ${hwAccel.type}`);
+            } else {
+                // No hardware acceleration
+                hwaccelStatus.textContent = 'No GPU Detected';
+                hwaccelStatus.className = 'gpu-not-detected';
+                hwaccelDescription.textContent = 'Hardware acceleration not available - will use CPU encoding';
+                hwaccelCheckbox.disabled = true;
+                hwaccelCheckbox.checked = false;
+                hwaccelOption.classList.add('disabled');
+
+                this.hardwareAcceleration = null;
+
+                console.log('⚠️ No hardware acceleration available');
+            }
+        } catch (error) {
+            console.error('Error detecting hardware acceleration:', error);
+            // Hide spinner on error
+            hwaccelSpinner.classList.add('hidden');
+            hwaccelStatus.textContent = 'Detection Failed';
+            hwaccelStatus.className = 'gpu-not-detected';
+            hwaccelDescription.textContent = 'Could not detect hardware acceleration capabilities';
+            hwaccelCheckbox.disabled = true;
+            hwaccelCheckbox.checked = false;
+            hwaccelOption.classList.add('disabled');
+            this.hardwareAcceleration = null;
+        }
+    }
+
     updateExportEstimates() {
         const fileSizeElement = document.getElementById('estimated-file-size');
         const durationElement = document.getElementById('export-duration-estimate');
@@ -2337,6 +2405,17 @@ class SentrySixApp {
         if (startButton) startButton.disabled = true;
 
         try {
+            // Get hardware acceleration settings
+            const hwaccelEnabled = document.getElementById('hwaccel-enabled')?.checked || false;
+            const hwaccelData = hwaccelEnabled && this.hardwareAcceleration ? {
+                enabled: true,
+                type: this.hardwareAcceleration.type,
+                encoder: this.hardwareAcceleration.encoder,
+                decoder: this.hardwareAcceleration.decoder
+            } : {
+                enabled: false
+            };
+
             // Prepare export data
             const exportData = {
                 timeline: this.currentTimeline,
@@ -2347,7 +2426,8 @@ class SentrySixApp {
                 timestamp: {
                     enabled: timestampEnabled,
                     position: timestampPosition
-                }
+                },
+                hwaccel: hwaccelData
             };
 
             console.log('Starting video export with settings:', exportData);
