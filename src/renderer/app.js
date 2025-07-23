@@ -1617,6 +1617,7 @@ class SentrySixApp {
 
         closeModalBtn?.addEventListener('click', () => this.closeExportDialog());
         cancelExportBtn?.addEventListener('click', async () => {
+            console.log('Renderer: Cancel button clicked, exportId:', this.currentExportId);
             if (this.currentExportId) {
                 await window.electronAPI.tesla.cancelExport(this.currentExportId);
                 this.currentExportId = null;
@@ -2115,6 +2116,12 @@ class SentrySixApp {
         const endBtn = document.getElementById('set-end-marker');
         if (startBtn) startBtn.addEventListener('click', () => setTimeout(() => this.validateExportSettings(), 10));
         if (endBtn) endBtn.addEventListener('click', () => setTimeout(() => this.validateExportSettings(), 10));
+
+        const cancelExportBtn = document.getElementById('cancel-export-btn');
+        if (cancelExportBtn) {
+            cancelExportBtn.disabled = true;
+            console.log('Cancel button disabled: waiting for export process to start');
+        }
     }
 
     syncExportCameraVisibility() {
@@ -2533,6 +2540,7 @@ class SentrySixApp {
 
             // Generate unique export ID
             const exportId = `export_${Date.now()}`;
+            this.currentExportId = exportId;
 
             // Set up progress listener
             const progressHandler = (event, receivedExportId, progress) => {
@@ -2562,7 +2570,7 @@ class SentrySixApp {
                             const startButton = document.getElementById('start-export');
                             if (startButton) startButton.disabled = false;
                             
-                            alert(`Export failed: ${progress.message}`);
+                            // alert(`Export failed: ${progress.message}`);
                         }
 
                         // Remove progress listener
@@ -2582,12 +2590,14 @@ class SentrySixApp {
                 throw new Error('Failed to start export process');
             }
 
-            this.currentExportId = exportId;
-
         } catch (error) {
             console.error('💥 Export failed:', error);
             this.updateExportProgress(0, `Export failed: ${error.message}`);
-            alert(`Export failed: ${error.message}`);
+            if (this.exportWasCancelled) {
+                this.exportWasCancelled = false;
+                return;
+            }
+            alert('Export failed. Please check your input files and try again. For more details, see the debug log.');
         }
     }
 
@@ -3629,3 +3639,25 @@ window.addEventListener('blur', () => {
     console.log('App blurred');
     // Could pause videos here to save resources
 });
+
+// Add this after initializing the export dialog and setting up event listeners:
+window.electronAPI.on('export:process-started', (event, exportId) => {
+    if (this.currentExportId === exportId) {
+        const cancelExportBtn = document.getElementById('cancel-export-btn');
+        if (cancelExportBtn) {
+            cancelExportBtn.disabled = false;
+            console.log('Cancel button enabled: export process is now tracked');
+        }
+    }
+});
+
+// ... existing code ...
+window.electronAPI.on('export:cancelled', (event, exportId) => {
+    if (this.currentExportId === exportId) {
+        this.exportWasCancelled = true;
+        alert('Export cancelled by user.');
+        this.showStatus('Export cancelled.');
+        this.closeExportDialog();
+    }
+});
+// ... existing code ...

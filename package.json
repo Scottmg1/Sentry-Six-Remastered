@@ -42,7 +42,8 @@
     "adm-zip": "^0.5.16",
     "electron-store": "^8.0.0",
     "ffmpeg-static": "^5.0.0",
-    "fluent-ffmpeg": "^2.1.0"
+    "fluent-ffmpeg": "^2.1.0",
+    "tree-kill": "^1.2.2"
   },
   "build": {
     "appId": "com.sentrysix.electron",

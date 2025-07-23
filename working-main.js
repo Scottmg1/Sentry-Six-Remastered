@@ -7,6 +7,9 @@ const os = require('os');
 const https = require('https');
 const AdmZip = require('adm-zip');
 const { rmSync } = require('fs'); // For recursive directory removal
+const treeKill = require('tree-kill');
+const activeExports = {};
+const wasCancelled = {};
 
 // Try different ways to import Electron
 let electron;
@@ -67,6 +70,31 @@ function downloadWithRedirect(url, dest, cb) {
             cb(new Error('Failed to download update ZIP: ' + response.statusCode));
         }
     }).on('error', cb);
+}
+
+function makeEven(n) {
+    n = Math.round(n);
+    return n % 2 === 0 ? n : n - 1;
+}
+
+// Helper to get video duration using ffprobe
+function getVideoDuration(filePath) {
+    try {
+        // Use the global ffmpegPath if available, otherwise fallback to 'ffprobe'
+        const ffprobePath = (typeof ffmpegPath !== 'undefined' && ffmpegPath) ? ffmpegPath.replace('ffmpeg', 'ffprobe') : 'ffprobe';
+        const result = require('child_process').spawnSync(ffprobePath, [
+            '-v', 'error',
+            '-show_entries', 'format=duration',
+            '-of', 'default=noprint_wrappers=1:nokey=1',
+            filePath
+        ], { encoding: 'utf8' });
+        if (result.status === 0 && result.stdout) {
+            return parseFloat(result.stdout.trim());
+        }
+    } catch (e) {
+        console.warn('Failed to get duration for', filePath, e);
+    }
+    return 0;
 }
 
 class SentrySixApp {
@@ -256,8 +284,23 @@ class SentrySixApp {
 
         // Tesla export cancellation
         ipcMain.handle('tesla:cancel-export', async (_, exportId) => {
-            console.log('🚫 Cancelling export:', exportId);
-            return true;
+            console.log('Main: Attempting to cancel export:', exportId);
+            const proc = activeExports[exportId];
+            if (proc) {
+                wasCancelled[exportId] = true;
+                treeKill(proc.pid, 'SIGKILL', (err) => {
+                    if (err) {
+                        console.warn('tree-kill error:', err);
+                    } else {
+                        console.log('tree-kill sent SIGKILL to export:', exportId);
+                    }
+                });
+                // Do not delete activeExports[exportId] here; let process.on('close') handle it
+                return true;
+            } else {
+                console.warn('No active export found for exportId:', exportId, 'Current active:', Object.keys(activeExports));
+            }
+            return false;
         });
 
         // Tesla export status
@@ -656,9 +699,22 @@ class SentrySixApp {
             // Add input streams with individual relative offsets and HWACCEL if needed
             for (let i = 0; i < inputs.length; i++) {
                 const input = inputs[i];
-                // Add relative offset for this specific camera/clip
-                if (input.relativeOffset > 0) {
-                    cmd.push('-ss', input.relativeOffset.toString());
+                let offset = input.relativeOffset;
+                let firstFile = input.isConcat
+                    ? (() => {
+                        try {
+                            const line = fs.readFileSync(input.path, 'utf8').split('\n').find(l => l.startsWith("file '"));
+                            return line ? line.replace(/file '|'/g, '') : null;
+                        } catch (e) { return null; }
+                    })()
+                    : input.path;
+                let duration = firstFile ? getVideoDuration(firstFile) : 0;
+                if (offset > duration) {
+                    console.warn(`Offset (${offset}s) exceeds input duration (${duration}s) for ${firstFile}. Setting offset to 0.`);
+                    offset = 0;
+                }
+                if (offset > 0) {
+                    cmd.push('-ss', offset.toString());
                 }
 
                 // Insert HWACCEL options before each input if enabled
@@ -706,7 +762,7 @@ class SentrySixApp {
                 }
 
                 // Scale each stream to standard Tesla camera resolution
-                const scaleFilter = `[${i}:v]${filterChain},scale=1448:938[v${i}]`;
+                const scaleFilter = `[${i}:v]${filterChain},scale=${makeEven(1448)}:${makeEven(938)}[v${i}]`;
                 initialFilters.push(scaleFilter);
                 streamMaps.push(`[v${i}]`);
             }
@@ -800,9 +856,9 @@ class SentrySixApp {
                     cols = 3; rows = Math.ceil(numStreams / 3);
                 }
                 
-                const totalWidth = w * cols;
-                const totalHeight = h * rows;
-                const mobileWidth = Math.floor(1080 * (totalWidth / totalHeight) / 2) * 2; // Ensure even width
+                const totalWidth = makeEven(w * cols);
+                const totalHeight = makeEven(h * rows);
+                const mobileWidth = makeEven(Math.floor(1080 * (totalWidth / totalHeight) / 2) * 2); // Ensure even width
                 
                 mainProcessingChain.push(`${lastOutputTag}scale=${mobileWidth}:1080[final]`);
                 lastOutputTag = '[final]';
@@ -839,9 +895,7 @@ class SentrySixApp {
                             ['-c:v', 'h264_nvenc', '-preset', 'medium', '-cq', '20'];
                         break;
                     case 'h264_amf':
-                        vCodec = quality === 'mobile' ?
-                            ['-c:v', 'h264_amf', '-quality', 'speed', '-rc', 'cqp', '-qp_i', '25', '-qp_p', '25'] :
-                            ['-c:v', 'h264_amf', '-quality', 'balanced', '-rc', 'cqp', '-qp_i', '20', '-qp_p', '20'];
+                        vCodec = ['-c:v', 'h264_amf', '-rc', 'cqp', '-qp_i', '20', '-qp_p', '20'];
                         break;
                     case 'h264_qsv':
                         vCodec = quality === 'mobile' ?
@@ -954,6 +1008,8 @@ class SentrySixApp {
                 }, 5 * 60 * 1000); // 5 minute timeout
                 
                 process.on('close', (code) => {
+                    console.log('FFmpeg process closed for exportId:', exportId, 'exit code:', code);
+                    delete activeExports[exportId];
                     // Clear the timeout and fallback timer
                     clearTimeout(timeout);
                     clearInterval(fallbackTimer);
@@ -1051,6 +1107,12 @@ class SentrySixApp {
                     });
                     reject(new Error(errorMsg));
                 });
+
+                activeExports[exportId] = process;
+                if (this.mainWindow && this.mainWindow.webContents) {
+                    this.mainWindow.webContents.send('export:process-started', exportId);
+                    console.log('Sent export:process-started for exportId:', exportId);
+                }
             });
 
         } catch (error) {
