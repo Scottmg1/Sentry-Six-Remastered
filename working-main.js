@@ -51,6 +51,23 @@ console.warn = (...args) => {
     originalWarn.apply(console, args);
 };
 
+function downloadWithRedirect(url, dest, cb) {
+    const https = require('https');
+    const fs = require('fs');
+    https.get(url, (response) => {
+        if (response.statusCode === 302 && response.headers.location) {
+            // Follow redirect
+            downloadWithRedirect(response.headers.location, dest, cb);
+        } else if (response.statusCode === 200) {
+            const file = fs.createWriteStream(dest);
+            response.pipe(file);
+            file.on('finish', () => file.close(cb));
+        } else {
+            cb(new Error('Failed to download update ZIP: ' + response.statusCode));
+        }
+    }).on('error', cb);
+}
+
 class SentrySixApp {
     constructor() {
         this.mainWindow = null;
@@ -291,19 +308,9 @@ class SentrySixApp {
 
                 // Download ZIP
                 await new Promise((resolve, reject) => {
-                    const file = fs.createWriteStream(tmpZipPath);
-                    https.get(zipUrl, response => {
-                        if (response.statusCode !== 200) {
-                            reject(new Error('Failed to download update ZIP: ' + response.statusCode));
-                            return;
-                        }
-                        response.pipe(file);
-                        file.on('finish', () => {
-                            file.close(resolve);
-                        });
-                    }).on('error', err => {
-                        fs.unlinkSync(tmpZipPath);
-                        reject(err);
+                    downloadWithRedirect(zipUrl, tmpZipPath, (err) => {
+                        if (err) reject(err);
+                        else resolve();
                     });
                 });
                 console.log('ZIP downloaded to:', tmpZipPath);
