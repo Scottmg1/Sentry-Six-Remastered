@@ -138,15 +138,21 @@ class SentrySixApp {
         const updateBtn = document.getElementById('update-btn');
         if (updateBtn) {
             updateBtn.addEventListener('click', async () => {
-                this.showStatus('Checking for update and downloading...');
+                this.showStatus('Checking for updates...');
                 try {
+                    this.showLoadingScreen('Checking for updates and downloading...');
                     const result = await window.electronAPI.invoke('app:update-to-commit');
+                    this.hideLoadingScreen();
                     if (result && result.success) {
+                        alert('Update downloaded and applied!\n\nPlease restart the app to use the latest version.');
                         this.showStatus('Update downloaded! Please restart the app.');
                     } else {
+                        alert('Update failed: ' + (result && result.error ? result.error : 'Unknown error'));
                         this.showStatus('Update failed: ' + (result && result.error ? result.error : 'Unknown error'));
                     }
                 } catch (err) {
+                    this.hideLoadingScreen();
+                    alert('Update failed: ' + err);
                     this.showStatus('Update failed: ' + err);
                 }
             });
