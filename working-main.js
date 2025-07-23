@@ -713,7 +713,7 @@ class SentrySixApp {
                     console.warn(`Offset (${offset}s) exceeds input duration (${duration}s) for ${firstFile}. Setting offset to 0.`);
                     offset = 0;
                 }
-                if (offset > 0) {
+                if (offset > 0 && offset < duration) {
                     cmd.push('-ss', offset.toString());
                 }
 
@@ -863,11 +863,27 @@ class SentrySixApp {
                 mainProcessingChain.push(`${lastOutputTag}scale=${mobileWidth}:1080[final]`);
                 lastOutputTag = '[final]';
             } else {
-                // Rename final output for consistency
-                if (lastOutputTag !== '[final]') {
-                    mainProcessingChain.push(`${lastOutputTag}copy[final]`);
-                    lastOutputTag = '[final]';
+                // For 'full' quality, scale the output grid to 1448p height for ALL hardware encoders (NVENC, QSV, VideoToolbox, AMF)
+                // Calculate grid dimensions as in mobile
+                let cols, rows;
+                if (numStreams === 2) {
+                    cols = 2; rows = 1;
+                } else if (numStreams === 3) {
+                    cols = 3; rows = 1;
+                } else if (numStreams === 4) {
+                    cols = 2; rows = 2;
+                } else if (numStreams === 5) {
+                    cols = 3; rows = 2;
+                } else if (numStreams === 6) {
+                    cols = 3; rows = 2;
+                } else {
+                    cols = 3; rows = Math.ceil(numStreams / 3);
                 }
+                const totalWidth = makeEven(w * cols);
+                const totalHeight = makeEven(h * rows);
+                const fullWidth = makeEven(Math.floor(1448 * (totalWidth / totalHeight) / 2) * 2); // Ensure even width
+                mainProcessingChain.push(`${lastOutputTag}scale=${fullWidth}:1448[final]`);
+                lastOutputTag = '[final]';
             }
             
             // Combine all filter chains
@@ -875,12 +891,7 @@ class SentrySixApp {
             cmd.push('-filter_complex', filterComplex);
             cmd.push('-map', '[final]');
             
-            // Add audio from front camera if available
-            const frontCameraIndex = inputs.findIndex(input => input.camera === 'front');
-            if (frontCameraIndex !== -1) {
-                cmd.push('-map', `${frontCameraIndex}:a?`);
-            }
-            
+            // Audio export is not needed for Tesla clips
             // Add encoding settings with hardware acceleration support
             let vCodec;
 
@@ -895,7 +906,7 @@ class SentrySixApp {
                             ['-c:v', 'h264_nvenc', '-preset', 'medium', '-cq', '20'];
                         break;
                     case 'h264_amf':
-                        vCodec = ['-c:v', 'h264_amf', '-rc', 'cqp', '-qp_i', '20', '-qp_p', '20'];
+                        vCodec = ['-c:v', 'h264_amf', '-pix_fmt', 'yuv420p', '-rc', 'cqp', '-qp_i', '22', '-qp_p', '22'];
                         break;
                     case 'h264_qsv':
                         vCodec = quality === 'mobile' ?
@@ -922,7 +933,7 @@ class SentrySixApp {
             }
             
             // Use the calculated duration for the export
-            cmd.push('-t', durationSeconds.toString(), ...vCodec, '-c:a', 'aac', '-b:a', '128k', outputPath);
+            cmd.push('-t', durationSeconds.toString(), ...vCodec, outputPath); // No audio flags needed
             
             console.log('🚀 FFmpeg command:', cmd.join(' '));
 

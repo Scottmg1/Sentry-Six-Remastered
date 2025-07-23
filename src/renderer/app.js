@@ -1636,7 +1636,12 @@ class SentrySixApp {
         // Update export info when settings change
         const qualityInputs = document.querySelectorAll('input[name="export-quality"]');
         const cameraToggles = document.querySelectorAll('.camera-export-toggle');
-        const hwaccelToggle = document.getElementById('hwaccel-enabled');
+        // const hwaccelToggle = document.getElementById('hwaccel-enabled');
+        // if (hwaccelToggle) {
+        //     hwaccelToggle.disabled = true;
+        //     hwaccelToggle.checked = false;
+        //     hwaccelToggle.title = 'Hardware acceleration is temporarily disabled';
+        // }
 
         qualityInputs.forEach(input => {
             input.addEventListener('change', () => this.updateExportEstimates());
@@ -1646,7 +1651,7 @@ class SentrySixApp {
             toggle.addEventListener('change', () => this.updateExportEstimates());
         });
 
-        hwaccelToggle?.addEventListener('change', () => this.updateExportEstimates());
+        // hwaccelToggle?.addEventListener('change', () => this.updateExportEstimates());
     }
 
     setExportMarker(type) {
