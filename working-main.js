@@ -581,6 +581,7 @@ class SentrySixApp {
                 '-f', 'lavfi',
                 '-i', 'testsrc2=duration=1:size=320x240:rate=1',
                 '-c:v', encoder,
+                ...(encoder.includes('videotoolbox') ? ['-b:v', '2M'] : []),
                 '-frames:v', '1',
                 '-f', 'null',
                 '-'
