@@ -978,6 +978,19 @@ class SentrySixApp {
                     }
                 }, 2000); // Update every 2 seconds
                 
+                const MAX_EXPORT_TIME_MS = 2 * 60 * 60 * 1000; // 2 hours
+                let timeout = setTimeout(() => {
+                    console.log('⚠️ Export timeout - killing process');
+                    process.kill('SIGTERM');
+                    clearInterval(fallbackTimer);
+                    event.sender.send('tesla:export-progress', exportId, {
+                        type: 'complete',
+                        success: false,
+                        message: 'Export timed out after 2 hours (no progress)'
+                    });
+                    reject(new Error('Export timed out'));
+                }, MAX_EXPORT_TIME_MS);
+
                 process.stderr.on('data', (data) => {
                     const dataStr = data.toString();
                     stderr += dataStr;
@@ -985,6 +998,20 @@ class SentrySixApp {
                     // Debug: Log all FFmpeg output to see what we're getting
                     console.log(`[FFmpeg stderr]: ${dataStr.trim()}`);
                     
+                    // Reset the timeout on every progress update
+                    clearTimeout(timeout);
+                    timeout = setTimeout(() => {
+                        console.log('⚠️ Export timeout - killing process');
+                        process.kill('SIGTERM');
+                        clearInterval(fallbackTimer);
+                        event.sender.send('tesla:export-progress', exportId, {
+                            type: 'complete',
+                            success: false,
+                            message: 'Export timed out after 2 hours (no progress)'
+                        });
+                        reject(new Error('Export timed out'));
+                    }, MAX_EXPORT_TIME_MS);
+
                     // Parse FFmpeg time output like PyQt6 version
                     const timeMatch = dataStr.match(/time=(\d{2}):(\d{2}):(\d{2})\.(\d{2})/);
                     if (timeMatch && durationSeconds > 0) {
@@ -1012,19 +1039,6 @@ class SentrySixApp {
                     }
                 });
 
-                // Add timeout to prevent hanging
-                const timeout = setTimeout(() => {
-                    console.log('⚠️ Export timeout - killing process');
-                    process.kill('SIGTERM');
-                    clearInterval(fallbackTimer);
-                    event.sender.send('tesla:export-progress', exportId, {
-                        type: 'complete',
-                        success: false,
-                        message: 'Export timed out after 5 minutes'
-                    });
-                    reject(new Error('Export timed out'));
-                }, 5 * 60 * 1000); // 5 minute timeout
-                
                 process.on('close', (code) => {
                     console.log('FFmpeg process closed for exportId:', exportId, 'exit code:', code);
                     delete activeExports[exportId];
