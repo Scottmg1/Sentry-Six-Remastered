@@ -428,15 +428,16 @@ class SentrySixApp {
     findFFmpegPath() {
         const isMac = process.platform === 'darwin';
         const possiblePaths = [
+            'ffmpeg', // System PATH (always check first)
             ...(isMac ? [
                 path.join(__dirname, 'ffmpeg_bin', 'mac', 'ffmpeg'), // Bundled Mac
                 path.join(process.cwd(), 'ffmpeg_bin', 'mac', 'ffmpeg') // CWD Mac
-            ] : []),
-            'ffmpeg', // System PATH
-            path.join(__dirname, 'ffmpeg_bin', 'ffmpeg.exe'), // Bundled Windows
-            path.join(__dirname, 'ffmpeg_bin', 'ffmpeg'), // Bundled Unix
-            path.join(process.cwd(), 'ffmpeg_bin', 'ffmpeg.exe'), // Current working directory
-            path.join(process.cwd(), 'ffmpeg_bin', 'ffmpeg'), // Current working directory Unix
+            ] : [
+                path.join(__dirname, 'ffmpeg_bin', 'ffmpeg.exe'), // Bundled Windows
+                path.join(__dirname, 'ffmpeg_bin', 'ffmpeg'), // Bundled Unix
+                path.join(process.cwd(), 'ffmpeg_bin', 'ffmpeg.exe'), // Current working directory
+                path.join(process.cwd(), 'ffmpeg_bin', 'ffmpeg') // Current working directory Unix
+            ]),
             '/usr/local/bin/ffmpeg', // Homebrew macOS
             '/usr/bin/ffmpeg' // Linux
         ];
