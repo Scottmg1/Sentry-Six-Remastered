@@ -2336,14 +2336,26 @@ class SentrySixApp {
                 // Hardware acceleration available
                 hwaccelStatus.textContent = `${hwAccel.type} Detected`;
                 hwaccelStatus.className = 'gpu-detected';
-                hwaccelDescription.textContent = `Hardware acceleration available (${hwAccel.encoder})`;
-                hwaccelCheckbox.disabled = false;
-                hwaccelOption.classList.remove('disabled');
-
-                // Store hardware acceleration info for export
-                this.hardwareAcceleration = hwAccel;
-
-                console.log(`🚀 Hardware acceleration available: ${hwAccel.type}`);
+                // Check for unsupported types
+                if (hwAccel.type === 'NVIDIA NVENC' || hwAccel.type === 'Intel Quick Sync') {
+                    hwaccelDescription.textContent = `Hardware acceleration detected (${hwAccel.type}), but is not supported yet for export. Please use CPU encoding.`;
+                    hwaccelCheckbox.disabled = true;
+                    hwaccelCheckbox.checked = false;
+                    hwaccelOption.classList.add('disabled');
+                    hwaccelCheckbox.title = 'Hardware acceleration is not supported yet for this GPU type.';
+                    this.hardwareAcceleration = null;
+                    // Optionally, show a warning visually (e.g., red text)
+                    hwaccelStatus.className += ' gpu-warning';
+                } else {
+                    // Supported types: AMD or Apple VideoToolbox
+                    hwaccelDescription.textContent = `Hardware acceleration available (${hwAccel.encoder})`;
+                    hwaccelCheckbox.disabled = false;
+                    hwaccelOption.classList.remove('disabled');
+                    hwaccelCheckbox.title = '';
+                    // Store hardware acceleration info for export
+                    this.hardwareAcceleration = hwAccel;
+                    console.log(`🚀 Hardware acceleration available: ${hwAccel.type}`);
+                }
             } else {
                 // No hardware acceleration
                 hwaccelStatus.textContent = 'No GPU Detected';
@@ -2352,9 +2364,8 @@ class SentrySixApp {
                 hwaccelCheckbox.disabled = true;
                 hwaccelCheckbox.checked = false;
                 hwaccelOption.classList.add('disabled');
-
+                hwaccelCheckbox.title = '';
                 this.hardwareAcceleration = null;
-
                 console.log('⚠️ No hardware acceleration available');
             }
         } catch (error) {
