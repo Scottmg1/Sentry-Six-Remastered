@@ -940,7 +940,7 @@ class SentrySixApp {
             }
             
             // Use the calculated duration for the export
-            cmd.push('-t', durationSeconds.toString(), ...vCodec, outputPath); // No audio flags needed
+            cmd.push('-t', durationSeconds.toString(), ...vCodec, '-r', '30', outputPath); // Force output to 30fps
             
             console.log('🚀 FFmpeg command:', cmd.join(' '));
 
