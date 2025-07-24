@@ -724,18 +724,6 @@ class SentrySixApp {
                     cmd.push('-ss', offset.toString());
                 }
 
-                // Insert HWACCEL options before each input if enabled
-                if (hwaccel && hwaccel.enabled && hwaccel.decoder) {
-                    // For NVIDIA: decoder is usually h264_cuvid, so -hwaccel cuvid -c:v h264_cuvid
-                    // For AMD/Intel: adjust as needed
-                    if (hwaccel.decoder.startsWith('h264_')) {
-                        const hwaccelType = hwaccel.decoder.replace('h264_', '');
-                        cmd.push('-hwaccel', hwaccelType, '-c:v', hwaccel.decoder);
-                    } else {
-                        cmd.push('-hwaccel', hwaccel.decoder);
-                    }
-                }
-
                 if (input.isConcat) {
                     // Use concat demuxer for multiple clips
                     cmd.push('-f', 'concat', '-safe', '0', '-i', input.path);
