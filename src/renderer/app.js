@@ -744,6 +744,15 @@ class SentrySixApp {
         let actualPosition = 0;
         let continuousPosition = 0;
 
+        // Handle edge case: if continuous position is at the very end, return the actual timeline end
+        if (continuousPositionMs >= this.currentTimeline.displayDuration) {
+            const lastClip = clips[clips.length - 1];
+            const lastClipStart = new Date(lastClip.timestamp);
+            const startTimestamp = new Date(this.currentTimeline.startTime);
+            const lastClipDuration = lastClip.duration || 60000;
+            return (lastClipStart.getTime() - startTimestamp.getTime()) + lastClipDuration;
+        }
+
         for (let i = 0; i < clips.length; i++) {
             const clip = clips[i];
             const clipDuration = clip.duration || 60000;
@@ -2059,19 +2068,22 @@ class SentrySixApp {
             return;
         }
 
-        const currentPosition = this.currentTimeline.currentPosition;
+        const continuousPosition = this.currentTimeline.currentPosition;
         
-        // Sync is now handled at the FFmpeg level, so we use the original position
-        this.exportMarkers[type] = currentPosition;
+        // Convert continuous position to actual position for export
+        const actualPosition = this.continuousToActualPosition(continuousPosition);
+        
+        // Store the actual position for export calculations
+        this.exportMarkers[type] = actualPosition;
 
-        // Update visual markers on timeline
+        // Update visual markers on timeline (using continuous position for display)
         this.updateExportMarkers();
 
         // Update export controls state
         this.updateExportControlsState();
 
-        const time = Math.floor(currentPosition/1000);
-        console.log(`Export ${type} marker set at ${time}s (sync handled at FFmpeg level)`);
+        const time = Math.floor(actualPosition/1000);
+        console.log(`Export ${type} marker set at ${time}s (continuous: ${Math.floor(continuousPosition/1000)}s, actual: ${Math.floor(actualPosition/1000)}s)`);
         this.showStatus(`📹 ${type.charAt(0).toUpperCase() + type.slice(1)} marker set (sync handled at export level)`);
     }
 
@@ -2086,23 +2098,46 @@ class SentrySixApp {
         return targetPosition;
 
         // Fallback to original logic if no sync offset detected
-        for (let i = 0; i < this.currentTimeline.clips.length; i++) {
-            const clip = this.currentTimeline.clips[i];
-            const clipStartTime = this.calculateClipStartTime(i);
-            const clipEndTime = clipStartTime + (clip.duration || 60) * 1000;
+        if (this.currentTimeline.accurateTimeline && this.currentTimeline.sortedClips) {
+            for (let i = 0; i < this.currentTimeline.sortedClips.length; i++) {
+                const clip = this.currentTimeline.sortedClips[i];
+                const clipStartTime = this.calculateAccurateClipPosition(i);
+                const clipEndTime = clipStartTime + (clip.duration || 60) * 1000;
 
-            // Check if this clip has all cameras
-            const availableCameras = cameras.filter(camera => clip.files[camera]);
-            
-            if (availableCameras.length === cameras.length) {
-                if (clipStartTime <= targetPosition && clipEndTime > targetPosition) {
-                    return targetPosition;
-                } else if (clipStartTime > targetPosition) {
-                    earliestSyncPosition = clipStartTime;
-                    break;
+                // Check if this clip has all cameras
+                const availableCameras = cameras.filter(camera => clip.files[camera]);
+                
+                if (availableCameras.length === cameras.length) {
+                    if (clipStartTime <= targetPosition && clipEndTime > targetPosition) {
+                        return targetPosition;
+                    } else if (clipStartTime > targetPosition) {
+                        earliestSyncPosition = clipStartTime;
+                        break;
+                    }
+                } else {
+                    console.log(`📹 Clip ${i + 1} missing cameras: ${cameras.filter(c => !clip.files[c]).join(', ')}`);
                 }
-            } else {
-                console.log(`📹 Clip ${i + 1} missing cameras: ${cameras.filter(c => !clip.files[c]).join(', ')}`);
+            }
+        } else {
+            // Legacy fallback
+            for (let i = 0; i < this.currentTimeline.clips.length; i++) {
+                const clip = this.currentTimeline.clips[i];
+                const clipStartTime = this.calculateClipStartTime(i);
+                const clipEndTime = clipStartTime + (clip.duration || 60) * 1000;
+
+                // Check if this clip has all cameras
+                const availableCameras = cameras.filter(camera => clip.files[camera]);
+                
+                if (availableCameras.length === cameras.length) {
+                    if (clipStartTime <= targetPosition && clipEndTime > targetPosition) {
+                        return targetPosition;
+                    } else if (clipStartTime > targetPosition) {
+                        earliestSyncPosition = clipStartTime;
+                        break;
+                    }
+                } else {
+                    console.log(`📹 Clip ${i + 1} missing cameras: ${cameras.filter(c => !clip.files[c]).join(', ')}`);
+                }
             }
         }
 
@@ -2255,15 +2290,16 @@ class SentrySixApp {
 
     getSyncAdjustedExportRange() {
         // Get the sync-adjusted export range that ensures all cameras are synchronized
+        // Note: exportMarkers now store actual positions (including gaps)
         let startTime = 0;
-        let endTime = this.currentTimeline.displayDuration;
+        let endTime = this.currentTimeline.totalTimelineDuration || this.currentTimeline.displayDuration;
 
         if (this.exportMarkers.start !== null && this.exportMarkers.end !== null) {
             // Both markers set - apply sync adjustments
             const originalStart = Math.min(this.exportMarkers.start, this.exportMarkers.end);
             const originalEnd = Math.max(this.exportMarkers.start, this.exportMarkers.end);
             
-            // Apply sync adjustments
+            // Apply sync adjustments (using actual positions)
             startTime = this.findSyncStartPosition(originalStart);
             endTime = this.findSyncEndPosition(originalEnd);
             
@@ -2288,43 +2324,86 @@ class SentrySixApp {
         const cameras = ['left_pillar', 'front', 'right_pillar', 'left_repeater', 'back', 'right_repeater'];
         let latestSyncPosition = targetPosition;
 
-        // Check each clip from the end to find where cameras start dropping
-        for (let i = this.currentTimeline.clips.length - 1; i >= 0; i--) {
-            const clip = this.currentTimeline.clips[i];
-            const clipStartTime = this.calculateClipStartTime(i);
-            const clipEndTime = clipStartTime + (clip.duration || 60) * 1000;
+        // Use accurate timeline positioning if available
+        if (this.currentTimeline.accurateTimeline && this.currentTimeline.sortedClips) {
+            // Check each clip from the end to find where cameras start dropping
+            for (let i = this.currentTimeline.sortedClips.length - 1; i >= 0; i--) {
+                const clip = this.currentTimeline.sortedClips[i];
+                const clipStartTime = this.calculateAccurateClipPosition(i);
+                const clipEndTime = clipStartTime + (clip.duration || 60) * 1000;
 
-            // Check if this clip has all cameras
-            const availableCameras = cameras.filter(camera => clip.files[camera]);
-            
-            if (availableCameras.length === cameras.length) {
-                // All cameras available in this clip, now check sync timing
-                const syncOffset = this.getCameraSyncOffset(clip);
+                // Check if this clip has all cameras
+                const availableCameras = cameras.filter(camera => clip.files[camera]);
                 
-                if (syncOffset > 0) {
-                    // Cameras have sync offset, adjust end position
-                    const adjustedClipEnd = clipEndTime - syncOffset;
+                if (availableCameras.length === cameras.length) {
+                    // All cameras available in this clip, now check sync timing
+                    const syncOffset = this.getCameraSyncOffset(clip);
                     
-                    if (clipStartTime <= targetPosition && adjustedClipEnd > targetPosition) {
-                        // Target position is within this clip, but need to account for sync
-                        return Math.min(targetPosition, adjustedClipEnd);
-                    } else if (adjustedClipEnd <= targetPosition) {
-                        // This clip ends before target, use adjusted clip end
-                        latestSyncPosition = adjustedClipEnd;
-                        break;
+                    if (syncOffset > 0) {
+                        // Cameras have sync offset, adjust end position
+                        const adjustedClipEnd = clipEndTime - syncOffset;
+                        
+                        if (clipStartTime <= targetPosition && adjustedClipEnd > targetPosition) {
+                            // Target position is within this clip, but need to account for sync
+                            return Math.min(targetPosition, adjustedClipEnd);
+                        } else if (adjustedClipEnd <= targetPosition) {
+                            // This clip ends before target, use adjusted clip end
+                            latestSyncPosition = adjustedClipEnd;
+                            break;
+                        }
+                    } else {
+                        // No sync offset, use original logic
+                        if (clipStartTime <= targetPosition && clipEndTime > targetPosition) {
+                            return targetPosition;
+                        } else if (clipEndTime <= targetPosition) {
+                            latestSyncPosition = clipEndTime;
+                            break;
+                        }
                     }
                 } else {
-                    // No sync offset, use original logic
-                    if (clipStartTime <= targetPosition && clipEndTime > targetPosition) {
-                        return targetPosition;
-                    } else if (clipEndTime <= targetPosition) {
-                        latestSyncPosition = clipEndTime;
-                        break;
-                    }
+                    // Some cameras missing, continue to previous clip
+                    console.log(`📹 Clip ${i + 1} missing cameras: ${cameras.filter(c => !clip.files[c]).join(', ')}`);
                 }
-            } else {
-                // Some cameras missing, continue to previous clip
-                console.log(`📹 Clip ${i + 1} missing cameras: ${cameras.filter(c => !clip.files[c]).join(', ')}`);
+            }
+        } else {
+            // Fallback to legacy method
+            for (let i = this.currentTimeline.clips.length - 1; i >= 0; i--) {
+                const clip = this.currentTimeline.clips[i];
+                const clipStartTime = this.calculateClipStartTime(i);
+                const clipEndTime = clipStartTime + (clip.duration || 60) * 1000;
+
+                // Check if this clip has all cameras
+                const availableCameras = cameras.filter(camera => clip.files[camera]);
+                
+                if (availableCameras.length === cameras.length) {
+                    // All cameras available in this clip, now check sync timing
+                    const syncOffset = this.getCameraSyncOffset(clip);
+                    
+                    if (syncOffset > 0) {
+                        // Cameras have sync offset, adjust end position
+                        const adjustedClipEnd = clipEndTime - syncOffset;
+                        
+                        if (clipStartTime <= targetPosition && adjustedClipEnd > targetPosition) {
+                            // Target position is within this clip, but need to account for sync
+                            return Math.min(targetPosition, adjustedClipEnd);
+                        } else if (adjustedClipEnd <= targetPosition) {
+                            // This clip ends before target, use adjusted clip end
+                            latestSyncPosition = adjustedClipEnd;
+                            break;
+                        }
+                    } else {
+                        // No sync offset, use original logic
+                        if (clipStartTime <= targetPosition && clipEndTime > targetPosition) {
+                            return targetPosition;
+                        } else if (clipEndTime <= targetPosition) {
+                            latestSyncPosition = clipEndTime;
+                            break;
+                        }
+                    }
+                } else {
+                    // Some cameras missing, continue to previous clip
+                    console.log(`📹 Clip ${i + 1} missing cameras: ${cameras.filter(c => !clip.files[c]).join(', ')}`);
+                }
             }
         }
 
@@ -2371,15 +2450,17 @@ class SentrySixApp {
         const existingHighlight = timelineMarkers.querySelector('.export-range-highlight');
         if (existingHighlight) existingHighlight.remove();
 
-        // Add start marker
+        // Add start marker (convert actual position to continuous for display)
         if (this.exportMarkers.start !== null) {
-            const startMarker = this.createExportMarker('start', this.exportMarkers.start);
+            const continuousStartPosition = this.actualToContinuousPosition(this.exportMarkers.start);
+            const startMarker = this.createExportMarker('start', continuousStartPosition);
             timelineMarkers.appendChild(startMarker);
         }
 
-        // Add end marker
+        // Add end marker (convert actual position to continuous for display)
         if (this.exportMarkers.end !== null) {
-            const endMarker = this.createExportMarker('end', this.exportMarkers.end);
+            const continuousEndPosition = this.actualToContinuousPosition(this.exportMarkers.end);
+            const endMarker = this.createExportMarker('end', continuousEndPosition);
             timelineMarkers.appendChild(endMarker);
         }
 
@@ -2399,11 +2480,12 @@ class SentrySixApp {
 
         marker.innerHTML = type === 'start' ? '📍' : '🏁';
 
-        // Show actual timestamp in tooltip
-        const actualTimestamp = this.calculateActualTimestamp(position);
+        // Show actual timestamp in tooltip (convert continuous position back to actual for timestamp)
+        const actualPosition = this.continuousToActualPosition(position);
+        const actualTimestamp = this.calculateActualTimestamp(actualPosition);
         const timeDisplay = actualTimestamp ?
             actualTimestamp.toLocaleTimeString('en-US', { hour12: true }) :
-            this.formatTime(Math.floor(position/1000));
+            this.formatTime(Math.floor(actualPosition/1000));
         marker.title = `${type.charAt(0).toUpperCase() + type.slice(1)} marker: ${timeDisplay}`;
 
         // Make marker draggable
@@ -2419,8 +2501,12 @@ class SentrySixApp {
         const startPos = Math.min(this.exportMarkers.start, this.exportMarkers.end);
         const endPos = Math.max(this.exportMarkers.start, this.exportMarkers.end);
 
-        const startPercentage = (startPos / this.currentTimeline.displayDuration) * 100;
-        const endPercentage = (endPos / this.currentTimeline.displayDuration) * 100;
+        // Convert actual positions to continuous positions for visual display
+        const continuousStartPosition = this.actualToContinuousPosition(startPos);
+        const continuousEndPosition = this.actualToContinuousPosition(endPos);
+
+        const startPercentage = (continuousStartPosition / this.currentTimeline.displayDuration) * 100;
+        const endPercentage = (continuousEndPosition / this.currentTimeline.displayDuration) * 100;
 
         highlight.style.left = `${startPercentage}%`;
         highlight.style.width = `${endPercentage - startPercentage}%`;
@@ -2445,10 +2531,14 @@ class SentrySixApp {
                 const timelineScrubber = document.getElementById('timeline-scrubber');
                 const rect = timelineScrubber.getBoundingClientRect();
                 const percentage = Math.max(0, Math.min(100, ((moveEvent.clientX - rect.left) / rect.width) * 100));
-                const newPosition = (percentage / 100) * this.currentTimeline.displayDuration;
-                this.exportMarkers[type] = newPosition;
+                const continuousPosition = (percentage / 100) * this.currentTimeline.displayDuration;
+                
+                // Convert continuous position to actual position for storage
+                const actualPosition = this.continuousToActualPosition(continuousPosition);
+                this.exportMarkers[type] = actualPosition;
+                
                 this.updateExportMarkers();
-                this.seekToGlobalPosition(newPosition);
+                this.seekToGlobalPosition(continuousPosition);
             };
 
             upListener = () => {
@@ -2602,7 +2692,7 @@ class SentrySixApp {
             const startPos = Math.min(this.exportMarkers.start, this.exportMarkers.end);
             const endPos = Math.max(this.exportMarkers.start, this.exportMarkers.end);
 
-            // Calculate actual timestamps for the export range
+            // Calculate actual timestamps for the export range (using actual positions)
             const startTimestamp = this.calculateActualTimestamp(startPos);
             const endTimestamp = this.calculateActualTimestamp(endPos);
             duration = Math.floor((endPos - startPos) / 1000);

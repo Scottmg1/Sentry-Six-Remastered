@@ -78,18 +78,27 @@ function makeEven(n) {
 }
 
 // Helper to get video duration using ffprobe
-function getVideoDuration(filePath) {
+function getVideoDuration(filePath, ffmpegPath) {
     try {
-        // Use the global ffmpegPath if available, otherwise fallback to 'ffprobe'
-        const ffprobePath = (typeof ffmpegPath !== 'undefined' && ffmpegPath) ? ffmpegPath.replace('ffmpeg', 'ffprobe') : 'ffprobe';
+        // Use the provided ffmpegPath to construct ffprobe path
+        const ffprobePath = ffmpegPath ? ffmpegPath.replace('ffmpeg.exe', 'ffprobe.exe') : 'ffprobe';
+        console.log(`🔍 getVideoDuration: ffmpegPath=${ffmpegPath}, ffprobePath=${ffprobePath}, filePath=${filePath}`);
+        
         const result = require('child_process').spawnSync(ffprobePath, [
             '-v', 'error',
             '-show_entries', 'format=duration',
             '-of', 'default=noprint_wrappers=1:nokey=1',
             filePath
         ], { encoding: 'utf8' });
+        
+        console.log(`🔍 getVideoDuration result: status=${result.status}, stdout="${result.stdout}", stderr="${result.stderr}"`);
+        
         if (result.status === 0 && result.stdout) {
-            return parseFloat(result.stdout.trim());
+            const duration = parseFloat(result.stdout.trim());
+            console.log(`✅ getVideoDuration: duration=${duration}s for ${filePath}`);
+            return duration;
+        } else {
+            console.warn(`❌ getVideoDuration failed: status=${result.status}, stderr="${result.stderr}"`);
         }
     } catch (e) {
         console.warn('Failed to get duration for', filePath, e);
@@ -624,29 +633,99 @@ class SentrySixApp {
             console.log(`🎬 Building export command: ${durationSeconds}s duration, ${offsetSeconds}s offset`);
             console.log(`📍 Export range: ${offsetSeconds}s to ${offsetSeconds + durationSeconds}s (${durationSeconds}s total)`);
 
-            // Find clips that contain the export range
-            const exportClips = this.findClipsForExportRange(timeline, startTime, endTime);
-            console.log(`🔍 Found ${exportClips.length} clips for export range`);
-
-            if (exportClips.length === 0) {
-                throw new Error('No video clips found in the specified export range');
-            }
-
             // Create input streams for all selected cameras from the relevant clips
             const inputs = [];
 
+            // Group clips by their timeline position to maintain synchronization
+            const timelineClips = [];
+            
+            // Calculate timeline start time for accurate positioning
+            const timelineStartTime = timeline.startTime.getTime();
+            
+            // Use accurate timeline logic if available
+            if (timeline.accurateTimeline && timeline.sortedClips) {
+                console.log(`✅ Using accurate timeline with ${timeline.sortedClips.length} sorted clips`);
+                
+                for (let i = 0; i < timeline.sortedClips.length; i++) {
+                    const clip = timeline.sortedClips[i];
+                    if (!clip || !clip.timestamp) continue;
+
+                    // Calculate clip position using accurate timeline logic
+                    const clipStartTime = new Date(clip.timestamp).getTime();
+                    const clipRelativeStart = clipStartTime - timelineStartTime;
+                    
+                    // Use actual duration from timeline if available, otherwise estimate
+                    let clipDuration = 60000; // Default 60 seconds
+                    if (timeline.actualDurations && timeline.actualDurations[i]) {
+                        clipDuration = timeline.actualDurations[i];
+                    }
+
+                    const clipRelativeEnd = clipRelativeStart + clipDuration;
+
+                    // Check if clip overlaps with export range
+                    const clipOverlaps = (clipRelativeStart < endTime) && (clipRelativeEnd > startTime);
+
+                    if (clipOverlaps) {
+                        console.log(`📹 Clip ${i} (${clip.timestamp}) overlaps with export range (${clipRelativeStart}-${clipRelativeEnd}ms)`);
+                        timelineClips.push({
+                            ...clip,
+                            clipIndex: i,
+                            clipRelativeStart: clipRelativeStart,
+                            clipDuration: clipDuration
+                        });
+                    }
+                }
+            } else {
+                // Fallback to legacy sequential positioning
+                console.log(`⚠️ Using legacy sequential positioning`);
+                let currentPosition = 0;
+
+                for (let i = 0; i < timeline.clips.length; i++) {
+                    const clip = timeline.clips[i];
+                    if (!clip || !clip.timestamp) continue;
+
+                    // Use actual duration from timeline if available, otherwise estimate
+                    let clipDuration = 60000; // Default 60 seconds
+                    if (timeline.actualDurations && timeline.actualDurations[i]) {
+                        clipDuration = timeline.actualDurations[i];
+                    }
+
+                    const clipRelativeStart = currentPosition;
+                    const clipRelativeEnd = currentPosition + clipDuration;
+
+                    // Check if clip overlaps with export range
+                    const clipOverlaps = (clipRelativeStart < endTime) && (clipRelativeEnd > startTime);
+
+                    if (clipOverlaps) {
+                        console.log(`📹 Clip ${i} (${clip.timestamp}) overlaps with export range (${clipRelativeStart}-${clipRelativeEnd}ms)`);
+                        timelineClips.push({
+                            ...clip,
+                            clipIndex: i,
+                            clipRelativeStart: clipRelativeStart,
+                            clipDuration: clipDuration
+                        });
+                    }
+
+                    currentPosition += clipDuration;
+                }
+            }
+
+            console.log(`📊 Found ${timelineClips.length} timeline clips for export range`);
+
+            // Create synchronized input streams for each camera
             for (let i = 0; i < cameras.length; i++) {
                 const camera = cameras[i];
 
-                // Collect all clips for this camera in the export range
-                const cameraClips = exportClips
+                // Collect clips for this camera from the timeline clips
+                const cameraClips = timelineClips
                     .filter(clip => clip.files && clip.files[camera])
                     .map(clip => ({
                         path: clip.files[camera].path,
                         clipRelativeStart: clip.clipRelativeStart || 0,
-                        clipDuration: clip.clipDuration || 60000
+                        clipDuration: clip.clipDuration || 60000,
+                        timelineIndex: clip.clipIndex
                     }))
-                    .sort((a, b) => a.clipRelativeStart - b.clipRelativeStart);
+                    .sort((a, b) => a.timelineIndex - b.timelineIndex);
 
                 if (cameraClips.length === 0) {
                     console.log(`⚠️ Skipping camera ${camera}: no files available in export range`);
@@ -668,11 +747,31 @@ class SentrySixApp {
                         relativeOffset: relativeOffset
                     });
                 } else {
-                    // Multiple clips - create concat file
-                    console.log(`🔗 Camera ${camera}: creating concat file for ${cameraClips.length} clips`);
+                    // Multiple clips - create synchronized concat file
+                    console.log(`🔗 Camera ${camera}: creating synchronized concat file for ${cameraClips.length} clips`);
 
                     const concatFilePath = path.join(os.tmpdir(), `tesla_export_${camera}_${Date.now()}.txt`);
-                    const concatContent = cameraClips.map(clip => `file '${clip.path}'`).join('\n');
+                    
+                    // Create concat content with proper timing
+                    const concatContent = cameraClips.map(clip => {
+                        const clipStartInExport = Math.max(0, clip.clipRelativeStart - startTime);
+                        const clipEndInExport = Math.min(endTime - startTime, clip.clipRelativeStart + clip.clipDuration - startTime);
+                        
+                        // Skip clips that don't contribute to the export
+                        if (clipEndInExport <= 0 || clipStartInExport >= (endTime - startTime)) {
+                            return null;
+                        }
+
+                        // Calculate the offset within this specific clip
+                        const clipOffset = Math.max(0, startTime - clip.clipRelativeStart) / 1000;
+                        const clipDuration = (clipEndInExport - clipStartInExport) / 1000;
+
+                        console.log(`📹 Camera ${camera} clip ${clip.timelineIndex}: ${clip.path}, offset: ${clipOffset}s, duration: ${clipDuration}s`);
+
+                        // Use inpoint and outpoint to handle timing within the concat demuxer
+                        // Add duration directive for better synchronization
+                        return `file '${clip.path}'\ninpoint ${clipOffset}\noutpoint ${clipOffset + clipDuration}\nduration ${clipDuration}`;
+                    }).filter(Boolean).join('\n');
 
                     fs.writeFileSync(concatFilePath, concatContent);
                     tempFiles.push(concatFilePath);
@@ -681,7 +780,7 @@ class SentrySixApp {
                     const firstClipStart = cameraClips[0].clipRelativeStart;
                     const relativeOffset = Math.max(0, startTime - firstClipStart) / 1000;
 
-                    console.log(`🔍 Adding camera ${camera}: concat file with ${cameraClips.length} clips`);
+                    console.log(`🔍 Adding camera ${camera}: synchronized concat file with ${cameraClips.length} clips`);
                     console.log(`📍 Camera ${camera}: concat starts at ${firstClipStart}ms, relative offset: ${relativeOffset}s`);
 
                     inputs.push({
@@ -702,49 +801,50 @@ class SentrySixApp {
             const cmd = [ffmpegPath, '-y'];
             const initialFilters = [];
             const streamMaps = [];
+            let inputIndex = 0;
             
             // Add input streams with individual relative offsets and HWACCEL if needed
             for (let i = 0; i < inputs.length; i++) {
                 const input = inputs[i];
-                let offset = input.relativeOffset;
-                let firstFile = input.isConcat
-                    ? (() => {
-                        try {
-                            const line = fs.readFileSync(input.path, 'utf8').split('\n').find(l => l.startsWith("file '"));
-                            return line ? line.replace(/file '|'/g, '') : null;
-                        } catch (e) { return null; }
-                    })()
-                    : input.path;
-                let duration = firstFile ? getVideoDuration(firstFile) : 0;
-                if (offset > duration) {
-                    console.warn(`Offset (${offset}s) exceeds input duration (${duration}s) for ${firstFile}. Setting offset to 0.`);
-                    offset = 0;
-                }
-                if (offset > 0 && offset < duration) {
-                    cmd.push('-ss', offset.toString());
-                }
-
+                
                 if (input.isConcat) {
+                    // Handle concatenated input streams
+                    // Timing is handled by inpoint/outpoint in the concat file
                     // Use concat demuxer for multiple clips
                     cmd.push('-f', 'concat', '-safe', '0', '-i', input.path);
                 } else {
-                    // Regular single file input
+                    // Single input (existing logic)
+                    let offset = input.relativeOffset;
+                    let firstFile = input.path;
+                    console.log(`🔍 getVideoDuration call: ffmpegPath=${ffmpegPath}, firstFile=${firstFile}`);
+                    let duration = firstFile ? getVideoDuration(firstFile, ffmpegPath) : 0;
+                    console.log(`🔍 getVideoDuration result: duration=${duration}s for ${firstFile}`);
+                    
+                    if (offset > duration) {
+                        console.warn(`Offset (${offset}s) exceeds input duration (${duration}s) for ${firstFile}. Setting offset to 0.`);
+                        offset = 0;
+                    }
+                    
+                    if (offset > 0 && offset < duration) {
+                        cmd.push('-ss', offset.toString());
+                    }
+
                     cmd.push('-i', input.path);
                 }
             }
 
             // Build filter chains for each input stream
+            let totalInputIndex = 0;
+            const cameraStreams = [];
 
             for (let i = 0; i < inputs.length; i++) {
                 const input = inputs[i];
 
-                // Apply sync offset for right_repeater (starts 1 second early)
+                // Apply camera-specific sync adjustments
                 let ptsFilter = 'setpts=PTS-STARTPTS';
-                if (input.camera === 'right_repeater') {
-                    // Delay right_repeater by 1 second to sync with other cameras
-                    ptsFilter = 'setpts=PTS-STARTPTS+1/TB';
-                    console.log(`🔍 Applying 1-second delay to right_repeater`);
-                }
+                
+                // No sync adjustments - let all cameras play at natural timing
+                console.log(`🔍 No sync adjustment for ${input.camera} - using natural timing`);
 
                 // Check if camera should be mirrored (Tesla back and repeater cameras are mirrored)
                 const isMirroredCamera = ['back', 'left_repeater', 'right_repeater'].includes(input.camera);
@@ -757,13 +857,34 @@ class SentrySixApp {
                 }
 
                 // Scale each stream to standard Tesla camera resolution
-                const scaleFilter = `[${i}:v]${filterChain},scale=${makeEven(1448)}:${makeEven(938)}[v${i}]`;
+                const scaleFilter = `[${totalInputIndex}:v]${filterChain},scale=${makeEven(1448)}:${makeEven(938)}[v${totalInputIndex}]`;
                 initialFilters.push(scaleFilter);
-                streamMaps.push(`[v${i}]`);
+                cameraStreams.push(`[v${totalInputIndex}]`);
+                totalInputIndex++;
+            }
+
+            // Add frame rate synchronization to ensure all streams are aligned
+            if (cameraStreams.length > 1) {
+                console.log(`🔍 Adding frame rate synchronization for ${cameraStreams.length} cameras`);
+                
+                // Force all streams to 30fps for consistent timing
+                const fpsSyncFilters = cameraStreams.map((stream, index) => {
+                    return `${stream}fps=fps=30:round=near[fps${index}]`;
+                });
+                
+                // Update camera streams to use fps-synchronized versions
+                const fpsSyncStreams = cameraStreams.map((_, index) => `[fps${index}]`);
+                
+                // Add fps sync filters to the chain
+                initialFilters.push(...fpsSyncFilters);
+                
+                // Use fps-synchronized streams for grid layout
+                cameraStreams.length = 0;
+                cameraStreams.push(...fpsSyncStreams);
             }
 
             // Build grid layout using xstack
-            const numStreams = inputs.length;
+            const numStreams = cameraStreams.length;
             const w = 1448; // Camera width
             const h = 938;  // Camera height
             
@@ -798,13 +919,13 @@ class SentrySixApp {
                 }
                 
                 const layoutStr = layout.join('|');
-                const xstackFilter = `${streamMaps.join('')}xstack=inputs=${numStreams}:layout=${layoutStr}[stacked]`;
+                const xstackFilter = `${cameraStreams.join('')}xstack=inputs=${numStreams}:layout=${layoutStr}[stacked]`;
                 mainProcessingChain.push(xstackFilter);
                 lastOutputTag = '[stacked]';
                 
                 console.log(`🔍 Grid layout: ${cols}x${rows}, cameras: ${numStreams}, layout: ${layoutStr}`);
             } else {
-                lastOutputTag = '[v0]';
+                lastOutputTag = cameraStreams[0];
             }
             
             // Add timestamp overlay if enabled
@@ -1729,37 +1850,80 @@ class SentrySixApp {
     findClipsForExportRange(timeline, startTime, endTime) {
         const timelineStartTime = timeline.startTime.getTime();
         const exportClips = [];
-        let currentPosition = 0;
+        
+        console.log(`🔍 Finding clips for export range: ${startTime}ms to ${endTime}ms`);
+        console.log(`📅 Timeline start: ${new Date(timelineStartTime).toISOString()}`);
+        console.log(`📊 Timeline has ${timeline.clips?.length || 0} clips, accurateTimeline: ${timeline.accurateTimeline}`);
 
-        for (let i = 0; i < timeline.clips.length; i++) {
-            const clip = timeline.clips[i];
-            if (!clip || !clip.timestamp) continue;
+        // Use accurate timeline logic if available
+        if (timeline.accurateTimeline && timeline.sortedClips) {
+            console.log(`✅ Using accurate timeline with ${timeline.sortedClips.length} sorted clips`);
+            
+            for (let i = 0; i < timeline.sortedClips.length; i++) {
+                const clip = timeline.sortedClips[i];
+                if (!clip || !clip.timestamp) continue;
 
-            // Use actual duration from timeline if available, otherwise estimate
-            let clipDuration = 60000; // Default 60 seconds
-            if (timeline.actualDurations && timeline.actualDurations[i]) {
-                clipDuration = timeline.actualDurations[i];
+                // Calculate clip position using accurate timeline logic
+                const clipStartTime = new Date(clip.timestamp).getTime();
+                const clipRelativeStart = clipStartTime - timelineStartTime;
+                
+                // Use actual duration from timeline if available, otherwise estimate
+                let clipDuration = 60000; // Default 60 seconds
+                if (timeline.actualDurations && timeline.actualDurations[i]) {
+                    clipDuration = timeline.actualDurations[i];
+                }
+
+                const clipRelativeEnd = clipRelativeStart + clipDuration;
+
+                // Check if clip overlaps with export range
+                const clipOverlaps = (clipRelativeStart < endTime) && (clipRelativeEnd > startTime);
+
+                if (clipOverlaps) {
+                    console.log(`📹 Clip ${i} (${clip.timestamp}) overlaps with export range (${clipRelativeStart}-${clipRelativeEnd}ms)`);
+                    exportClips.push({
+                        ...clip,
+                        clipIndex: i,
+                        clipRelativeStart: clipRelativeStart,
+                        clipDuration: clipDuration
+                    });
+                }
             }
+        } else {
+            // Fallback to legacy sequential positioning
+            console.log(`⚠️ Using legacy sequential positioning`);
+            let currentPosition = 0;
 
-            const clipRelativeStart = currentPosition;
-            const clipRelativeEnd = currentPosition + clipDuration;
+            for (let i = 0; i < timeline.clips.length; i++) {
+                const clip = timeline.clips[i];
+                if (!clip || !clip.timestamp) continue;
 
-            // Check if clip overlaps with export range
-            const clipOverlaps = (clipRelativeStart < endTime) && (clipRelativeEnd > startTime);
+                // Use actual duration from timeline if available, otherwise estimate
+                let clipDuration = 60000; // Default 60 seconds
+                if (timeline.actualDurations && timeline.actualDurations[i]) {
+                    clipDuration = timeline.actualDurations[i];
+                }
 
-            if (clipOverlaps) {
-                console.log(`📹 Clip ${i} (${clip.timestamp}) overlaps with export range (${clipRelativeStart}-${clipRelativeEnd}ms)`);
-                exportClips.push({
-                    ...clip,
-                    clipIndex: i,
-                    clipRelativeStart: clipRelativeStart,
-                    clipDuration: clipDuration
-                });
+                const clipRelativeStart = currentPosition;
+                const clipRelativeEnd = currentPosition + clipDuration;
+
+                // Check if clip overlaps with export range
+                const clipOverlaps = (clipRelativeStart < endTime) && (clipRelativeEnd > startTime);
+
+                if (clipOverlaps) {
+                    console.log(`📹 Clip ${i} (${clip.timestamp}) overlaps with export range (${clipRelativeStart}-${clipRelativeEnd}ms)`);
+                    exportClips.push({
+                        ...clip,
+                        clipIndex: i,
+                        clipRelativeStart: clipRelativeStart,
+                        clipDuration: clipDuration
+                    });
+                }
+
+                currentPosition += clipDuration;
             }
-
-            currentPosition += clipDuration;
         }
 
+        console.log(`📊 Found ${exportClips.length} clips for export range`);
         return exportClips;
     }
 }
