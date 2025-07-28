@@ -859,6 +859,16 @@ class SentrySixApp {
             this.duration = clipGroup.duration || 60; // Default 60 seconds if unknown
         }
 
+        // Restore playback speed for all videos
+        if (this.config.playbackSpeed) {
+            Object.keys(this.videos).forEach(camera => {
+                const video = this.videos[camera];
+                if (video && video.src) {
+                    video.playbackRate = this.config.playbackSpeed;
+                }
+            });
+        }
+
         this.updateTimelineDisplay();
     }
 
@@ -1265,6 +1275,10 @@ class SentrySixApp {
                     const video = this.videos[camera];
                     if (video && video.src) {
                         video.currentTime = positionInClipMs / 1000;
+                        // Restore playback speed
+                        if (this.config.playbackSpeed) {
+                            video.playbackRate = this.config.playbackSpeed;
+                        }
                     }
                 });
 
@@ -1295,8 +1309,8 @@ class SentrySixApp {
             }
         });
 
-        // Save to config (disabled for now)
-        // window.electronAPI.config.set('playbackSpeed', speed);
+        // Store the current playback speed in config
+        this.config.playbackSpeed = speed;
     }
 
     setVolume(volume) {
