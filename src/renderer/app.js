@@ -587,19 +587,29 @@ class SentrySixApp {
     }
 
     loadDailyTimeline(dateGroup) {
-        // Create a continuous timeline data structure
+        // Create a continuous timeline data structure with accurate timestamp analysis
         this.currentTimeline = {
             clips: dateGroup.clips,
             currentClipIndex: 0,
-            totalDuration: dateGroup.clips.length * 60000, // Start with conservative estimate
-            displayDuration: dateGroup.clips.length * 60000, // Stable duration for display
+            totalDuration: 0, // Will be calculated from actual timestamps
+            displayDuration: 0, // Will be calculated from actual timestamps
             startTime: dateGroup.clips[0]?.timestamp || new Date(),
             isPlaying: false,
             currentPosition: 0, // Global position in milliseconds across all clips
             date: dateGroup.displayDate,
             actualDurations: [], // Store actual clip durations as they load
-            loadedClipCount: 0 // Track how many clips have loaded
+            loadedClipCount: 0, // Track how many clips have loaded
+            clipTimestamps: [], // Store actual start timestamps for each clip
+            timelineGaps: [], // Store detected gaps between clips
+            accurateTimeline: true, // Flag to indicate we're using accurate timeline
+            eventMarkersRendered: false // Flag to track if event markers have been rendered
         };
+
+        // Analyze clip timestamps and calculate accurate timeline
+        this.analyzeClipTimestamps();
+        
+        // Calculate accurate timeline duration based on timestamps
+        this.calculateAccurateTimelineDuration();
 
         // Notify debug manager of timeline load
         if (this.debugManager) {
@@ -615,8 +625,301 @@ class SentrySixApp {
         this.updateTimelineDisplay();
         this.renderTimelineGaps();
 
-        // Render event markers on the timeline
+        // Render event markers on the timeline (allow initial render)
         this.renderEventMarkers();
+
+        // Set flag after initial render to prevent future re-renders during updates
+        setTimeout(() => {
+            this.isUpdatingTimeline = true;
+        }, 100);
+    }
+
+    analyzeClipTimestamps() {
+        if (!this.currentTimeline || !this.currentTimeline.clips.length) return;
+
+        const clips = this.currentTimeline.clips;
+        const timestamps = [];
+        const gaps = [];
+
+        // Sort clips by timestamp to ensure chronological order
+        const sortedClips = [...clips].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+
+        console.log(`🔍 Analyzing ${sortedClips.length} clips for accurate timeline`);
+
+        for (let i = 0; i < sortedClips.length; i++) {
+            const clip = sortedClips[i];
+            const clipTimestamp = new Date(clip.timestamp);
+            timestamps.push(clipTimestamp);
+
+            console.log(`📹 Clip ${i + 1}: ${clipTimestamp.toLocaleTimeString()} - ${clip.filename}`);
+
+            // Check for gaps between clips
+            if (i > 0) {
+                const prevClip = sortedClips[i - 1];
+                const prevTimestamp = new Date(prevClip.timestamp);
+                
+                // Calculate expected end time of previous clip (assuming 60s max duration)
+                const expectedPrevEnd = new Date(prevTimestamp.getTime() + 60000);
+                const actualGap = clipTimestamp.getTime() - expectedPrevEnd.getTime();
+                
+                if (actualGap > 5000) { // Gap larger than 5 seconds
+                    gaps.push({
+                        startTime: expectedPrevEnd,
+                        endTime: clipTimestamp,
+                        duration: actualGap / 1000, // Convert to seconds
+                        beforeClipIndex: i - 1,
+                        afterClipIndex: i,
+                        description: `Gap of ${Math.round(actualGap / 1000)}s between clips`
+                    });
+                    
+                    console.log(`⚠️ Gap detected: ${Math.round(actualGap / 1000)}s between clips ${i} and ${i + 1}`);
+                }
+            }
+        }
+
+        this.currentTimeline.clipTimestamps = timestamps;
+        this.currentTimeline.timelineGaps = gaps;
+        this.currentTimeline.sortedClips = sortedClips;
+
+        console.log(`📊 Timeline analysis complete: ${gaps.length} gaps detected`);
+    }
+
+    calculateAccurateTimelineDuration() {
+        if (!this.currentTimeline || !this.currentTimeline.sortedClips) return;
+
+        const clips = this.currentTimeline.sortedClips;
+        if (clips.length === 0) return;
+
+        // Calculate continuous timeline duration (excluding gaps)
+        let continuousDuration = 0;
+        let totalGapDuration = 0;
+        let knownClips = 0;
+
+        for (let i = 0; i < clips.length; i++) {
+            const clip = clips[i];
+            // Use actual duration from the clip group if available
+            const actualDuration = clip.duration || 60000; // 60 seconds default
+            continuousDuration += actualDuration;
+            knownClips++;
+        }
+
+        // Calculate total timeline duration (including gaps)
+        const firstClipStart = new Date(clips[0].timestamp);
+        const lastClipStart = new Date(clips[clips.length - 1].timestamp);
+        const lastClipDuration = clips[clips.length - 1].duration || 60000;
+        const lastClipEnd = new Date(lastClipStart.getTime() + lastClipDuration);
+        const totalTimelineDuration = lastClipEnd.getTime() - firstClipStart.getTime();
+        
+        // Calculate total gap duration
+        totalGapDuration = totalTimelineDuration - continuousDuration;
+        
+        this.currentTimeline.totalDuration = continuousDuration; // Continuous playable duration
+        this.currentTimeline.displayDuration = continuousDuration; // Display continuous duration
+        this.currentTimeline.totalTimelineDuration = totalTimelineDuration; // Total timeline including gaps
+        this.currentTimeline.totalGapDuration = totalGapDuration; // Total gap duration
+        this.currentTimeline.startTime = firstClipStart;
+        this.currentTimeline.endTime = lastClipEnd;
+
+        console.log(`⏱️ Continuous timeline duration: ${Math.round(continuousDuration / 1000)}s (${knownClips}/${clips.length} clips) | Total timeline: ${Math.round(totalTimelineDuration / 1000)}s | Gaps: ${Math.round(totalGapDuration / 1000)}s`);
+    }
+
+    calculateAccurateClipPosition(clipIndex) {
+        if (!this.currentTimeline || !this.currentTimeline.sortedClips) return 0;
+
+        const clips = this.currentTimeline.sortedClips;
+        if (clipIndex >= clips.length) return 0;
+
+        const targetClip = clips[clipIndex];
+        const targetTimestamp = new Date(targetClip.timestamp);
+        const startTimestamp = new Date(this.currentTimeline.startTime);
+
+        return targetTimestamp.getTime() - startTimestamp.getTime();
+    }
+
+    // Convert continuous timeline position to actual timeline position (including gaps)
+    continuousToActualPosition(continuousPositionMs) {
+        if (!this.currentTimeline || !this.currentTimeline.sortedClips) return continuousPositionMs;
+
+        const clips = this.currentTimeline.sortedClips;
+        let actualPosition = 0;
+        let continuousPosition = 0;
+
+        for (let i = 0; i < clips.length; i++) {
+            const clip = clips[i];
+            const clipDuration = clip.duration || 60000;
+            
+            // If this clip contains the continuous position
+            if (continuousPosition + clipDuration > continuousPositionMs) {
+                const timeInClip = continuousPositionMs - continuousPosition;
+                const clipStart = new Date(clip.timestamp);
+                const startTimestamp = new Date(this.currentTimeline.startTime);
+                actualPosition = clipStart.getTime() - startTimestamp.getTime() + timeInClip;
+                break;
+            }
+            
+            continuousPosition += clipDuration;
+        }
+
+        return actualPosition;
+    }
+
+    // Convert actual timeline position (including gaps) to continuous timeline position
+    actualToContinuousPosition(actualPositionMs) {
+        if (!this.currentTimeline || !this.currentTimeline.sortedClips) return actualPositionMs;
+
+        const clips = this.currentTimeline.sortedClips;
+        let continuousPosition = 0;
+        let actualPosition = 0;
+
+        for (let i = 0; i < clips.length; i++) {
+            const clip = clips[i];
+            const clipDuration = clip.duration || 60000;
+            const clipStart = new Date(clip.timestamp);
+            const startTimestamp = new Date(this.currentTimeline.startTime);
+            const clipActualStart = clipStart.getTime() - startTimestamp.getTime();
+            const clipActualEnd = clipActualStart + clipDuration;
+
+            // If this clip contains the actual position
+            if (actualPositionMs >= clipActualStart && actualPositionMs < clipActualEnd) {
+                const timeInClip = actualPositionMs - clipActualStart;
+                continuousPosition += timeInClip;
+                break;
+            } else if (actualPositionMs >= clipActualEnd) {
+                // This clip is before the target position, add its duration to continuous position
+                continuousPosition += clipDuration;
+            }
+        }
+
+        return continuousPosition;
+    }
+
+    calculateAccurateGlobalPosition(clipIndex, timeInClipMs) {
+        if (!this.currentTimeline || !this.currentTimeline.sortedClips) return 0;
+
+        const clips = this.currentTimeline.sortedClips;
+        if (clipIndex >= clips.length) return 0;
+
+        // Get the clip's start position in the timeline
+        const clipStartPosition = this.calculateAccurateClipPosition(clipIndex);
+        
+        // Add the time within the clip
+        return clipStartPosition + timeInClipMs;
+    }
+
+    findClipIndexByGlobalPosition(globalPositionMs) {
+        if (!this.currentTimeline || !this.currentTimeline.sortedClips) return 0;
+
+        const clips = this.currentTimeline.sortedClips;
+        const startTimestamp = new Date(this.currentTimeline.startTime);
+        const targetTimestamp = new Date(startTimestamp.getTime() + globalPositionMs);
+
+        // Find which clip contains this timestamp
+        for (let i = 0; i < clips.length; i++) {
+            const clip = clips[i];
+            const clipStart = new Date(clip.timestamp);
+            // Use actual duration from the clip group
+            const clipDuration = clip.duration || 60000;
+            const clipEnd = new Date(clipStart.getTime() + clipDuration);
+
+            if (targetTimestamp >= clipStart && targetTimestamp < clipEnd) {
+                return i;
+            }
+        }
+
+        // If not found, return the last clip
+        return Math.max(0, clips.length - 1);
+    }
+
+    calculateTimeInClip(globalPositionMs, clipIndex) {
+        if (!this.currentTimeline || !this.currentTimeline.sortedClips) return 0;
+
+        const clips = this.currentTimeline.sortedClips;
+        if (clipIndex >= clips.length) return 0;
+
+        const clipStartPosition = this.calculateAccurateClipPosition(clipIndex);
+        const timeInClip = globalPositionMs - clipStartPosition;
+
+        return Math.max(0, timeInClip);
+    }
+
+    seekToAccurateGlobalPosition(globalPositionMs) {
+        if (!this.currentTimeline) return;
+
+        // Set flag to prevent event marker re-rendering during seeking
+        this.isUpdatingTimeline = true;
+
+        // Find which clip contains this position
+        const targetClipIndex = this.findClipIndexByGlobalPosition(globalPositionMs);
+        const timeInClipMs = this.calculateTimeInClip(globalPositionMs, targetClipIndex);
+
+        console.log(`🎯 Seeking to accurate position: ${Math.round(globalPositionMs/1000)}s -> clip ${targetClipIndex + 1}, time ${Math.round(timeInClipMs/1000)}s`);
+
+        // Load the target clip if different from current
+        if (targetClipIndex !== this.currentTimeline.currentClipIndex) {
+            const wasPlaying = this.isPlaying;
+            this.loadTimelineClip(targetClipIndex);
+
+            // Seek to position after clip loads
+            setTimeout(() => {
+                this.seekWithinCurrentClip(timeInClipMs / 1000); // Convert to seconds
+                if (wasPlaying) {
+                    this.playAllVideos();
+                }
+                // Clear flag after seeking is complete
+                setTimeout(() => {
+                    this.isUpdatingTimeline = false;
+                }, 100);
+            }, 200);
+        } else {
+            // Same clip - just seek
+            this.seekWithinCurrentClip(timeInClipMs / 1000);
+            // Clear flag after seeking is complete
+            setTimeout(() => {
+                this.isUpdatingTimeline = false;
+            }, 100);
+        }
+
+        // Don't update timeline position here - it's already set to continuous position in seekToPosition
+        this.updateTimelineDisplay();
+    }
+
+    updateAccurateTimelineDuration() {
+        if (!this.currentTimeline || !this.currentTimeline.sortedClips) return;
+
+        const clips = this.currentTimeline.sortedClips;
+        if (clips.length === 0) return;
+
+        // Store previous duration for comparison
+        const previousDisplayDuration = this.currentTimeline.displayDuration;
+
+        // Calculate continuous timeline duration (excluding gaps)
+        let continuousDuration = 0;
+        let knownClips = 0;
+
+        for (let i = 0; i < clips.length; i++) {
+            const clip = clips[i];
+            // Use actual duration from the clip group
+            const actualDuration = clip.duration || 60000; // 60 seconds default
+            continuousDuration += actualDuration;
+            knownClips++;
+        }
+
+        // Update timeline duration with continuous duration (excluding gaps)
+        this.currentTimeline.totalDuration = continuousDuration;
+        this.currentTimeline.displayDuration = continuousDuration;
+
+        console.log(`📏 Updated continuous timeline duration: ${Math.round(continuousDuration/1000)}s (${knownClips}/${clips.length} clips with actual durations)`);
+
+        // Re-render event markers if duration changed significantly
+        if (Math.abs(previousDisplayDuration - continuousDuration) > 1000) { // More than 1 second difference
+            console.log(`📊 Re-rendering event markers due to timeline duration change: ${Math.round(previousDisplayDuration/1000)}s → ${Math.round(continuousDuration/1000)}s`);
+            
+            // Reset the rendered flag to allow re-rendering
+            this.currentTimeline.eventMarkersRendered = false;
+            
+            // Re-render event markers
+            this.renderEventMarkers();
+        }
     }
 
     loadTimelineClip(clipIndex) {
@@ -964,13 +1267,47 @@ class SentrySixApp {
 
     handleTimeUpdate(event) {
         // Don't update timeline position while user is seeking
-        if (this.isSeekingTimeline) {
+        if (this.isSeekingTimeline || this.isUpdatingTimeline) {
             console.log('🚫 Blocked timeline update during seeking');
             return;
         }
 
-        if (this.currentTimeline) {
-            // Calculate global position using actual clip durations
+        if (this.currentTimeline && this.currentTimeline.accurateTimeline) {
+            // Use continuous timeline positioning
+            const currentClipTime = event.target.currentTime * 1000; // Convert to milliseconds
+            
+            // Calculate continuous position (excluding gaps)
+            let continuousPosition = 0;
+            const clips = this.currentTimeline.sortedClips;
+            
+            // Find the current clip in sortedClips by matching timestamp
+            const currentClip = this.currentTimeline.clips[this.currentTimeline.currentClipIndex];
+            let sortedClipIndex = 0;
+            
+            if (currentClip && clips) {
+                for (let i = 0; i < clips.length; i++) {
+                    if (clips[i].timestamp === currentClip.timestamp) {
+                        sortedClipIndex = i;
+                        break;
+                    }
+                }
+            }
+            
+            // Add durations of all clips before current clip
+            for (let i = 0; i < sortedClipIndex; i++) {
+                const clip = clips[i];
+                const clipDuration = clip.duration || 60000;
+                continuousPosition += clipDuration;
+            }
+            
+            // Add current time within current clip
+            continuousPosition += currentClipTime;
+            
+            // Store continuous position for smooth timeline display
+            this.currentTimeline.currentPosition = continuousPosition;
+            this.throttledUpdateTimelineDisplay();
+        } else if (this.currentTimeline) {
+            // Fallback to old method for non-accurate timelines
             const currentClipTime = event.target.currentTime * 1000; // Convert to milliseconds
             let globalPosition = 0;
 
@@ -1150,8 +1487,21 @@ class SentrySixApp {
 
     seekToPosition(position) {
         console.log(`🎯 Seeking to position ${position}%`);
-        if (this.currentTimeline) {
-            // Timeline mode - seek using stable display duration
+        if (this.currentTimeline && this.currentTimeline.accurateTimeline) {
+            // Use continuous timeline positioning (percentage of continuous duration)
+            const continuousPositionMs = (position / 100) * this.currentTimeline.displayDuration;
+            console.log(`🎯 Continuous target position: ${Math.round(continuousPositionMs/1000)}s`);
+            
+            // Convert continuous position to actual position (including gaps) for video seeking
+            const actualPositionMs = this.continuousToActualPosition(continuousPositionMs);
+            console.log(`🎯 Actual target position: ${Math.round(actualPositionMs/1000)}s`);
+            
+            // Store the continuous position for timeline display consistency
+            this.currentTimeline.currentPosition = continuousPositionMs;
+            
+            this.seekToAccurateGlobalPosition(actualPositionMs);
+        } else if (this.currentTimeline) {
+            // Timeline mode - use stable display duration for consistent scrubber
             const targetPositionMs = (position / 100) * this.currentTimeline.displayDuration;
             console.log(`🎯 Target position: ${Math.round(targetPositionMs/1000)}s`);
             this.seekToGlobalPosition(targetPositionMs);
@@ -1358,7 +1708,23 @@ class SentrySixApp {
         // Update timeline duration dynamically
         if (this.currentTimeline && camera === 'front') {
             const clipIndex = this.currentTimeline.currentClipIndex;
-            this.currentTimeline.actualDurations[clipIndex] = video.duration * 1000; // Convert to milliseconds
+            const durationMs = video.duration * 1000; // Convert to milliseconds
+            
+            // Update both arrays for consistency
+            this.currentTimeline.actualDurations[clipIndex] = durationMs;
+            
+            // Update the sortedClips array for accurate timeline calculations
+            if (this.currentTimeline.sortedClips) {
+                const currentClip = this.currentTimeline.clips[clipIndex];
+                // Find the matching clip in sortedClips by timestamp
+                for (let i = 0; i < this.currentTimeline.sortedClips.length; i++) {
+                    if (this.currentTimeline.sortedClips[i].timestamp === currentClip.timestamp) {
+                        this.currentTimeline.sortedClips[i].duration = durationMs;
+                        break;
+                    }
+                }
+            }
+            
             this.currentTimeline.loadedClipCount++;
 
             // Check for truly corrupted clips (extremely short)
@@ -1368,8 +1734,13 @@ class SentrySixApp {
                 return;
             }
 
-            // Update dynamic total duration estimate
-            this.updateDynamicTimelineDuration();
+            // Update accurate timeline duration
+            if (this.currentTimeline.accurateTimeline) {
+                this.updateAccurateTimelineDuration();
+            } else {
+                // Update dynamic total duration estimate for legacy timelines
+                this.updateDynamicTimelineDuration();
+            }
 
             console.log(`📏 Clip ${clipIndex + 1} duration: ${video.duration}s | Loaded: ${this.currentTimeline.loadedClipCount}/${this.currentTimeline.clips.length} | Display: ${Math.round(this.currentTimeline.displayDuration/1000)}s | Total: ${Math.round(this.currentTimeline.totalDuration/1000)}s`);
         }
@@ -1496,12 +1867,16 @@ class SentrySixApp {
         }
         this.isUpdatingDisplay = true;
 
+        // Set flag to prevent event marker re-rendering during timeline updates
+        this.isUpdatingTimeline = true;
+
         // Update timeline scrubber
         const timelineScrubber = document.getElementById('timeline-scrubber');
 
         if (this.currentTimeline) {
-            // Timeline mode - use stable display duration for consistent scrubber
+            // Timeline mode - use continuous timeline positioning
             if (this.currentTimeline.displayDuration > 0) {
+                // Use continuous position directly (no conversion needed)
                 const percentage = Math.min(100, Math.max(0,
                     (this.currentTimeline.currentPosition / this.currentTimeline.displayDuration) * 100
                 ));
@@ -1520,7 +1895,7 @@ class SentrySixApp {
         const totalTimeEl = document.getElementById('total-time');
 
         if (this.currentTimeline) {
-            // Timeline mode - use stable display duration for consistent time display
+            // Timeline mode - show continuous timeline time (excluding gaps)
             const currentSeconds = Math.floor(this.currentTimeline.currentPosition / 1000);
             const totalSeconds = Math.floor(this.currentTimeline.displayDuration / 1000);
 
@@ -1533,8 +1908,13 @@ class SentrySixApp {
             totalTimeEl.textContent = this.formatTime(this.duration);
         }
 
-        // Release the update guard
+        // Release the update guards
         this.isUpdatingDisplay = false;
+        
+        // Clear timeline update flag after a short delay
+        setTimeout(() => {
+            this.isUpdatingTimeline = false;
+        }, 50);
     }
 
     throttledUpdateTimelineDisplay() {
@@ -2634,7 +3014,7 @@ class SentrySixApp {
     }
 
     renderTimelineGaps() {
-        if (!this.currentTimeline || !this.currentTimeline.gaps) return;
+        if (!this.currentTimeline) return;
 
         const timelineTrack = document.querySelector('.timeline-track');
         if (!timelineTrack) return;
@@ -2642,33 +3022,15 @@ class SentrySixApp {
         // Remove existing gap indicators
         timelineTrack.querySelectorAll('.gap-indicator, .gap-marker').forEach(el => el.remove());
 
-        // Add compact gap markers between footage segments
-        this.currentTimeline.gaps.forEach((gap) => {
-            // Create compact gap marker (fixed 2-inch width)
-            const gapMarker = document.createElement('div');
-            gapMarker.className = 'gap-marker';
+        // Use accurate timeline gaps if available
+        const gaps = this.currentTimeline.accurateTimeline && this.currentTimeline.timelineGaps ? 
+            this.currentTimeline.timelineGaps : 
+            (this.currentTimeline.gaps || []);
 
-            // Position marker between segments (not proportional to gap size)
-            const segmentPosition = this.calculateSegmentPosition(gap.beforeClipIndex);
-            gapMarker.style.left = `${segmentPosition}%`;
-
-            // Create gap label
-            const gapLabel = document.createElement('div');
-            gapLabel.className = 'gap-label';
-            const gapMinutes = Math.round(gap.duration / 60);
-            gapLabel.textContent = `Missing clips from ${gap.startTime.toLocaleTimeString()} - ${gap.endTime.toLocaleTimeString()}`;
-            gapLabel.title = `${gapMinutes} minute gap`;
-
-            // Create visual separator
-            const gapSeparator = document.createElement('div');
-            gapSeparator.className = 'gap-separator';
-            gapSeparator.innerHTML = '|===|';
-
-            gapMarker.appendChild(gapLabel);
-            gapMarker.appendChild(gapSeparator);
-            timelineTrack.appendChild(gapMarker);
-        });
+        // Gap markers and notifications removed for cleaner user experience
     }
+
+
 
     calculateSegmentPosition(clipIndex) {
         // Calculate position based on footage segments, not real time
@@ -2689,34 +3051,7 @@ class SentrySixApp {
         return (footagePosition / this.currentTimeline.totalDuration) * 100;
     }
 
-    showGapNotification(gapDuration, startTime, endTime) {
-        const gapMinutes = Math.round(gapDuration / 60);
-        const message = `Skipping ${gapMinutes} minute gap (${startTime.toLocaleTimeString()} - ${endTime.toLocaleTimeString()})`;
 
-        // Create notification element
-        const notification = document.createElement('div');
-        notification.className = 'gap-notification';
-        notification.innerHTML = `
-            <div class="gap-notification-content">
-                <span class="gap-icon">⏭️</span>
-                <span class="gap-message">${message}</span>
-            </div>
-        `;
-
-        // Add to page
-        document.body.appendChild(notification);
-
-        // Show with animation
-        setTimeout(() => notification.classList.add('show'), 10);
-
-        // Remove after 3 seconds
-        setTimeout(() => {
-            notification.classList.remove('show');
-            setTimeout(() => notification.remove(), 300);
-        }, 3000);
-
-        console.log(`Gap notification: ${message}`);
-    }
 
     updateTimelineInfo() {
         if (!this.currentTimeline) return;
@@ -2727,11 +3062,26 @@ class SentrySixApp {
             return;
         }
 
-        const segments = this.currentTimeline.segments || [];
-        const gaps = this.currentTimeline.gaps || [];
-        const coverage = this.currentTimeline.actualCoverage || 100;
+        let infoText = '';
 
-        const infoText = `${this.currentTimeline.clips.length} clips • ${segments.length} segments • ${gaps.length} gaps • ${coverage.toFixed(0)}% coverage`;
+        if (this.currentTimeline.accurateTimeline) {
+            // Use accurate timeline information
+            const totalClips = this.currentTimeline.clips.length;
+            const gaps = this.currentTimeline.timelineGaps || [];
+            const totalDuration = Math.round(this.currentTimeline.displayDuration / 1000);
+            const startTime = new Date(this.currentTimeline.startTime).toLocaleTimeString();
+            const endTime = new Date(this.currentTimeline.endTime).toLocaleTimeString();
+
+            infoText = `${totalClips} clips • ${totalDuration}s • ${startTime} - ${endTime}`;
+        } else {
+            // Fallback to old method
+            const segments = this.currentTimeline.segments || [];
+            const gaps = this.currentTimeline.gaps || [];
+            const coverage = this.currentTimeline.actualCoverage || 100;
+
+            infoText = `${this.currentTimeline.clips.length} clips • ${segments.length} segments • ${coverage.toFixed(0)}% coverage`;
+        }
+
         timelineInfo.textContent = infoText;
     }
 
@@ -2752,7 +3102,10 @@ class SentrySixApp {
 
         if (this.currentTimeline) {
             // Timeline mode - calculate timestamp based on current timeline position
-            const currentTimestamp = this.calculateActualTimestamp(this.currentTimeline.currentPosition);
+            // Convert continuous position to actual position for accurate timestamp calculation
+            const continuousPosition = this.currentTimeline.currentPosition;
+            const actualPosition = this.continuousToActualPosition(continuousPosition);
+            const currentTimestamp = this.calculateActualTimestamp(actualPosition);
 
             if (currentTimestamp) {
                 const formatted = currentTimestamp.toLocaleString('en-US', {
@@ -2819,15 +3172,14 @@ class SentrySixApp {
     }
 
     calculateActualTimestamp(timelinePosition) {
-        // Calculate the actual timestamp for a given timeline position
-        if (!this.currentTimeline || !this.currentTimeline.startTime) {
+        if (!this.currentTimeline || !this.currentTimeline.accurateTimeline) {
             return null;
         }
 
-        const timelineStartTime = new Date(this.currentTimeline.startTime);
-        const actualTimestamp = new Date(timelineStartTime.getTime() + timelinePosition);
-
-        return actualTimestamp;
+        const startTimestamp = new Date(this.currentTimeline.startTime);
+        const targetTimestamp = new Date(startTimestamp.getTime() + timelinePosition);
+        
+        return targetTimestamp;
     }
 
     showLoadingScreen(message) {
@@ -3080,6 +3432,31 @@ class SentrySixApp {
         // Release auto-advancement lock immediately
         this.isAutoAdvancing = false;
 
+        // Mark clip as corrupted in timeline
+        if (this.currentTimeline) {
+            this.currentTimeline.actualDurations[clipIndex] = 0;
+            
+            // Update timeline duration
+            if (this.currentTimeline.accurateTimeline) {
+                this.updateAccurateTimelineDuration();
+            } else {
+                this.updateDynamicTimelineDuration();
+            }
+        }
+
+        // Check if this clip has a very short estimated duration from timestamp analysis
+        if (this.currentTimeline && this.currentTimeline.accurateTimeline) {
+            const clip = this.currentTimeline.sortedClips[clipIndex];
+            if (clip && clip.duration < 10) {
+                console.warn(`⚠️ Clip ${clipIndex + 1} has very short estimated duration (${clip.duration}s) - likely corrupted`);
+                this.showStatus(`Clip ${clipIndex + 1} appears to be corrupted (${clip.duration}s) and will be skipped`);
+            } else {
+                this.showStatus(`Clip ${clipIndex + 1} appears to be corrupted and will be skipped`);
+            }
+        } else {
+            this.showStatus(`Clip ${clipIndex + 1} appears to be corrupted and will be skipped`);
+        }
+
         // Skip to next clip if available
         if (this.currentTimeline && clipIndex < this.currentTimeline.clips.length - 1) {
             console.log(`⏭️ Skipping corrupted clip ${clipIndex + 1}, advancing to clip ${clipIndex + 2}`);
@@ -3301,6 +3678,11 @@ class SentrySixApp {
             return;
         }
 
+        // Allow initial render but prevent re-rendering during timeline updates
+        if (this.isUpdatingTimeline && this.currentTimeline.eventMarkersRendered) {
+            return;
+        }
+
         const timelineMarkers = document.getElementById('timeline-markers');
         if (!timelineMarkers) {
             console.warn('Timeline markers container not found');
@@ -3311,20 +3693,117 @@ class SentrySixApp {
         const existingEventMarkers = timelineMarkers.querySelectorAll('.event-marker');
         existingEventMarkers.forEach(marker => marker.remove());
 
-        // Calculate timeline bounds
+        // Use accurate timeline positioning if available
+        if (this.currentTimeline.accurateTimeline) {
+            this.renderAccurateEventMarkers(timelineMarkers);
+        } else {
+            // Fallback to old method for legacy timelines
+            this.renderLegacyEventMarkers(timelineMarkers);
+        }
+
+        // Mark that event markers have been rendered
+        this.currentTimeline.eventMarkersRendered = true;
+    }
+
+    renderAccurateEventMarkers(timelineMarkers) {
+        // Calculate timeline bounds using actual timeline (including gaps)
+        const timelineStart = new Date(this.currentTimeline.startTime).getTime();
+        const timelineEnd = new Date(this.currentTimeline.endTime).getTime();
+        const actualTimelineDuration = timelineEnd - timelineStart;
+
+        // Get the selected date for filtering events
+        const selectedDate = this.currentTimeline.date;
+        const selectedDateObj = new Date(selectedDate);
+        const selectedDateStart = new Date(selectedDateObj.getFullYear(), selectedDateObj.getMonth(), selectedDateObj.getDate()).getTime();
+        const selectedDateEnd = selectedDateStart + (24 * 60 * 60 * 1000); // End of the selected date
+
+        console.log(`🔍 Rendering event markers for accurate timeline: ${new Date(timelineStart).toLocaleTimeString()} - ${new Date(timelineEnd).toLocaleTimeString()}`);
+        console.log(`📅 Filtering events for date: ${selectedDate} (${new Date(selectedDateStart).toLocaleDateString()})`);
+
+        // Filter events by the selected date AND timeline bounds
+        const visibleEvents = this.eventMarkers.filter(eventMarker => {
+            const eventTime = eventMarker.timestamp.getTime();
+            const eventDate = eventMarker.timestamp.getTime();
+            
+            // Check if event is from the selected date
+            const isFromSelectedDate = eventDate >= selectedDateStart && eventDate < selectedDateEnd;
+            
+            // Check if event is within or after the timeline (for positioning at end)
+            const isWithinTimeline = eventTime >= timelineStart;
+            
+            return isFromSelectedDate && isWithinTimeline;
+        });
+
+        console.log(`📊 Found ${visibleEvents.length} events for selected date (${this.eventMarkers.length} total events)`);
+
+        // Create and position event markers using continuous timeline positioning
+        visibleEvents.forEach(eventMarker => {
+            const eventTime = eventMarker.timestamp.getTime();
+            let actualRelativePosition = eventTime - timelineStart;
+            
+            // If event is after timeline ends, position it at the very end
+            if (eventTime > timelineEnd) {
+                actualRelativePosition = actualTimelineDuration;
+                console.log(`⚠️ Event after timeline end: ${eventMarker.reason} at ${eventMarker.timestamp.toLocaleTimeString()}, positioning at timeline end`);
+            }
+            
+            // Convert actual position to continuous position for visual alignment with timeline scrubber
+            const continuousPosition = this.actualToContinuousPosition(actualRelativePosition);
+            const percentage = Math.max(0, Math.min(100, (continuousPosition / this.currentTimeline.displayDuration) * 100));
+
+            // Update marker position
+            eventMarker.position = percentage;
+
+            // Only create marker if it's within visible range
+            if (percentage >= 0 && percentage <= 100) {
+                const markerElement = this.createEventMarkerElement(eventMarker);
+                timelineMarkers.appendChild(markerElement);
+                
+                console.log(`📍 Event marker positioned at ${percentage.toFixed(1)}%: ${eventMarker.reason} at ${eventMarker.timestamp.toLocaleTimeString()}`);
+            }
+        });
+
+        console.log(`✅ Rendered ${visibleEvents.length} event markers on accurate timeline`);
+    }
+
+    renderLegacyEventMarkers(timelineMarkers) {
+        // Calculate timeline bounds using legacy method
         const timelineStart = this.currentTimeline.startTime.getTime();
         const timelineEnd = timelineStart + this.currentTimeline.displayDuration;
 
-        // Filter events that fall within the current timeline
+        // Get the selected date for filtering events
+        const selectedDate = this.currentTimeline.date;
+        const selectedDateObj = new Date(selectedDate);
+        const selectedDateStart = new Date(selectedDateObj.getFullYear(), selectedDateObj.getMonth(), selectedDateObj.getDate()).getTime();
+        const selectedDateEnd = selectedDateStart + (24 * 60 * 60 * 1000); // End of the selected date
+
+        console.log(`📅 Filtering events for date: ${selectedDate} (${new Date(selectedDateStart).toLocaleDateString()})`);
+
+        // Filter events by the selected date AND timeline bounds
         const visibleEvents = this.eventMarkers.filter(eventMarker => {
             const eventTime = eventMarker.timestamp.getTime();
-            return eventTime >= timelineStart && eventTime <= timelineEnd;
+            const eventDate = eventMarker.timestamp.getTime();
+            
+            // Check if event is from the selected date
+            const isFromSelectedDate = eventDate >= selectedDateStart && eventDate < selectedDateEnd;
+            
+            // Check if event is within or after the timeline (for positioning at end)
+            const isWithinTimeline = eventTime >= timelineStart;
+            
+            return isFromSelectedDate && isWithinTimeline;
         });
 
         // Create and position event markers
         visibleEvents.forEach(eventMarker => {
             const eventTime = eventMarker.timestamp.getTime();
-            const relativePosition = eventTime - timelineStart;
+            let relativePosition = eventTime - timelineStart;
+            
+            // If event is after timeline ends, position it at the very end
+            if (eventTime > timelineEnd) {
+                relativePosition = this.currentTimeline.displayDuration;
+                console.log(`⚠️ Event after timeline end: ${eventMarker.reason} at ${eventMarker.timestamp.toLocaleTimeString()}, positioning at timeline end`);
+            }
+            
             const percentage = Math.max(0, Math.min(100, (relativePosition / this.currentTimeline.displayDuration) * 100));
 
             // Update marker position
@@ -3337,7 +3816,7 @@ class SentrySixApp {
             }
         });
 
-        console.log(`Rendered ${visibleEvents.length} event markers (${this.eventMarkers.length} total events)`);
+        console.log(`Rendered ${visibleEvents.length} event markers for selected date (${this.eventMarkers.length} total events)`);
     }
 
     createEventMarkerElement(eventMarker) {
@@ -3360,17 +3839,48 @@ class SentrySixApp {
 
         // Calculate seek position (10 seconds before for context, similar to PyQt6 implementation)
         const eventTime = eventMarker.timestamp.getTime();
-        const timelineStart = this.currentTimeline.startTime.getTime();
-        const relativePosition = eventTime - timelineStart;
+        
+        if (this.currentTimeline.accurateTimeline) {
+            // Use accurate timeline seeking
+            const timelineStart = new Date(this.currentTimeline.startTime).getTime();
+            const timelineEnd = new Date(this.currentTimeline.endTime).getTime();
+            let relativePosition = eventTime - timelineStart;
 
-        // Seek 10 seconds before the event for context
-        const seekPosition = Math.max(0, relativePosition - 10000); // 10 seconds in milliseconds
+            // If event is after timeline ends, seek to the end of the timeline
+            if (eventTime > timelineEnd) {
+                relativePosition = timelineEnd - timelineStart;
+                console.log(`⚠️ Event after timeline end, seeking to timeline end: ${eventMarker.reason} at ${eventMarker.timestamp.toLocaleTimeString()}`);
+            }
 
-        // Convert to percentage for seeking
-        const seekPercentage = (seekPosition / this.currentTimeline.displayDuration) * 100;
+            // Seek 10 seconds before the event for context (but not before timeline start)
+            const seekPosition = Math.max(0, relativePosition - 10000); // 10 seconds in milliseconds
 
-        // Seek to position
-        this.seekToPosition(seekPercentage);
+            console.log(`🎯 Seeking to event marker: ${eventMarker.reason} at ${eventMarker.timestamp.toLocaleTimeString()}`);
+            console.log(`⏱️ Event time: ${eventTime}, Timeline start: ${timelineStart}, Relative position: ${relativePosition}ms`);
+            console.log(`🎬 Seeking to position: ${seekPosition}ms (${Math.round(seekPosition/1000)}s before event)`);
+
+            // Use accurate timeline seeking
+            this.seekToAccurateGlobalPosition(seekPosition);
+        } else {
+            // Fallback to legacy seeking
+            const timelineStart = this.currentTimeline.startTime.getTime();
+            const timelineEnd = timelineStart + this.currentTimeline.displayDuration;
+            let relativePosition = eventTime - timelineStart;
+
+            // If event is after timeline ends, seek to the end of the timeline
+            if (eventTime > timelineEnd) {
+                relativePosition = this.currentTimeline.displayDuration;
+            }
+
+            // Seek 10 seconds before the event for context
+            const seekPosition = Math.max(0, relativePosition - 10000); // 10 seconds in milliseconds
+
+            // Convert to percentage for seeking
+            const seekPercentage = (seekPosition / this.currentTimeline.displayDuration) * 100;
+
+            // Seek to position
+            this.seekToPosition(seekPercentage);
+        }
 
         // Hide tooltip
         this.hideEventTooltip();

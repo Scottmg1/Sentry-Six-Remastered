@@ -488,60 +488,7 @@ body {
     filter: drop-shadow(0 0 3px rgba(255, 255, 0, 0.6));
 }
 
-/* Gap Markers */
-.gap-marker {
-    position: absolute;
-    top: -35px;
-    width: 60px; /* Fixed 2-inch width */
-    height: 30px;
-    pointer-events: none;
-    z-index: 10;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    transform: translateX(-50%);
-}
 
-.gap-label {
-    background: rgba(255, 68, 68, 0.9);
-    color: white;
-    padding: 2px 6px;
-    border-radius: 4px;
-    font-size: 10px;
-    font-weight: 500;
-    white-space: nowrap;
-    margin-bottom: 2px;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
-    max-width: 200px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.gap-separator {
-    color: #ff4444;
-    font-family: 'Courier New', monospace;
-    font-size: 12px;
-    font-weight: bold;
-    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
-}
-
-/* Legacy gap indicator (kept for compatibility) */
-.gap-indicator {
-    position: absolute;
-    top: 2px;
-    height: 20px;
-    background: repeating-linear-gradient(
-        45deg,
-        rgba(255, 68, 68, 0.3),
-        rgba(255, 68, 68, 0.3) 4px,
-        rgba(255, 68, 68, 0.1) 4px,
-        rgba(255, 68, 68, 0.1) 8px
-    );
-    border: 1px solid rgba(255, 68, 68, 0.5);
-    border-radius: 2px;
-    pointer-events: none;
-    z-index: 5;
-}
 
 .timeline-controls {
     display: flex;
@@ -1545,44 +1492,7 @@ body {
     background: #0066aa;
 }
 
-/* Gap Notification Styles */
-.gap-notification {
-    position: fixed;
-    top: 80px;
-    left: 50%;
-    transform: translateX(-50%);
-    background: rgba(40, 40, 40, 0.95);
-    color: white;
-    padding: 12px 20px;
-    border-radius: 8px;
-    border: 1px solid #555;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
-    z-index: 2000;
-    opacity: 0;
-    transition: all 0.3s ease;
-    backdrop-filter: blur(10px);
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-}
 
-.gap-notification.show {
-    opacity: 1;
-    transform: translateX(-50%) translateY(0);
-}
-
-.gap-notification-content {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-
-.gap-icon {
-    font-size: 16px;
-}
-
-.gap-message {
-    font-size: 14px;
-    font-weight: 500;
-}
 
 /* Camera Visibility Panel Styles */
 .camera-panel {

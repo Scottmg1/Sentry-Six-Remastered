@@ -6,6 +6,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
+import { VideoProcessor } from './video-processor';
 
 export interface TeslaVideoFile {
     path: string;
@@ -46,6 +47,11 @@ export class TeslaFileManager {
     private readonly TESLA_CAMERAS = ['front', 'left_repeater', 'right_repeater', 'back'] as const;
     private readonly TESLA_FOLDERS = ['SavedClips', 'RecentClips', 'SentryClips'] as const;
     private readonly VIDEO_EXTENSIONS = ['.mp4', '.mov', '.avi'] as const;
+    private videoProcessor: VideoProcessor;
+
+    constructor() {
+        this.videoProcessor = new VideoProcessor();
+    }
 
     /**
      * Scan a Tesla dashcam folder and organize files by timestamp
@@ -202,12 +208,28 @@ export class TeslaFileManager {
                     : 'RecentClips';
             }
 
+            // Extract video metadata to get accurate duration
+            let duration = 0;
+            try {
+                const metadata = await this.videoProcessor.getVideoMetadata(filePath);
+                if (metadata && metadata.duration > 0) {
+                    duration = metadata.duration * 1000; // Convert to milliseconds
+                    console.log(`📹 Extracted metadata for ${filename}: ${(duration/1000).toFixed(1)}s duration`);
+                } else {
+                    console.warn(`⚠️ Could not extract metadata for ${filename}, using default duration`);
+                    duration = 60000; // 60 seconds default
+                }
+            } catch (error) {
+                console.warn(`⚠️ Error extracting metadata for ${filename}:`, error);
+                duration = 60000; // 60 seconds default
+            }
+
             return {
                 path: filePath,
                 filename,
                 camera,
                 timestamp,
-                duration: 0, // Will be filled by video processor
+                duration,
                 size: stats.size,
                 type: folderType
             };
@@ -283,10 +305,103 @@ export class TeslaFileManager {
             }
         }
 
-        // Convert to array and sort by timestamp
-        return Array.from(groups.values()).sort((a, b) => 
+        const clipGroups = Array.from(groups.values()).sort((a, b) => 
             a.timestamp.getTime() - b.timestamp.getTime()
         );
+        
+        // Analyze clip timestamps and estimate durations
+        this.analyzeClipGroupTimestamps(clipGroups);
+        
+        return clipGroups;
+    }
+
+    /**
+     * Analyze clip group timestamps to detect gaps and validate durations
+     */
+    private analyzeClipGroupTimestamps(clipGroups: TeslaClipGroup[]): void {
+        if (clipGroups.length === 0) return;
+
+        console.log(`🔍 Analyzing ${clipGroups.length} clip groups with actual durations`);
+
+        for (let i = 0; i < clipGroups.length; i++) {
+            const currentGroup = clipGroups[i];
+            if (!currentGroup) continue; // Skip if undefined (shouldn't happen but TypeScript safety)
+            
+            const currentTime = currentGroup.timestamp;
+            const actualDuration = currentGroup.duration / 1000; // Convert from ms to seconds
+
+            console.log(`📹 Clip group ${i + 1}: ${currentTime.toLocaleTimeString()} - ${actualDuration.toFixed(1)}s duration`);
+
+            // Validate duration (should be between 1 and 60 seconds for Tesla clips)
+            if (actualDuration < 1) {
+                console.warn(`⚠️ Clip group ${i + 1} has very short duration (${actualDuration}s) - may be corrupted`);
+            } else if (actualDuration > 60) {
+                console.warn(`⚠️ Clip group ${i + 1} has unusually long duration (${actualDuration}s) - may be incorrectly parsed`);
+            }
+
+            // Check for gaps with next clip
+            if (i < clipGroups.length - 1) {
+                const nextGroup = clipGroups[i + 1];
+                if (!nextGroup) continue; // Skip if undefined (shouldn't happen but TypeScript safety)
+                
+                const nextTime = nextGroup.timestamp;
+                const currentEndTime = new Date(currentTime.getTime() + (currentGroup.duration));
+                const gapDuration = nextTime.getTime() - currentEndTime.getTime();
+
+                if (gapDuration > 5000) { // Gap larger than 5 seconds
+                    console.log(`⚠️ Gap detected: ${Math.round(gapDuration/1000)}s between clips ${i + 1} and ${i + 2}`);
+                }
+            }
+        }
+
+        // Detect timeline gaps
+        const gaps = this.detectTimelineGaps(clipGroups);
+        if (gaps.length > 0) {
+            console.log(`⚠️ Detected ${gaps.length} timeline gaps in clip groups`);
+            gaps.forEach((gap, index) => {
+                console.log(`  Gap ${index + 1}: ${Math.round(gap.duration/1000)}s between clips ${gap.beforeIndex + 1} and ${gap.afterIndex + 1}`);
+            });
+        }
+    }
+
+    /**
+     * Detect gaps between clip groups
+     */
+    private detectTimelineGaps(clipGroups: TeslaClipGroup[]): Array<{
+        beforeIndex: number;
+        afterIndex: number;
+        duration: number;
+        startTime: Date;
+        endTime: Date;
+    }> {
+        const gaps = [];
+
+        for (let i = 0; i < clipGroups.length - 1; i++) {
+            const currentGroup = clipGroups[i];
+            const nextGroup = clipGroups[i + 1];
+            
+            // Skip if either group is undefined (shouldn't happen but TypeScript safety)
+            if (!currentGroup || !nextGroup) continue;
+            
+            // Calculate expected end time of current clip
+            const currentEndTime = new Date(currentGroup.timestamp.getTime() + (currentGroup.duration * 1000));
+            const nextStartTime = nextGroup.timestamp;
+            
+            const gapDuration = nextStartTime.getTime() - currentEndTime.getTime();
+            
+            // If gap is larger than 5 seconds, consider it a timeline gap
+            if (gapDuration > 5000) {
+                gaps.push({
+                    beforeIndex: i,
+                    afterIndex: i + 1,
+                    duration: gapDuration,
+                    startTime: currentEndTime,
+                    endTime: nextStartTime
+                });
+            }
+        }
+
+        return gaps;
     }
 
     /**
