@@ -2071,9 +2071,57 @@ class SentrySixApp {
         const timelapseSpeed = document.getElementById('timelapse-speed');
 
         timelapseToggle?.addEventListener('change', (e) => {
+            const isTimelapseEnabled = e.target.checked;
+            const timestampEnabled = document.getElementById('timestamp-overlay-enabled');
+
+            console.log('🎬 Timelapse toggle changed:', isTimelapseEnabled);
+            console.log('🎬 Timestamp element found:', !!timestampEnabled);
+
+            // Show/hide timelapse settings
             if (timelapseSettings) {
-                timelapseSettings.classList.toggle('hidden', !e.target.checked);
+                timelapseSettings.classList.toggle('hidden', !isTimelapseEnabled);
             }
+
+            // Auto-disable/enable timestamps based on timelapse mode
+            if (timestampEnabled) {
+                if (isTimelapseEnabled) {
+                    // Store the previous state so we can restore it later
+                    if (!timestampEnabled.hasAttribute('data-previous-state')) {
+                        timestampEnabled.setAttribute('data-previous-state', timestampEnabled.checked);
+                    }
+                    timestampEnabled.checked = false;
+                    timestampEnabled.disabled = true;
+
+                    // Add visual indication that timestamps are disabled for timelapse
+                    const timestampOption = timestampEnabled.closest('.export-option');
+                    if (timestampOption) {
+                        timestampOption.classList.add('disabled');
+                        timestampOption.title = 'Timestamps are automatically disabled during timelapse export';
+                    }
+
+                    console.log('🎬 Timelapse enabled: Auto-disabled timestamps');
+                } else {
+                    // Re-enable timestamps and restore previous state
+                    timestampEnabled.disabled = false;
+
+                    // Remove visual indication
+                    const timestampOption = timestampEnabled.closest('.export-option');
+                    if (timestampOption) {
+                        timestampOption.classList.remove('disabled');
+                        timestampOption.title = '';
+                    }
+
+                    // Restore previous state if it was stored
+                    const previousState = timestampEnabled.getAttribute('data-previous-state');
+                    if (previousState !== null) {
+                        timestampEnabled.checked = previousState === 'true';
+                        timestampEnabled.removeAttribute('data-previous-state');
+                    }
+
+                    console.log('🎬 Timelapse disabled: Re-enabled timestamps');
+                }
+            }
+
             this.updateTimelapsePreview();
             this.updateExportEstimates();
         });
@@ -2895,43 +2943,79 @@ class SentrySixApp {
         const timelapseSpeed = document.getElementById('timelapse-speed')?.value;
         const previewText = document.getElementById('timelapse-preview-text');
 
-        if (!previewText || !timelapseEnabled) return;
+        if (!previewText) return;
+
+        if (!timelapseEnabled) {
+            previewText.textContent = 'Enable timelapse to see preview calculations';
+            previewText.className = 'timelapse-preview-text';
+            return;
+        }
 
         // Get current export duration
         const startTime = this.exportStartTime || 0;
         const endTime = this.exportEndTime || (this.currentTimeline?.totalDuration || 0);
         const exportDurationMs = endTime - startTime;
-        const exportDurationMinutes = Math.round(exportDurationMs / 60000 * 10) / 10; // Round to 1 decimal
 
-        if (timelapseSpeed && exportDurationMs > 0) {
-            const speedMultiplier = parseInt(timelapseSpeed);
-            const timelapseSeconds = Math.round(exportDurationMs / 1000 / speedMultiplier * 10) / 10;
+        if (!timelapseSpeed || exportDurationMs <= 0) {
+            previewText.textContent = 'Select export range to see timelapse preview';
+            previewText.className = 'timelapse-preview-text warning';
+            return;
+        }
 
-            // Format the preview text
-            let durationText;
-            if (exportDurationMinutes < 1) {
-                const seconds = Math.round(exportDurationMs / 1000);
-                durationText = `${seconds} second${seconds !== 1 ? 's' : ''}`;
-            } else if (exportDurationMinutes < 60) {
-                durationText = `${exportDurationMinutes} minute${exportDurationMinutes !== 1 ? 's' : ''}`;
-            } else {
-                const hours = Math.floor(exportDurationMinutes / 60);
-                const minutes = Math.round(exportDurationMinutes % 60);
-                durationText = `${hours}h ${minutes}m`;
-            }
+        const speedMultiplier = parseInt(timelapseSpeed);
+        const exportDurationSeconds = exportDurationMs / 1000;
+        const timelapseOutputSeconds = exportDurationSeconds / speedMultiplier;
 
-            let timelapseText;
-            if (timelapseSeconds < 60) {
-                timelapseText = `${timelapseSeconds} second${timelapseSeconds !== 1 ? 's' : ''}`;
-            } else {
-                const minutes = Math.floor(timelapseSeconds / 60);
-                const seconds = Math.round(timelapseSeconds % 60);
-                timelapseText = `${minutes}m ${seconds}s`;
-            }
+        // Calculate estimated file size
+        const selectedCameras = Array.from(document.querySelectorAll('.camera-toggle input:checked')).length;
+        const quality = document.querySelector('input[name="quality"]:checked')?.value || 'mobile';
 
-            previewText.textContent = `Preview: ${durationText} export → ${timelapseText} timelapse (${speedMultiplier}x speed)`;
+        let baseSizePerSecond;
+        if (quality === 'full') {
+            baseSizePerSecond = selectedCameras <= 2 ? 1.5 :
+                               selectedCameras <= 4 ? 2.2 :
+                               selectedCameras <= 6 ? 3.2 : 3.8; // MB per second
         } else {
-            previewText.textContent = 'Preview: Select export range to see timelapse duration';
+            baseSizePerSecond = selectedCameras <= 2 ? 0.5 :
+                               selectedCameras <= 4 ? 0.8 :
+                               selectedCameras <= 6 ? 1.2 : 1.5; // MB per second
+        }
+
+        // Timelapse compression factor (timelapse videos compress better)
+        const compressionFactor = 0.7;
+        const estimatedSizeMB = Math.round(timelapseOutputSeconds * baseSizePerSecond * compressionFactor);
+
+        // Calculate processing time estimate
+        const processingMultiplier = this.hardwareAcceleration ? 0.3 : 0.8; // Hardware acceleration is much faster
+        const estimatedProcessingMinutes = Math.round(exportDurationSeconds / 60 * processingMultiplier);
+
+        // Format durations
+        const inputDuration = this.formatDuration(exportDurationSeconds);
+        const outputDuration = this.formatDuration(timelapseOutputSeconds);
+        const processingTime = this.formatDuration(estimatedProcessingMinutes * 60);
+
+        // Create comprehensive preview
+        const preview = [
+            `📹 Input: ${inputDuration} → Output: ${outputDuration} (${speedMultiplier}x speed)`,
+            `📁 Estimated size: ${estimatedSizeMB}MB (${selectedCameras} cameras, ${quality} quality)`,
+            `⏱️ Processing time: ~${processingTime}${this.hardwareAcceleration ? ' (HW accelerated)' : ''}`
+        ].join('\n');
+
+        previewText.textContent = preview;
+        previewText.className = 'timelapse-preview-text success';
+    }
+
+    formatDuration(seconds) {
+        if (seconds < 60) {
+            return `${Math.round(seconds)}s`;
+        } else if (seconds < 3600) {
+            const mins = Math.floor(seconds / 60);
+            const secs = Math.round(seconds % 60);
+            return secs > 0 ? `${mins}m ${secs}s` : `${mins}m`;
+        } else {
+            const hours = Math.floor(seconds / 3600);
+            const mins = Math.round((seconds % 3600) / 60);
+            return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
         }
     }
 
@@ -2987,10 +3071,11 @@ class SentrySixApp {
         // Apply timelapse compression factor
         const estimatedSize = Math.round((finalDuration / 60) * baseSizePerMinute * durationFactor * timelapseMultiplier);
 
-        // Estimate processing time (timelapse may take longer due to frame processing)
-        const baseProcessingTime = exportDuration * 0.5; // Assume 0.5x real-time processing
+        // Estimate processing time with hardware acceleration consideration
+        const hwAccelMultiplier = this.hardwareAcceleration ? 0.3 : 0.8; // Hardware acceleration is much faster
+        const baseProcessingTime = exportDuration * hwAccelMultiplier;
         const processingTime = timelapseEnabled ?
-            Math.round(baseProcessingTime * 1.2) : // Timelapse adds 20% processing time
+            Math.round(baseProcessingTime * 1.1) : // Timelapse adds 10% processing time
             Math.round(baseProcessingTime);
 
         fileSizeElement.textContent = `~${estimatedSize} MB`;

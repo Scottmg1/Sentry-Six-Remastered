@@ -1182,9 +1182,20 @@ class SentrySixApp {
                         const centiseconds = parseInt(timeMatch[4]);
                         
                         const currentProgressSeconds = (hours * 3600) + (minutes * 60) + seconds + (centiseconds / 100);
-                        const percentage = Math.max(0, Math.min(90, Math.floor((currentProgressSeconds / durationSeconds) * 100)));
+
+                        // Use timelapse-adjusted duration for progress calculation
+                        let progressDuration = durationSeconds;
+                        if (timelapse && timelapse.enabled && timelapse.speed) {
+                            const speedMultiplier = parseInt(timelapse.speed);
+                            progressDuration = durationSeconds / speedMultiplier;
+                            console.log(`🎬 Progress: Using timelapse duration ${progressDuration.toFixed(2)}s instead of ${durationSeconds}s`);
+                        }
+
+                        const percentage = Math.max(0, Math.min(90, Math.floor((currentProgressSeconds / progressDuration) * 100)));
                         
-                        console.log(`[Progress] Time: ${hours}:${minutes}:${seconds}.${centiseconds}, Progress: ${percentage}%`);
+                        const isTimelapseExport = timelapse && timelapse.enabled && timelapse.speed;
+                        const progressType = isTimelapseExport ? 'Timelapse' : 'Standard';
+                        console.log(`[${progressType} Progress] Time: ${hours}:${minutes}:${seconds}.${centiseconds}, Progress: ${percentage}% (${currentProgressSeconds.toFixed(1)}s/${progressDuration.toFixed(1)}s)`);
                         
                         // Only update if progress has increased
                         if (percentage > lastProgressUpdate) {
