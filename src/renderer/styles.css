@@ -1042,6 +1042,76 @@ body {
     font-size: 12px;
 }
 
+/* Timelapse Options */
+.timelapse-options {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.timelapse-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #cccccc;
+    cursor: pointer;
+}
+
+.timelapse-toggle input[type="checkbox"] {
+    transform: scale(1.1);
+}
+
+.timelapse-settings {
+    margin-left: 24px;
+    padding: 12px;
+    background: #333333;
+    border-radius: 6px;
+    border-left: 3px solid #007acc;
+}
+
+.timelapse-settings.hidden {
+    display: none;
+}
+
+.timelapse-speed-selection {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+    color: #cccccc;
+}
+
+.timelapse-speed-selection label {
+    font-weight: 500;
+    min-width: 120px;
+}
+
+.timelapse-speed-selection select {
+    background: #444444;
+    color: #ffffff;
+    border: 1px solid #555555;
+    border-radius: 4px;
+    padding: 8px 12px;
+    font-size: 13px;
+    min-width: 280px;
+}
+
+.timelapse-speed-selection select:focus {
+    outline: none;
+    border-color: #007acc;
+    box-shadow: 0 0 0 2px rgba(0, 122, 204, 0.2);
+}
+
+.timelapse-preview {
+    margin-top: 8px;
+}
+
+.timelapse-preview small {
+    color: #999999;
+    font-style: italic;
+    font-size: 12px;
+}
+
 /* Export Information */
 .export-info {
     background: #333333;

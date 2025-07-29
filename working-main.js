@@ -615,7 +615,10 @@ class SentrySixApp {
         const { spawn } = require('child_process');
         const fs = require('fs');
         const os = require('os');
-        const { timeline, startTime, endTime, quality, cameras, timestamp, outputPath, hwaccel } = exportData;
+        const { timeline, startTime, endTime, quality, cameras, timestamp, outputPath, hwaccel, timelapse } = exportData;
+
+        // Debug: Log timelapse data received
+        console.log('🎬 Timelapse data received:', timelapse);
 
         // Initialize tempFiles array for cleanup
         const tempFiles = [];
@@ -752,29 +755,48 @@ class SentrySixApp {
 
                     const concatFilePath = path.join(os.tmpdir(), `tesla_export_${camera}_${Date.now()}.txt`);
                     
-                    // Create concat content with proper timing
-                    const concatContent = cameraClips.map(clip => {
-                        const clipStartInExport = Math.max(0, clip.clipRelativeStart - startTime);
-                        const clipEndInExport = Math.min(endTime - startTime, clip.clipRelativeStart + clip.clipDuration - startTime);
-                        
-                        // Skip clips that don't contribute to the export
-                        if (clipEndInExport <= 0 || clipStartInExport >= (endTime - startTime)) {
-                            return null;
-                        }
+                    // Create simplified concat content for better timelapse reliability
+                    const isTimelapseExport = timelapse && timelapse.enabled && timelapse.speed;
 
-                        // Calculate the offset within this specific clip
-                        const clipOffset = Math.max(0, startTime - clip.clipRelativeStart) / 1000;
-                        const clipDuration = (clipEndInExport - clipStartInExport) / 1000;
+                    let concatContent;
+                    if (isTimelapseExport) {
+                        // Timelapse-specific: Use simple file listing without complex timing
+                        // The PTS filter will handle the speed adjustment
+                        console.log(`🎬 Creating timelapse-optimized concat for ${camera}`);
+                        concatContent = cameraClips.map(clip => {
+                            console.log(`📹 Camera ${camera} timelapse clip: ${clip.path}`);
+                            return `file '${clip.path.replace(/\\/g, '/')}'`; // Forward slashes for Windows compatibility
+                        }).join('\n');
+                    } else {
+                        // Standard export: Use the complex timing logic
+                        concatContent = cameraClips.map(clip => {
+                            const clipStartInExport = Math.max(0, clip.clipRelativeStart - startTime);
+                            const clipEndInExport = Math.min(endTime - startTime, clip.clipRelativeStart + clip.clipDuration - startTime);
 
-                        console.log(`📹 Camera ${camera} clip ${clip.timelineIndex}: ${clip.path}, offset: ${clipOffset}s, duration: ${clipDuration}s`);
+                            // Skip clips that don't contribute to the export
+                            if (clipEndInExport <= 0 || clipStartInExport >= (endTime - startTime)) {
+                                return null;
+                            }
 
-                        // Use inpoint and outpoint to handle timing within the concat demuxer
-                        // Add duration directive for better synchronization
-                        return `file '${clip.path}'\ninpoint ${clipOffset}\noutpoint ${clipOffset + clipDuration}\nduration ${clipDuration}`;
-                    }).filter(Boolean).join('\n');
+                            // Calculate the offset within this specific clip
+                            const clipOffset = Math.max(0, startTime - clip.clipRelativeStart) / 1000;
+                            const clipDuration = (clipEndInExport - clipStartInExport) / 1000;
 
-                    fs.writeFileSync(concatFilePath, concatContent);
-                    tempFiles.push(concatFilePath);
+                            console.log(`📹 Camera ${camera} clip ${clip.timelineIndex}: ${clip.path}, offset: ${clipOffset}s, duration: ${clipDuration}s`);
+
+                            // Use inpoint and outpoint to handle timing within the concat demuxer
+                            return `file '${clip.path}'\ninpoint ${clipOffset}\noutpoint ${clipOffset + clipDuration}\nduration ${clipDuration}`;
+                        }).filter(Boolean).join('\n');
+                    }
+
+                    try {
+                        fs.writeFileSync(concatFilePath, concatContent, { encoding: 'utf8', mode: 0o644 });
+                        tempFiles.push(concatFilePath);
+                        console.log(`✅ Created ${isTimelapseExport ? 'timelapse-optimized' : 'standard'} concat file: ${concatFilePath}`);
+                    } catch (error) {
+                        console.error(`❌ Failed to create concat file for ${camera}:`, error);
+                        throw new Error(`Failed to create concat file for ${camera}: ${error.message}`);
+                    }
 
                     // Calculate offset for the concatenated stream
                     const firstClipStart = cameraClips[0].clipRelativeStart;
@@ -840,11 +862,19 @@ class SentrySixApp {
             for (let i = 0; i < inputs.length; i++) {
                 const input = inputs[i];
 
-                // Apply camera-specific sync adjustments
+                // Apply camera-specific sync adjustments and timelapse speed
                 let ptsFilter = 'setpts=PTS-STARTPTS';
-                
-                // No sync adjustments - let all cameras play at natural timing
-                console.log(`🔍 No sync adjustment for ${input.camera} - using natural timing`);
+
+                // Apply timelapse speed if enabled
+                console.log(`🎬 Debug: timelapse=${JSON.stringify(timelapse)}, input.camera=${input.camera}`);
+                if (timelapse && timelapse.enabled && timelapse.speed) {
+                    const speedMultiplier = parseInt(timelapse.speed);
+                    const ptsValue = 1.0 / speedMultiplier;
+                    ptsFilter = `setpts=${ptsValue}*PTS`;
+                    console.log(`🎬 Applying ${speedMultiplier}x timelapse speed to ${input.camera} (PTS=${ptsValue})`);
+                } else {
+                    console.log(`🔍 No timelapse for ${input.camera} - using natural timing (enabled=${timelapse?.enabled}, speed=${timelapse?.speed})`);
+                }
 
                 // Check if camera should be mirrored (Tesla back and repeater cameras are mirrored)
                 const isMirroredCamera = ['back', 'left_repeater', 'right_repeater'].includes(input.camera);
@@ -867,9 +897,19 @@ class SentrySixApp {
             if (cameraStreams.length > 1) {
                 console.log(`🔍 Adding frame rate synchronization for ${cameraStreams.length} cameras`);
                 
-                // Force all streams to 30fps for consistent timing
+                // Calculate optimal frame rate for timelapse or use standard 30fps
+                let targetFPS = 30;
+                if (timelapse && timelapse.enabled && timelapse.speed) {
+                    const speedMultiplier = parseInt(timelapse.speed);
+                    // For timelapse, we can use higher frame rates for smoother playback
+                    // But cap it at 60fps to avoid excessive processing
+                    targetFPS = Math.min(60, Math.max(24, 30 * Math.log10(speedMultiplier)));
+                    console.log(`🎬 Using ${targetFPS}fps for ${speedMultiplier}x timelapse`);
+                }
+
+                // Force all streams to target fps for consistent timing
                 const fpsSyncFilters = cameraStreams.map((stream, index) => {
-                    return `${stream}fps=fps=30:round=near[fps${index}]`;
+                    return `${stream}fps=fps=${targetFPS}:round=near[fps${index}]`;
                 });
                 
                 // Update camera streams to use fps-synchronized versions
@@ -1022,19 +1062,17 @@ class SentrySixApp {
                             ['-c:v', 'h264_nvenc', '-preset', 'medium', '-cq', '20'];
                         break;
                     case 'h264_amf':
-                        vCodec = quality === 'mobile' ?
-                            ['-c:v', 'h264_amf', '-pix_fmt', 'yuv420p', '-rc', 'cqp', '-qp_i', '28', '-qp_p', '28'] :
-                            ['-c:v', 'h264_amf', '-pix_fmt', 'yuv420p', '-rc', 'cqp', '-qp_i', '22', '-qp_p', '22'];
+                        vCodec = ['-c:v', 'h264_amf', '-pix_fmt', 'yuv420p', '-rc', 'cqp', '-qp_i', '22', '-qp_p', '22'];
                         break;
                     case 'h264_qsv':
                         vCodec = quality === 'mobile' ?
-                            ['-c:v', 'h264_qsv', '-preset', 'fast', '-global_quality', '30'] :
-                            ['-c:v', 'h264_qsv', '-preset', 'medium', '-global_quality', '23'];
+                            ['-c:v', 'h264_qsv', '-preset', 'fast', '-global_quality', '25'] :
+                            ['-c:v', 'h264_qsv', '-preset', 'medium', '-global_quality', '20'];
                         break;
                     case 'h264_videotoolbox':
                         vCodec = quality === 'mobile' ?
-                            ['-c:v', 'h264_videotoolbox', '-q:v', '70'] :
-                            ['-c:v', 'h264_videotoolbox', '-q:v', '60'];
+                            ['-c:v', 'h264_videotoolbox', '-q:v', '65'] :
+                            ['-c:v', 'h264_videotoolbox', '-q:v', '55'];
                         break;
                     default:
                         // Fallback to software encoding
@@ -1050,8 +1088,20 @@ class SentrySixApp {
                     ['-c:v', 'libx264', '-preset', 'medium', '-crf', '18'];
             }
             
-            // Use the calculated duration for the export
-            cmd.push('-t', durationSeconds.toString(), ...vCodec, '-r', '30', outputPath); // Force output to 30fps
+            // Calculate final output frame rate and duration
+            let outputFPS = 30;
+            let outputDuration = durationSeconds;
+
+            if (timelapse && timelapse.enabled && timelapse.speed) {
+                const speedMultiplier = parseInt(timelapse.speed);
+                // For timelapse, adjust duration and frame rate
+                outputDuration = durationSeconds / speedMultiplier;
+                outputFPS = Math.min(60, Math.max(24, 30 * Math.log10(speedMultiplier)));
+                console.log(`🎬 Timelapse output: ${outputDuration.toFixed(2)}s duration at ${outputFPS}fps (${speedMultiplier}x speed)`);
+            }
+
+            // Use the calculated duration and frame rate for the export
+            cmd.push('-t', outputDuration.toString(), ...vCodec, '-r', outputFPS.toString(), outputPath);
             
             console.log('🚀 FFmpeg command:', cmd.join(' '));
 

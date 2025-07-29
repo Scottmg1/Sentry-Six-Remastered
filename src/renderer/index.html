@@ -458,6 +458,35 @@
                     </div>
 
                     <div class="export-section">
+                        <h3>Timelapse Options</h3>
+                        <div class="timelapse-options">
+                            <label class="timelapse-toggle">
+                                <input type="checkbox" id="timelapse-enabled">
+                                <span>Export as Timelapse</span>
+                            </label>
+                            <div id="timelapse-settings" class="timelapse-settings hidden">
+                                <div class="timelapse-speed-selection">
+                                    <label for="timelapse-speed">Timelapse Speed:</label>
+                                    <select id="timelapse-speed">
+                                        <option value="4">4x Speed (Quarter time)</option>
+                                        <option value="8">8x Speed (Eighth time)</option>
+                                        <option value="16">16x Speed</option>
+                                        <option value="30">30x Speed</option>
+                                        <option value="60" selected>60x Speed (1 minute → 1 second)</option>
+                                        <option value="120">120x Speed (2 minutes → 1 second)</option>
+                                        <option value="300">300x Speed (5 minutes → 1 second)</option>
+                                        <option value="600">600x Speed (10 minutes → 1 second)</option>
+                                        <option value="1200">1200x Speed (20 minutes → 1 second)</option>
+                                    </select>
+                                </div>
+                                <div class="timelapse-preview">
+                                    <small id="timelapse-preview-text">Preview: 20 minute export → 20 second timelapse</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="export-section">
                         <h3>Export Information</h3>
                         <div class="export-info">
                             <div class="info-row">
