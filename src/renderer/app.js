@@ -16,6 +16,7 @@ class SentrySixApp {
         this.isLoadingClip = false; // Flag to prevent timeline updates during clip loading
         this.isAutoAdvancing = false; // Flag to prevent multiple rapid auto-advancements
         this.isSeekingTimeline = false; // Flag to prevent timeline updates during manual seeking
+        this.isDraggingMarker = false; // Flag to prevent timeline updates during marker dragging
         this.seekTimeout = null; // Debounce timer for seeking
         this.eventMarkers = []; // Store event markers for timeline
         this.eventTooltip = null; // Event tooltip element
@@ -888,7 +889,12 @@ class SentrySixApp {
             }, 100);
         }
 
-        // Don't update timeline position here - it's already set to continuous position in seekToPosition
+        // Set the current position for timeline display
+        // Convert actual position to continuous position for display
+        const continuousPosition = this.actualToContinuousPosition(globalPositionMs);
+        this.currentTimeline.currentPosition = continuousPosition;
+        
+        // Update timeline display with the correct position
         this.updateTimelineDisplay();
     }
 
@@ -1275,9 +1281,9 @@ class SentrySixApp {
     }
 
     handleTimeUpdate(event) {
-        // Don't update timeline position while user is seeking
-        if (this.isSeekingTimeline || this.isUpdatingTimeline) {
-            console.log('🚫 Blocked timeline update during seeking');
+        // Don't update timeline position while user is seeking or dragging markers
+        if (this.isSeekingTimeline || this.isUpdatingTimeline || this.isDraggingMarker) {
+            console.log('🚫 Blocked timeline update during seeking or marker dragging');
             return;
         }
 
@@ -2523,6 +2529,7 @@ class SentrySixApp {
 
         marker.addEventListener('mousedown', (e) => {
             isDragging = true;
+            this.isDraggingMarker = true; // Set flag to prevent timeline updates
             marker.style.cursor = 'grabbing';
             e.preventDefault();
 
@@ -2538,12 +2545,21 @@ class SentrySixApp {
                 this.exportMarkers[type] = actualPosition;
                 
                 this.updateExportMarkers();
-                this.seekToGlobalPosition(continuousPosition);
+                
+                // Use the correct seeking method based on timeline type
+                if (this.currentTimeline && this.currentTimeline.accurateTimeline) {
+                    // Use accurate timeline seeking for continuous position
+                    this.seekToAccurateGlobalPosition(actualPosition);
+                } else {
+                    // Fallback to legacy seeking method
+                    this.seekToGlobalPosition(continuousPosition);
+                }
             };
 
             upListener = () => {
                 if (isDragging) {
                     isDragging = false;
+                    this.isDraggingMarker = false; // Clear flag to allow timeline updates
                     marker.style.cursor = 'grab';
                     this.updateExportControlsState();
                     document.removeEventListener('mousemove', dragListener);
