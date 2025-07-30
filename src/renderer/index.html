@@ -356,14 +356,67 @@
                     <button id="close-export-modal" class="close-btn">×</button>
                 </div>
                 <div class="modal-body">
+                    <!-- 1. Export Data (full width) - Combine Export Range and Export Information -->
                     <div class="export-section">
-                        <h3>Export Range</h3>
-                        <div class="export-range-info">
-                            <span id="export-range-display">Full Timeline</span>
-                            <span id="export-duration-display"></span>
+                        <div class="settings-row">
+                            <div class="settings-column">
+                                <h3>Export Range</h3>
+                                <div class="export-range-info">
+                                    <span id="export-range-display">Full Timeline</span>
+                                    <span id="export-duration-display"></span>
+                                </div>
+                            </div>
+                            <div class="settings-column">
+                                <h3>Export Information</h3>
+                                <div class="export-info">
+                                    <div class="info-row">
+                                        <span>Estimated file size:</span>
+                                        <span id="estimated-file-size">Calculating...</span>
+                                    </div>
+                                    <div class="info-row">
+                                        <span>Export duration:</span>
+                                        <span id="export-duration-estimate">Calculating...</span>
+                                    </div>
+                                    <div style="font-size:12px; color:#666; margin-top:2px;">Actual export time may vary depending on your machine's performance.</div>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
+                    <!-- 2. Camera Layout (full width) - Keep as-is -->
+                    <div class="export-section">
+                        <h3>Camera Layout</h3>
+                        <div class="camera-layout-preview">
+                            <div class="camera-grid">
+                                <div class="camera-slot" data-camera="left_pillar">
+                                    <span class="camera-label">Left Pillar</span>
+                                    <input type="checkbox" class="camera-export-toggle" checked>
+                                </div>
+                                <div class="camera-slot" data-camera="front">
+                                    <span class="camera-label">Front</span>
+                                    <input type="checkbox" class="camera-export-toggle" checked>
+                                </div>
+                                <div class="camera-slot" data-camera="right_pillar">
+                                    <span class="camera-label">Right Pillar</span>
+                                    <input type="checkbox" class="camera-export-toggle" checked>
+                                </div>
+                                <div class="camera-slot" data-camera="left_repeater">
+                                    <span class="camera-label">Left Repeater</span>
+                                    <input type="checkbox" class="camera-export-toggle" checked>
+                                </div>
+                                <div class="camera-slot" data-camera="back">
+                                    <span class="camera-label">Back</span>
+                                    <input type="checkbox" class="camera-export-toggle" checked>
+                                </div>
+                                <div class="camera-slot" data-camera="right_repeater">
+                                    <span class="camera-label">Right Repeater</span>
+                                    <input type="checkbox" class="camera-export-toggle" checked>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 3. Quality Settings | Hardware Acceleration (side by side) - Already correctly positioned -->
                     <div class="export-section">
                         <div class="settings-row">
                             <div class="settings-column">
@@ -404,100 +457,60 @@
                         </div>
                     </div>
 
+                    <!-- 4. Timelapse Options | Timestamp Overlay (side by side) - Moved to be adjacent -->
                     <div class="export-section">
-                        <h3>Camera Layout</h3>
-                        <div class="camera-layout-preview">
-                            <div class="camera-grid">
-                                <div class="camera-slot" data-camera="left_pillar">
-                                    <span class="camera-label">Left Pillar</span>
-                                    <input type="checkbox" class="camera-export-toggle" checked>
-                                </div>
-                                <div class="camera-slot" data-camera="front">
-                                    <span class="camera-label">Front</span>
-                                    <input type="checkbox" class="camera-export-toggle" checked>
-                                </div>
-                                <div class="camera-slot" data-camera="right_pillar">
-                                    <span class="camera-label">Right Pillar</span>
-                                    <input type="checkbox" class="camera-export-toggle" checked>
-                                </div>
-                                <div class="camera-slot" data-camera="left_repeater">
-                                    <span class="camera-label">Left Repeater</span>
-                                    <input type="checkbox" class="camera-export-toggle" checked>
-                                </div>
-                                <div class="camera-slot" data-camera="back">
-                                    <span class="camera-label">Back</span>
-                                    <input type="checkbox" class="camera-export-toggle" checked>
-                                </div>
-                                <div class="camera-slot" data-camera="right_repeater">
-                                    <span class="camera-label">Right Repeater</span>
-                                    <input type="checkbox" class="camera-export-toggle" checked>
+                        <div class="settings-row">
+                            <div class="settings-column">
+                                <h3>Timelapse Options</h3>
+                                <div class="timelapse-options">
+                                    <label class="timelapse-toggle">
+                                        <input type="checkbox" id="timelapse-enabled">
+                                        <span>Export as Timelapse</span>
+                                    </label>
+                                    <div id="timelapse-settings" class="timelapse-settings hidden">
+                                        <div class="timelapse-speed-selection">
+                                            <label for="timelapse-speed">Timelapse Speed:</label>
+                                            <div class="timelapse-speed-dropdown">
+                                                <select id="timelapse-speed">
+                                                    <option value="4">4x Speed (Quarter time)</option>
+                                                    <option value="8">8x Speed (Eighth time)</option>
+                                                    <option value="16">16x Speed</option>
+                                                    <option value="30">30x Speed</option>
+                                                    <option value="60" selected>60x Speed (1 minute → 1 second)</option>
+                                                    <option value="120">120x Speed (2 minutes → 1 second)</option>
+                                                    <option value="300">300x Speed (5 minutes → 1 second)</option>
+                                                    <option value="600">600x Speed (10 minutes → 1 second)</option>
+                                                    <option value="1200">1200x Speed (20 minutes → 1 second)</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                        <div class="timelapse-preview">
+                                            <small id="timelapse-preview-text">Preview: 20 minute export → 20 second timelapse</small>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                    </div>
 
-                    <div class="export-section">
-                        <h3>Timestamp Overlay</h3>
-                        <div class="timestamp-options">
-                            <label class="timestamp-toggle">
-                                <input type="checkbox" id="timestamp-overlay-enabled" checked>
-                                <span>Show timestamp overlay</span>
-                            </label>
-                            <div class="timestamp-position">
-                                <label for="timestamp-position">Position:</label>
-                                <select id="timestamp-position">
-                                    <option value="bottom-center" selected>Bottom Center</option>
-                                    <option value="bottom-left">Bottom Left</option>
-                                    <option value="bottom-right">Bottom Right</option>
-                                    <option value="top-center">Top Center</option>
-                                    <option value="top-left">Top Left</option>
-                                    <option value="top-right">Top Right</option>
-                                </select>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="export-section">
-                        <h3>Timelapse Options</h3>
-                        <div class="timelapse-options">
-                            <label class="timelapse-toggle">
-                                <input type="checkbox" id="timelapse-enabled">
-                                <span>Export as Timelapse</span>
-                            </label>
-                            <div id="timelapse-settings" class="timelapse-settings hidden">
-                                <div class="timelapse-speed-selection">
-                                    <label for="timelapse-speed">Timelapse Speed:</label>
-                                    <select id="timelapse-speed">
-                                        <option value="4">4x Speed (Quarter time)</option>
-                                        <option value="8">8x Speed (Eighth time)</option>
-                                        <option value="16">16x Speed</option>
-                                        <option value="30">30x Speed</option>
-                                        <option value="60" selected>60x Speed (1 minute → 1 second)</option>
-                                        <option value="120">120x Speed (2 minutes → 1 second)</option>
-                                        <option value="300">300x Speed (5 minutes → 1 second)</option>
-                                        <option value="600">600x Speed (10 minutes → 1 second)</option>
-                                        <option value="1200">1200x Speed (20 minutes → 1 second)</option>
-                                    </select>
-                                </div>
-                                <div class="timelapse-preview">
-                                    <small id="timelapse-preview-text">Preview: 20 minute export → 20 second timelapse</small>
+                            <div class="settings-column">
+                                <h3>Timestamp Overlay</h3>
+                                <div class="timestamp-options">
+                                    <label class="timestamp-toggle">
+                                        <input type="checkbox" id="timestamp-overlay-enabled" checked>
+                                        <span>Show timestamp overlay</span>
+                                    </label>
+                                    <div class="timestamp-position">
+                                        <label for="timestamp-position">Position:</label>
+                                        <select id="timestamp-position">
+                                            <option value="bottom-center" selected>Bottom Center</option>
+                                            <option value="bottom-left">Bottom Left</option>
+                                            <option value="bottom-right">Bottom Right</option>
+                                            <option value="top-center">Top Center</option>
+                                            <option value="top-left">Top Left</option>
+                                            <option value="top-right">Top Right</option>
+                                        </select>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                    </div>
-
-                    <div class="export-section">
-                        <h3>Export Information</h3>
-                        <div class="export-info">
-                            <div class="info-row">
-                                <span>Estimated file size:</span>
-                                <span id="estimated-file-size">Calculating...</span>
-                            </div>
-                            <div class="info-row">
-                                <span>Export duration:</span>
-                                <span id="export-duration-estimate">Calculating...</span>
-                            </div>
-                            <div style="font-size:12px; color:#666; margin-top:2px;">Actual export time may vary depending on your machine's performance.</div>
                         </div>
                     </div>
 

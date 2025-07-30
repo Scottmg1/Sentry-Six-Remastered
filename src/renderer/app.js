@@ -2783,6 +2783,92 @@ class SentrySixApp {
         }
     }
 
+    calculateActualFootageDuration(startPos, endPos) {
+        // Calculate the actual footage duration within the export range, excluding gaps
+        if (!this.currentTimeline || !this.currentTimeline.clips) {
+            return Math.floor((endPos - startPos) / 1000); // Fallback to total span
+        }
+
+        let totalFootageDuration = 0;
+        const clips = this.currentTimeline.clips;
+
+        // Use accurate timeline logic if available
+        if (this.currentTimeline.accurateTimeline && this.currentTimeline.sortedClips) {
+            const sortedClips = this.currentTimeline.sortedClips;
+            const timelineStartTime = this.currentTimeline.startTime.getTime();
+
+            for (let i = 0; i < sortedClips.length; i++) {
+                const clip = sortedClips[i];
+                if (!clip || !clip.timestamp) continue;
+
+                // Calculate clip position using accurate timeline logic
+                const clipStartTime = new Date(clip.timestamp).getTime();
+                const clipRelativeStart = clipStartTime - timelineStartTime;
+
+                // Use actual duration if available, otherwise default to 60 seconds
+                let clipDuration = 60000; // Default 60 seconds in milliseconds
+                if (this.currentTimeline.actualDurations && this.currentTimeline.actualDurations[i]) {
+                    clipDuration = this.currentTimeline.actualDurations[i];
+                } else if (clip.duration) {
+                    clipDuration = clip.duration * 1000; // Convert to milliseconds
+                }
+
+                const clipRelativeEnd = clipRelativeStart + clipDuration;
+
+                // Check if clip overlaps with export range
+                const clipOverlaps = (clipRelativeStart < endPos) && (clipRelativeEnd > startPos);
+
+                if (clipOverlaps) {
+                    // Calculate the overlapping portion
+                    const overlapStart = Math.max(clipRelativeStart, startPos);
+                    const overlapEnd = Math.min(clipRelativeEnd, endPos);
+                    const overlapDuration = overlapEnd - overlapStart;
+
+                    if (overlapDuration > 0) {
+                        totalFootageDuration += overlapDuration;
+                        console.log(`📹 Clip ${i} contributes ${Math.round(overlapDuration/1000)}s to export range`);
+                    }
+                }
+            }
+        } else {
+            // Fallback to legacy sequential positioning
+            let currentPosition = 0;
+
+            for (let i = 0; i < clips.length; i++) {
+                const clip = clips[i];
+                if (!clip) continue;
+
+                const clipDuration = (clip.duration || 60) * 1000; // Convert to milliseconds
+                const clipRelativeStart = currentPosition;
+                const clipRelativeEnd = currentPosition + clipDuration;
+
+                // Check if clip overlaps with export range
+                const clipOverlaps = (clipRelativeStart < endPos) && (clipRelativeEnd > startPos);
+
+                if (clipOverlaps) {
+                    // Calculate the overlapping portion
+                    const overlapStart = Math.max(clipRelativeStart, startPos);
+                    const overlapEnd = Math.min(clipRelativeEnd, endPos);
+                    const overlapDuration = overlapEnd - overlapStart;
+
+                    if (overlapDuration > 0) {
+                        totalFootageDuration += overlapDuration;
+                    }
+                }
+
+                currentPosition += clipDuration;
+            }
+        }
+
+        const totalFootageSeconds = Math.floor(totalFootageDuration / 1000);
+        const totalSpanSeconds = Math.floor((endPos - startPos) / 1000);
+        const gapSeconds = totalSpanSeconds - totalFootageSeconds;
+
+        console.log(`📊 Export range footage calculation: ${totalFootageSeconds}s footage in ${totalSpanSeconds}s span (${gapSeconds}s gaps)`);
+
+        return totalFootageSeconds;
+    }
+
     updateExportRangeDisplay() {
         const rangeDisplay = document.getElementById('export-range-display');
         const durationDisplay = document.getElementById('export-duration-display');
@@ -2798,29 +2884,39 @@ class SentrySixApp {
             // Calculate actual timestamps for the export range (using actual positions)
             const startTimestamp = this.calculateActualTimestamp(startPos);
             const endTimestamp = this.calculateActualTimestamp(endPos);
-            duration = Math.floor((endPos - startPos) / 1000);
+
+            // Calculate actual footage duration (excluding gaps)
+            duration = this.calculateActualFootageDuration(startPos, endPos);
 
             startTime = startTimestamp ? startTimestamp.toLocaleTimeString('en-US', { hour12: true }) : this.formatTime(Math.floor(startPos / 1000));
             endTime = endTimestamp ? endTimestamp.toLocaleTimeString('en-US', { hour12: true }) : this.formatTime(Math.floor(endPos / 1000));
 
             rangeDisplay.textContent = `${startTime} - ${endTime}`;
-            
+
             // Check for sync issues in the export range
             this.checkExportRangeSync(startPos, endPos);
         } else if (this.exportMarkers.start !== null) {
             const startTimestamp = this.calculateActualTimestamp(this.exportMarkers.start);
             startTime = startTimestamp ? startTimestamp.toLocaleTimeString('en-US', { hour12: true }) : this.formatTime(Math.floor(this.exportMarkers.start / 1000));
-            duration = Math.floor((this.currentTimeline.displayDuration - this.exportMarkers.start) / 1000);
+
+            // Calculate actual footage duration from start marker to end of total timeline
+            const totalTimelineEnd = this.currentTimeline.totalTimelineDuration || this.currentTimeline.displayDuration;
+            duration = this.calculateActualFootageDuration(this.exportMarkers.start, totalTimelineEnd);
 
             rangeDisplay.textContent = `${startTime} - End`;
         } else if (this.exportMarkers.end !== null) {
             const endTimestamp = this.calculateActualTimestamp(this.exportMarkers.end);
             endTime = endTimestamp ? endTimestamp.toLocaleTimeString('en-US', { hour12: true }) : this.formatTime(Math.floor(this.exportMarkers.end / 1000));
-            duration = Math.floor(this.exportMarkers.end / 1000);
+
+            // Calculate actual footage duration from start to end marker
+            duration = this.calculateActualFootageDuration(0, this.exportMarkers.end);
 
             rangeDisplay.textContent = `Start - ${endTime}`;
         } else {
-            duration = Math.floor(this.currentTimeline.displayDuration / 1000);
+            // Calculate actual footage duration for full timeline
+            // Use totalTimelineDuration (includes gaps) to get all clips, but function will return only footage duration
+            const totalTimelineEnd = this.currentTimeline.totalTimelineDuration || this.currentTimeline.displayDuration;
+            duration = this.calculateActualFootageDuration(0, totalTimelineEnd);
             rangeDisplay.textContent = 'Full Timeline';
         }
 
@@ -3102,9 +3198,9 @@ class SentrySixApp {
         // Get selected cameras
         const selectedCameras = Array.from(document.querySelectorAll('.camera-export-toggle:checked')).length;
 
-        // Calculate export duration using sync-adjusted range
+        // Calculate export duration using sync-adjusted range and gap-aware calculation
         const { startTime, endTime } = this.getSyncAdjustedExportRange();
-        let exportDuration = Math.floor((endTime - startTime) / 1000);
+        let exportDuration = this.calculateActualFootageDuration(startTime, endTime);
 
         // Check if timelapse is enabled
         const timelapseEnabled = document.getElementById('timelapse-enabled')?.checked || false;

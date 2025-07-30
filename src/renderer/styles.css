@@ -1077,9 +1077,7 @@ body {
 }
 
 .timelapse-speed-selection {
-    display: flex;
-    align-items: center;
-    gap: 8px;
+    display: block; /* Changed from flex to block for vertical layout */
     margin-bottom: 12px;
     color: #cccccc;
     position: relative;
@@ -1088,7 +1086,12 @@ body {
 
 .timelapse-speed-selection label {
     font-weight: 500;
-    min-width: 120px;
+    display: block; /* Label on its own line */
+    margin-bottom: 6px; /* Space between label and dropdown */
+}
+
+.timelapse-speed-dropdown {
+    width: 100%; /* Use full width of the column */
 }
 
 .timelapse-speed-selection select {
@@ -1098,7 +1101,9 @@ body {
     border-radius: 4px;
     padding: 8px 12px;
     font-size: 13px;
-    min-width: 280px;
+    width: 100%; /* Use full width instead of fixed min-width */
+    max-width: 100%; /* Prevent overflow */
+    box-sizing: border-box; /* Include padding in width calculation */
 }
 
 .timelapse-speed-selection select:focus {
