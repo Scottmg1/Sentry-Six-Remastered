@@ -836,8 +836,23 @@ class SentrySixApp {
             }
         }
 
-        // If not found, return the last clip
-        return Math.max(0, clips.length - 1);
+        // If not found in any clip, find the nearest available clip
+        let nearestClipIndex = 0;
+        let smallestTimeDiff = Math.abs(targetTimestamp.getTime() - new Date(clips[0].timestamp).getTime());
+
+        for (let i = 1; i < clips.length; i++) {
+            const clip = clips[i];
+            const clipStart = new Date(clip.timestamp);
+            const timeDiff = Math.abs(targetTimestamp.getTime() - clipStart.getTime());
+
+            if (timeDiff < smallestTimeDiff) {
+                smallestTimeDiff = timeDiff;
+                nearestClipIndex = i;
+            }
+        }
+
+        console.log(`⚠️ Target timestamp ${targetTimestamp.toLocaleTimeString()} not found in any clip, using nearest clip ${nearestClipIndex + 1} at ${new Date(clips[nearestClipIndex].timestamp).toLocaleTimeString()}`);
+        return nearestClipIndex;
     }
 
     calculateTimeInClip(globalPositionMs, clipIndex) {
