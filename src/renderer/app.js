@@ -75,7 +75,10 @@ class SentrySixApp {
             this.hideLoadingScreen();
             
             console.log('Sentry-Six Electron initialized successfully');
-            
+
+            // Make app instance globally accessible for debugging
+            window.sentrySixApp = this;
+
         } catch (error) {
             console.error('Failed to initialize application:', error);
             this.showError('Failed to initialize application', error.message);
@@ -2153,6 +2156,739 @@ class SentrySixApp {
         });
 
         // hwaccelToggle?.addEventListener('change', () => this.updateExportEstimates());
+
+        // Initialize flexible camera layout system
+        this.initializeFlexibleCameraLayout();
+    }
+
+    initializeFlexibleCameraLayout() {
+        // Initialize camera layout state
+        this.cameraLayout = {
+            positions: new Map(), // camera -> {x, y, width, height}
+            snapThreshold: 10,    // pixels for magnetic snapping
+            gridSize: 20          // snap grid size
+        };
+
+        // Set up drag and drop for camera layout
+        this.setupCameraLayoutDragDrop();
+
+        // Initialize default layout
+        this.initializeDefaultCameraLayout();
+    }
+
+    setupCameraLayoutDragDrop() {
+        const canvas = document.getElementById('camera-layout-canvas');
+        const sidebar = document.querySelector('.camera-sidebar');
+
+        if (!canvas || !sidebar) return;
+
+        let draggedElement = null;
+        let dragOffset = { x: 0, y: 0 };
+        let snapGuides = [];
+
+        // Handle drag start from sidebar
+        sidebar.addEventListener('dragstart', (e) => {
+            const cameraItem = e.target.closest('.camera-item');
+            if (!cameraItem) return;
+
+            draggedElement = cameraItem;
+            cameraItem.classList.add('dragging');
+
+            // Store drag offset for positioned items
+            if (cameraItem.classList.contains('positioned')) {
+                const rect = cameraItem.getBoundingClientRect();
+                dragOffset.x = e.clientX - rect.left;
+                dragOffset.y = e.clientY - rect.top;
+            } else {
+                dragOffset.x = cameraItem.offsetWidth / 2;
+                dragOffset.y = cameraItem.offsetHeight / 2;
+            }
+
+            console.log('🎬 Started dragging camera:', cameraItem.dataset.camera);
+        });
+
+        // Handle drag end
+        document.addEventListener('dragend', (e) => {
+            if (draggedElement) {
+                draggedElement.classList.remove('dragging');
+                this.clearSnapGuides();
+                draggedElement = null;
+            }
+        });
+
+        // Handle canvas drag over
+        canvas.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            canvas.classList.add('drag-over');
+
+            if (draggedElement) {
+                this.showSnapGuides(e, draggedElement);
+            }
+        });
+
+        // Handle canvas drag leave
+        canvas.addEventListener('dragleave', (e) => {
+            // Only remove drag-over if we're actually leaving the canvas
+            if (!canvas.contains(e.relatedTarget)) {
+                canvas.classList.remove('drag-over');
+                this.clearSnapGuides();
+            }
+        });
+
+        // Handle canvas drop
+        canvas.addEventListener('drop', (e) => {
+            e.preventDefault();
+            canvas.classList.remove('drag-over');
+            this.clearSnapGuides();
+
+            if (!draggedElement) return;
+
+            const camera = draggedElement.dataset.camera;
+            const canvasRect = canvas.getBoundingClientRect();
+
+            // Calculate position relative to canvas
+            let x = e.clientX - canvasRect.left - dragOffset.x;
+            let y = e.clientY - canvasRect.top - dragOffset.y;
+
+            // Apply snapping
+            const snappedPos = this.applySnapping(x, y, draggedElement);
+            x = snappedPos.x;
+            y = snappedPos.y;
+
+            // Ensure camera stays within canvas bounds
+            const maxX = canvas.offsetWidth - 100; // Assume min camera width of 100px
+            const maxY = canvas.offsetHeight - 60;  // Assume min camera height of 60px
+            x = Math.max(0, Math.min(x, maxX));
+            y = Math.max(0, Math.min(y, maxY));
+
+            this.positionCameraOnCanvas(camera, x, y);
+            console.log(`🎬 Positioned camera ${camera} at (${x}, ${y})`);
+        });
+
+        // Handle repositioning of cameras already on canvas
+        canvas.addEventListener('mousedown', (e) => {
+            const cameraItem = e.target.closest('.camera-item.positioned');
+            if (!cameraItem) return;
+
+            e.preventDefault();
+            const camera = cameraItem.dataset.camera;
+            const startX = e.clientX;
+            const startY = e.clientY;
+            const startLeft = parseInt(cameraItem.style.left) || 0;
+            const startTop = parseInt(cameraItem.style.top) || 0;
+
+            cameraItem.classList.add('dragging');
+
+            const handleMouseMove = (moveEvent) => {
+                const deltaX = moveEvent.clientX - startX;
+                const deltaY = moveEvent.clientY - startY;
+
+                let newX = startLeft + deltaX;
+                let newY = startTop + deltaY;
+
+                // Apply snapping
+                const snappedPos = this.applySnapping(newX, newY, cameraItem);
+                newX = snappedPos.x;
+                newY = snappedPos.y;
+
+                // Keep within bounds
+                const maxX = canvas.offsetWidth - cameraItem.offsetWidth;
+                const maxY = canvas.offsetHeight - cameraItem.offsetHeight;
+                newX = Math.max(0, Math.min(newX, maxX));
+                newY = Math.max(0, Math.min(newY, maxY));
+
+                cameraItem.style.left = `${newX}px`;
+                cameraItem.style.top = `${newY}px`;
+
+                this.updateCameraPosition(camera, newX, newY);
+            };
+
+            const handleMouseUp = () => {
+                cameraItem.classList.remove('dragging');
+                this.clearSnapGuides();
+                document.removeEventListener('mousemove', handleMouseMove);
+                document.removeEventListener('mouseup', handleMouseUp);
+            };
+
+            document.addEventListener('mousemove', handleMouseMove);
+            document.addEventListener('mouseup', handleMouseUp);
+        });
+    }
+
+    initializeDefaultCameraLayout() {
+        // Set up default camera positions based on main UI visibility state
+        const canvas = document.getElementById('camera-layout-canvas');
+        if (!canvas) return;
+
+        // Define 3x2 grid positions with NO gaps (seamless layout)
+        const cameraWidth = 100;  // Width of each camera
+        const cameraHeight = 60;  // Height of each camera
+        const startX = 20;        // Starting X position
+        const startY = 20;        // Starting Y position
+
+        const defaultPositions = {
+            'left_pillar': { x: startX, y: startY },                           // Top row, left
+            'front': { x: startX + cameraWidth, y: startY },                   // Top row, center (no gap)
+            'right_pillar': { x: startX + (cameraWidth * 2), y: startY },      // Top row, right (no gap)
+            'left_repeater': { x: startX, y: startY + cameraHeight },          // Bottom row, left (no gap)
+            'back': { x: startX + cameraWidth, y: startY + cameraHeight },     // Bottom row, center (no gap)
+            'right_repeater': { x: startX + (cameraWidth * 2), y: startY + cameraHeight } // Bottom row, right (no gap)
+        };
+
+        const allCameras = ['left_pillar', 'front', 'right_pillar', 'left_repeater', 'back', 'right_repeater'];
+
+        // Clear any existing positioned cameras
+        canvas.querySelectorAll('.camera-item.positioned').forEach(item => item.remove());
+
+        // Reset all cameras to sidebar initially
+        allCameras.forEach(camera => {
+            const cameraItem = document.querySelector(`.camera-item[data-camera="${camera}"]`);
+            const toggle = cameraItem?.querySelector('.camera-export-toggle');
+
+            if (cameraItem && toggle) {
+                // Check main UI visibility state
+                const isVisibleInMainUI = this.cameraVisibility && this.cameraVisibility[camera];
+
+                if (isVisibleInMainUI) {
+                    // Camera is visible in main UI - position it on canvas
+                    const position = defaultPositions[camera];
+                    if (position) {
+                        this.positionCameraOnCanvas(camera, position.x, position.y);
+                        console.log(`🎬 Auto-positioned ${camera} on canvas (visible in main UI)`);
+                    }
+                } else {
+                    // Camera is hidden in main UI - keep in sidebar as disabled
+                    toggle.checked = false;
+                    cameraItem.classList.add('disabled');
+                    cameraItem.style.display = 'flex'; // Ensure it's visible in sidebar
+                    cameraItem.style.visibility = 'visible'; // Ensure visibility
+                    console.log(`🎬 Kept ${camera} in sidebar (hidden in main UI)`);
+                }
+            }
+        });
+
+        this.updateCanvasInstructions();
+
+        // Log the initialization result
+        const positionedCount = canvas.querySelectorAll('.camera-item.positioned').length;
+        const visibleCount = Object.values(this.cameraVisibility || {}).filter(v => v).length;
+        console.log(`🎬 Camera layout initialized: ${positionedCount}/${visibleCount} visible cameras positioned on canvas`);
+
+        // Debug: Check actual DOM state
+        this.debugCameraLayoutDOM();
+    }
+
+    positionCameraOnCanvas(camera, x, y) {
+        const canvas = document.getElementById('camera-layout-canvas');
+        const sidebar = document.querySelector('.camera-sidebar');
+
+        if (!canvas || !sidebar) return;
+
+        // Find camera item in sidebar
+        let cameraItem = sidebar.querySelector(`.camera-item[data-camera="${camera}"]`);
+        if (!cameraItem) return;
+
+        // Clone the camera item for canvas positioning
+        const canvasItem = cameraItem.cloneNode(true);
+        canvasItem.classList.add('positioned');
+        canvasItem.classList.remove('disabled');
+        canvasItem.style.left = `${x}px`;
+        canvasItem.style.top = `${y}px`;
+
+        // CRITICAL FIX: Ensure the cloned item is visible
+        canvasItem.style.display = 'flex';
+        canvasItem.style.visibility = 'visible';
+
+        // Remove any existing positioned version of this camera
+        const existingItem = canvas.querySelector(`.camera-item[data-camera="${camera}"]`);
+        if (existingItem) {
+            existingItem.remove();
+        }
+
+        // Add to canvas
+        canvas.appendChild(canvasItem);
+
+        // Update camera position in state
+        this.updateCameraPosition(camera, x, y);
+
+        // Check the camera toggle (positioned = enabled)
+        const sidebarToggle = cameraItem.querySelector('.camera-export-toggle');
+        const canvasToggle = canvasItem.querySelector('.camera-export-toggle');
+        if (sidebarToggle && canvasToggle) {
+            sidebarToggle.checked = true;
+            canvasToggle.checked = true;
+        }
+
+        // Hide camera in sidebar (but keep it for reference)
+        cameraItem.style.display = 'none';
+        cameraItem.classList.remove('disabled');
+
+        // Update instructions
+        this.updateCanvasInstructions();
+
+        // Set up double-click to remove from canvas
+        canvasItem.addEventListener('dblclick', () => {
+            this.removeCameraFromCanvas(camera);
+        });
+
+        console.log(`🎬 Camera ${camera} positioned on canvas and enabled`);
+    }
+
+    removeCameraFromCanvas(camera) {
+        const canvas = document.getElementById('camera-layout-canvas');
+        const sidebar = document.querySelector('.camera-sidebar');
+
+        if (!canvas || !sidebar) return;
+
+        // Remove from canvas
+        const canvasItem = canvas.querySelector(`.camera-item[data-camera="${camera}"]`);
+        if (canvasItem) {
+            canvasItem.remove();
+        }
+
+        // Show in sidebar again and uncheck (sidebar = disabled)
+        const sidebarItem = sidebar.querySelector(`.camera-item[data-camera="${camera}"]`);
+        const sidebarToggle = sidebarItem?.querySelector('.camera-export-toggle');
+
+        if (sidebarItem) {
+            sidebarItem.style.display = 'flex';
+            sidebarItem.style.visibility = 'visible'; // Ensure visibility
+            sidebarItem.classList.add('disabled');
+        }
+
+        if (sidebarToggle) {
+            sidebarToggle.checked = false; // Uncheck when in sidebar
+        }
+
+        // Remove from position state
+        this.cameraLayout.positions.delete(camera);
+
+        // Update instructions
+        this.updateCanvasInstructions();
+
+        console.log(`🎬 Removed camera ${camera} from canvas and disabled`);
+    }
+
+    updateCameraPosition(camera, x, y) {
+        this.cameraLayout.positions.set(camera, {
+            x: x,
+            y: y,
+            width: 100, // Default width
+            height: 60  // Default height
+        });
+    }
+
+    applySnapping(x, y, element) {
+        const canvas = document.getElementById('camera-layout-canvas');
+        if (!canvas) return { x, y };
+
+        const snapThreshold = this.cameraLayout.snapThreshold;
+        const cameraWidth = 100;
+        const cameraHeight = 60;
+
+        let snappedX = x;
+        let snappedY = y;
+
+        // Get all other positioned cameras
+        const otherCameras = canvas.querySelectorAll('.camera-item.positioned');
+        const occupiedPositions = [];
+
+        otherCameras.forEach(otherCamera => {
+            if (otherCamera === element) return;
+
+            const otherX = parseInt(otherCamera.style.left) || 0;
+            const otherY = parseInt(otherCamera.style.top) || 0;
+            occupiedPositions.push({ x: otherX, y: otherY, width: cameraWidth, height: cameraHeight });
+        });
+
+        // Check if position would overlap with any existing camera
+        const wouldOverlap = (testX, testY) => {
+            return occupiedPositions.some(pos => {
+                return !(testX >= pos.x + pos.width ||
+                        testX + cameraWidth <= pos.x ||
+                        testY >= pos.y + pos.height ||
+                        testY + cameraHeight <= pos.y);
+            });
+        };
+
+        // First, check for center-point snapping opportunities (prioritize these)
+        const centerCandidates = [];
+        this.addCenterPointCandidates(occupiedPositions, centerCandidates, cameraWidth, cameraHeight);
+
+        // Check if we're close to any center-point positions
+        const snapDistance = 30; // Increased snap distance for center points
+        for (const candidate of centerCandidates) {
+            const distance = Math.sqrt(Math.pow(x - candidate.x, 2) + Math.pow(y - candidate.y, 2));
+            if (distance < snapDistance && !wouldOverlap(candidate.x, candidate.y)) {
+                console.log(`🎯 Snapping to center point: (${candidate.x}, ${candidate.y}) - ${candidate.type}`);
+                return { x: candidate.x, y: candidate.y };
+            }
+        }
+
+        // If the current position would overlap, find the closest non-overlapping position
+        if (wouldOverlap(snappedX, snappedY)) {
+            const candidates = [];
+
+            // For each occupied position, calculate potential snap positions
+            occupiedPositions.forEach(pos => {
+                // Right side of existing camera
+                candidates.push({ x: pos.x + pos.width, y: pos.y, type: 'right-side' });
+                // Left side of existing camera
+                candidates.push({ x: pos.x - cameraWidth, y: pos.y, type: 'left-side' });
+                // Below existing camera
+                candidates.push({ x: pos.x, y: pos.y + pos.height, type: 'below' });
+                // Above existing camera
+                candidates.push({ x: pos.x, y: pos.y - cameraHeight, type: 'above' });
+            });
+
+            // Add center-point candidates as backup options
+            candidates.push(...centerCandidates);
+
+            // Add grid positions as candidates
+            const startX = 20, startY = 20;
+            for (let row = 0; row < 3; row++) {
+                for (let col = 0; col < 4; col++) {
+                    candidates.push({
+                        x: startX + (col * cameraWidth),
+                        y: startY + (row * cameraHeight)
+                    });
+                }
+            }
+
+            // Filter out candidates that would still overlap or are out of bounds
+            const validCandidates = candidates.filter(candidate => {
+                return candidate.x >= 0 &&
+                       candidate.y >= 0 &&
+                       candidate.x + cameraWidth <= canvas.offsetWidth &&
+                       candidate.y + cameraHeight <= canvas.offsetHeight &&
+                       !wouldOverlap(candidate.x, candidate.y);
+            });
+
+            // Find the closest valid position
+            if (validCandidates.length > 0) {
+                let closestCandidate = validCandidates[0];
+                let minDistance = Math.sqrt(Math.pow(x - closestCandidate.x, 2) + Math.pow(y - closestCandidate.y, 2));
+
+                validCandidates.forEach(candidate => {
+                    const distance = Math.sqrt(Math.pow(x - candidate.x, 2) + Math.pow(y - candidate.y, 2));
+                    if (distance < minDistance) {
+                        minDistance = distance;
+                        closestCandidate = candidate;
+                    }
+                });
+
+                snappedX = closestCandidate.x;
+                snappedY = closestCandidate.y;
+
+                console.log(`🧲 Snapped to closest non-overlapping position: (${snappedX}, ${snappedY})`);
+            }
+        }
+
+        // Edge snapping (keep within canvas bounds)
+        snappedX = Math.max(0, Math.min(snappedX, canvas.offsetWidth - cameraWidth));
+        snappedY = Math.max(0, Math.min(snappedY, canvas.offsetHeight - cameraHeight));
+
+        return { x: snappedX, y: snappedY };
+    }
+
+    addCenterPointCandidates(occupiedPositions, candidates, cameraWidth, cameraHeight) {
+        // Find center points between adjacent cameras
+        for (let i = 0; i < occupiedPositions.length; i++) {
+            for (let j = i + 1; j < occupiedPositions.length; j++) {
+                const pos1 = occupiedPositions[i];
+                const pos2 = occupiedPositions[j];
+
+                // Check if cameras are horizontally adjacent (same Y, touching X)
+                if (Math.abs(pos1.y - pos2.y) < 5) { // Same row (allowing small tolerance)
+                    if (Math.abs((pos1.x + pos1.width) - pos2.x) < 5 || Math.abs((pos2.x + pos2.width) - pos1.x) < 5) {
+                        // Cameras are horizontally adjacent
+                        const leftCamera = pos1.x < pos2.x ? pos1 : pos2;
+                        const rightCamera = pos1.x < pos2.x ? pos2 : pos1;
+
+                        // Center point above the gap
+                        const centerX = leftCamera.x + ((rightCamera.x - leftCamera.x - cameraWidth) / 2) + (cameraWidth / 2);
+                        candidates.push({
+                            x: centerX - (cameraWidth / 2),
+                            y: leftCamera.y - cameraHeight,
+                            type: 'center-above'
+                        });
+
+                        // Center point below the gap
+                        candidates.push({
+                            x: centerX - (cameraWidth / 2),
+                            y: leftCamera.y + cameraHeight,
+                            type: 'center-below'
+                        });
+
+                        console.log(`🎯 Added center-point candidates between cameras at Y=${leftCamera.y}`);
+                    }
+                }
+
+                // Check if cameras are vertically adjacent (same X, touching Y)
+                if (Math.abs(pos1.x - pos2.x) < 5) { // Same column (allowing small tolerance)
+                    if (Math.abs((pos1.y + pos1.height) - pos2.y) < 5 || Math.abs((pos2.y + pos2.height) - pos1.y) < 5) {
+                        // Cameras are vertically adjacent
+                        const topCamera = pos1.y < pos2.y ? pos1 : pos2;
+                        const bottomCamera = pos1.y < pos2.y ? pos2 : pos1;
+
+                        // Center point to the left of the gap
+                        const centerY = topCamera.y + ((bottomCamera.y - topCamera.y - cameraHeight) / 2) + (cameraHeight / 2);
+                        candidates.push({
+                            x: topCamera.x - cameraWidth,
+                            y: centerY - (cameraHeight / 2),
+                            type: 'center-left'
+                        });
+
+                        // Center point to the right of the gap
+                        candidates.push({
+                            x: topCamera.x + cameraWidth,
+                            y: centerY - (cameraHeight / 2),
+                            type: 'center-right'
+                        });
+
+                        console.log(`🎯 Added center-point candidates between cameras at X=${topCamera.x}`);
+                    }
+                }
+
+                // Special case: Center between two cameras that form a gap
+                // This handles cases like your example where Front centers between Left/Right Repeater
+                if (Math.abs(pos1.y - pos2.y) < 5) { // Same row
+                    const leftCamera = pos1.x < pos2.x ? pos1 : pos2;
+                    const rightCamera = pos1.x < pos2.x ? pos2 : pos1;
+                    const gapWidth = rightCamera.x - (leftCamera.x + leftCamera.width);
+
+                    // If there's a gap between cameras, add center position
+                    if (gapWidth >= cameraWidth) {
+                        const centerX = leftCamera.x + leftCamera.width + (gapWidth - cameraWidth) / 2;
+                        candidates.push({
+                            x: centerX,
+                            y: leftCamera.y,
+                            type: 'gap-center-same-row'
+                        });
+                        console.log(`🎯 Added gap-center candidate at (${centerX}, ${leftCamera.y})`);
+                    }
+
+                    // Also add center position above the gap (for cameras from different rows)
+                    const centerX = leftCamera.x + leftCamera.width + (gapWidth - cameraWidth) / 2;
+                    candidates.push({
+                        x: centerX,
+                        y: leftCamera.y - cameraHeight,
+                        type: 'gap-center-above'
+                    });
+                    candidates.push({
+                        x: centerX,
+                        y: leftCamera.y + cameraHeight,
+                        type: 'gap-center-below'
+                    });
+                    console.log(`🎯 Added gap-center above/below candidates at X=${centerX}`);
+                }
+            }
+        }
+    }
+
+    showSnapGuides(event, element) {
+        // This would show visual snap guides - simplified for now
+        // In a full implementation, you'd create visual guide lines
+    }
+
+    clearSnapGuides() {
+        const canvas = document.getElementById('camera-layout-canvas');
+        if (!canvas) return;
+
+        // Remove any existing snap guides
+        canvas.querySelectorAll('.snap-guide').forEach(guide => guide.remove());
+    }
+
+    updateCanvasInstructions() {
+        const canvas = document.getElementById('camera-layout-canvas');
+        const instructions = canvas?.querySelector('.canvas-instructions');
+
+        if (!instructions) return;
+
+        const positionedCameras = canvas.querySelectorAll('.camera-item.positioned');
+
+        if (positionedCameras.length === 0) {
+            instructions.textContent = 'Drag cameras from the sidebar to arrange your custom layout';
+            instructions.classList.remove('hidden');
+        } else {
+            instructions.classList.add('hidden');
+        }
+    }
+
+    debugCameraLayoutDOM() {
+        const canvas = document.getElementById('camera-layout-canvas');
+        const sidebar = document.querySelector('.camera-sidebar');
+
+        console.log('🔍 DEBUG: Camera Layout DOM State');
+        console.log('Canvas element:', canvas);
+        console.log('Sidebar element:', sidebar);
+
+        if (canvas) {
+            const positionedCameras = canvas.querySelectorAll('.camera-item.positioned');
+            console.log(`Canvas positioned cameras: ${positionedCameras.length}`);
+            positionedCameras.forEach((camera, index) => {
+                console.log(`  Camera ${index + 1}:`, {
+                    dataset: camera.dataset.camera,
+                    position: `${camera.style.left}, ${camera.style.top}`,
+                    visible: camera.offsetWidth > 0 && camera.offsetHeight > 0,
+                    classes: camera.className,
+                    display: getComputedStyle(camera).display,
+                    visibility: getComputedStyle(camera).visibility
+                });
+            });
+
+            const instructions = canvas.querySelector('.canvas-instructions');
+            console.log('Canvas instructions:', {
+                element: instructions,
+                hidden: instructions?.classList.contains('hidden'),
+                text: instructions?.textContent
+            });
+        }
+
+        if (sidebar) {
+            const sidebarCameras = sidebar.querySelectorAll('.camera-item');
+            console.log(`Sidebar cameras: ${sidebarCameras.length}`);
+            sidebarCameras.forEach((camera, index) => {
+                console.log(`  Sidebar Camera ${index + 1}:`, {
+                    dataset: camera.dataset.camera,
+                    visible: camera.style.display !== 'none',
+                    classes: camera.className
+                });
+            });
+        }
+    }
+
+    // Convert canvas camera layout to FFMPEG layout parameters
+    generateFFMPEGLayout() {
+        const positionedCameras = [];
+        const canvas = document.getElementById('camera-layout-canvas');
+
+        if (!canvas || !this.cameraLayout || !this.cameraLayout.positions) {
+            console.warn('🎬 No camera layout available for export');
+            return null;
+        }
+
+        // Get canvas dimensions for scaling calculations
+        const canvasWidth = canvas.offsetWidth;
+        const canvasHeight = canvas.offsetHeight;
+
+        // Standard Tesla camera resolution (from FFMPEG handler)
+        const ffmpegCameraWidth = 1448;
+        const ffmpegCameraHeight = 938;
+
+        // Canvas camera dimensions (from our layout system)
+        const canvasCameraWidth = 100;
+        const canvasCameraHeight = 60;
+
+        // Calculate scaling factors
+        const scaleX = ffmpegCameraWidth / canvasCameraWidth;
+        const scaleY = ffmpegCameraHeight / canvasCameraHeight;
+
+        // First pass: collect all canvas positions to find bounding box
+        const canvasPositions = [];
+        this.cameraLayout.positions.forEach((position, camera) => {
+            canvasPositions.push({
+                camera: camera,
+                x: position.x,
+                y: position.y,
+                width: canvasCameraWidth,
+                height: canvasCameraHeight
+            });
+        });
+
+        // Calculate bounding box of all cameras on canvas
+        let minX = Math.min(...canvasPositions.map(pos => pos.x));
+        let minY = Math.min(...canvasPositions.map(pos => pos.y));
+        let maxX = Math.max(...canvasPositions.map(pos => pos.x + pos.width));
+        let maxY = Math.max(...canvasPositions.map(pos => pos.y + pos.height));
+
+        // Calculate canvas layout dimensions (tight bounding box)
+        const canvasLayoutWidth = maxX - minX;
+        const canvasLayoutHeight = maxY - minY;
+
+        console.log(`🎬 Canvas positions:`, canvasPositions);
+        console.log(`🎬 Canvas bounding box: (${minX}, ${minY}) to (${maxX}, ${maxY})`);
+        console.log(`🎬 Canvas layout size: ${canvasLayoutWidth}x${canvasLayoutHeight}`);
+
+        // Convert each positioned camera to FFMPEG coordinates (normalized to start from 0,0)
+        this.cameraLayout.positions.forEach((position, camera) => {
+            // Normalize canvas coordinates (subtract minimum values to start from 0,0)
+            const normalizedX = position.x - minX;
+            const normalizedY = position.y - minY;
+
+            // Scale normalized coordinates to FFMPEG coordinates
+            const ffmpegX = Math.round(normalizedX * scaleX);
+            const ffmpegY = Math.round(normalizedY * scaleY);
+
+            positionedCameras.push({
+                camera: camera,
+                x: ffmpegX,
+                y: ffmpegY,
+                width: ffmpegCameraWidth,
+                height: ffmpegCameraHeight,
+                canvasPosition: { x: position.x, y: position.y },
+                normalizedPosition: { x: normalizedX, y: normalizedY }
+            });
+
+            console.log(`🎬 Camera ${camera}: Canvas(${position.x}, ${position.y}) → Normalized(${normalizedX}, ${normalizedY}) → FFMPEG(${ffmpegX}, ${ffmpegY})`);
+        });
+
+        // Calculate total output dimensions based on normalized layout
+        const totalWidth = Math.round(canvasLayoutWidth * scaleX);
+        const totalHeight = Math.round(canvasLayoutHeight * scaleY);
+
+        const layout = {
+            cameras: positionedCameras,
+            totalWidth: totalWidth,
+            totalHeight: totalHeight,
+            canvasWidth: canvasWidth,
+            canvasHeight: canvasHeight,
+            scaleFactors: { x: scaleX, y: scaleY },
+            boundingBox: {
+                canvas: { width: canvasLayoutWidth, height: canvasLayoutHeight },
+                ffmpeg: { width: totalWidth, height: totalHeight }
+            }
+        };
+
+        console.log(`🎬 Generated FFMPEG layout: ${positionedCameras.length} cameras, ${totalWidth}x${totalHeight} total size (tight bounding box)`);
+        return layout;
+    }
+
+    // Get cameras selected for export (positioned on canvas)
+    getExportCameras() {
+        const exportCameras = [];
+
+        if (this.cameraLayout && this.cameraLayout.positions) {
+            this.cameraLayout.positions.forEach((position, camera) => {
+                exportCameras.push(camera);
+            });
+        }
+
+        console.log(`🎬 Export cameras: ${exportCameras.join(', ')}`);
+        return exportCameras;
+    }
+
+    // Test function to manually trigger camera layout (for debugging)
+    testCameraLayout() {
+        console.log('🧪 Testing camera layout...');
+        this.initializeDefaultCameraLayout();
+        setTimeout(() => {
+            this.debugCameraLayoutDOM();
+
+            // Test FFMPEG layout generation
+            console.log('🧪 Testing FFMPEG layout generation...');
+            const ffmpegLayout = this.generateFFMPEGLayout();
+            if (ffmpegLayout) {
+                console.log('🎬 FFMPEG Layout Test Results:');
+                console.log(`  Total cameras: ${ffmpegLayout.cameras.length}`);
+                console.log(`  Output dimensions: ${ffmpegLayout.totalWidth}x${ffmpegLayout.totalHeight} (tight bounding box)`);
+                console.log(`  Canvas bounding box: ${ffmpegLayout.boundingBox.canvas.width}x${ffmpegLayout.boundingBox.canvas.height}`);
+                console.log(`  Scale factors: ${ffmpegLayout.scaleFactors.x.toFixed(2)}x, ${ffmpegLayout.scaleFactors.y.toFixed(2)}x`);
+                ffmpegLayout.cameras.forEach((cam, index) => {
+                    console.log(`  Camera ${index + 1} (${cam.camera}): Canvas(${cam.canvasPosition.x}, ${cam.canvasPosition.y}) → Normalized(${cam.normalizedPosition.x}, ${cam.normalizedPosition.y}) → FFMPEG(${cam.x}, ${cam.y})`);
+                });
+            }
+        }, 100);
     }
 
     setExportMarker(type) {
@@ -2683,6 +3419,9 @@ class SentrySixApp {
         const modal = document.getElementById('export-modal');
         if (!modal) return;
 
+        // Initialize camera layout based on main UI visibility state
+        this.initializeDefaultCameraLayout();
+
         // Sync camera visibility from main grid to export modal
         this.syncExportCameraVisibility();
 
@@ -2974,25 +3713,134 @@ class SentrySixApp {
     updateCameraExportToggles() {
         const cameraToggles = document.querySelectorAll('.camera-export-toggle');
         cameraToggles.forEach(toggle => {
-            const cameraSlot = toggle.closest('.camera-slot');
-            const camera = cameraSlot?.dataset.camera;
+            // Support both old camera-slot and new camera-item structures
+            const cameraContainer = toggle.closest('.camera-slot') || toggle.closest('.camera-item');
+            const camera = cameraContainer?.dataset.camera;
             if (camera) {
                 // Use cameraVisibility state, not DOM
                 const isVisible = this.cameraVisibility && this.cameraVisibility[camera];
                 toggle.checked = !!isVisible;
-                // Do NOT disable or dim the toggle; allow user to re-enable for export
-                // (No toggle.disabled or cameraSlot.style.opacity)
+
+                // Update visual state for flexible layout
+                if (cameraContainer.classList.contains('camera-item')) {
+                    if (isVisible) {
+                        cameraContainer.classList.remove('disabled');
+                        // Add to canvas if not already positioned and this is in sidebar
+                        if (!cameraContainer.classList.contains('positioned') &&
+                            this.cameraLayout && !this.cameraLayout.positions.has(camera)) {
+                            this.addCameraToDefaultPosition(camera);
+                        }
+                    } else {
+                        cameraContainer.classList.add('disabled');
+                        // Remove from canvas if disabled
+                        if (this.removeCameraFromCanvas) {
+                            this.removeCameraFromCanvas(camera);
+                        }
+                    }
+                }
             }
-            if (cameraSlot) {
-                cameraSlot.onclick = null;
-                cameraSlot.onclick = (e) => {
-                    if (e.target !== toggle) {
+
+            // Set up click handlers
+            if (cameraContainer) {
+                cameraContainer.onclick = null;
+                cameraContainer.onclick = (e) => {
+                    if (e.target !== toggle && !e.target.closest('input')) {
                         toggle.checked = !toggle.checked;
                         toggle.dispatchEvent(new Event('change', { bubbles: true }));
                     }
                 };
             }
         });
+
+        // Add change event listeners for flexible layout
+        cameraToggles.forEach(toggle => {
+            // Remove existing listeners to avoid duplicates
+            toggle.removeEventListener('change', this.handleCameraToggleChange);
+            toggle.addEventListener('change', this.handleCameraToggleChange.bind(this));
+        });
+    }
+
+    handleCameraToggleChange(e) {
+        const cameraContainer = e.target.closest('.camera-item') || e.target.closest('.camera-slot');
+        const camera = cameraContainer?.dataset.camera;
+
+        if (camera && this.cameraLayout) {
+            if (e.target.checked) {
+                // Camera enabled - add to default position if not already positioned
+                cameraContainer.classList.remove('disabled');
+                if (!this.cameraLayout.positions.has(camera)) {
+                    this.addCameraToDefaultPosition(camera);
+                }
+            } else {
+                // Camera disabled - remove from canvas
+                this.removeCameraFromCanvas(camera);
+                cameraContainer.classList.add('disabled');
+            }
+
+            // Update export estimates
+            this.updateExportEstimates();
+        }
+    }
+
+    addCameraToDefaultPosition(camera) {
+        // Find a good default position for newly enabled cameras using the same grid as initialization
+        const canvas = document.getElementById('camera-layout-canvas');
+        if (!canvas) return;
+
+        // Use the same seamless 3x2 grid positions as initialization
+        const cameraWidth = 100;  // Width of each camera
+        const cameraHeight = 60;  // Height of each camera
+        const startX = 20;        // Starting X position
+        const startY = 20;        // Starting Y position
+
+        const defaultPositions = {
+            'left_pillar': { x: startX, y: startY },                           // Top row, left
+            'front': { x: startX + cameraWidth, y: startY },                   // Top row, center (no gap)
+            'right_pillar': { x: startX + (cameraWidth * 2), y: startY },      // Top row, right (no gap)
+            'left_repeater': { x: startX, y: startY + cameraHeight },          // Bottom row, left (no gap)
+            'back': { x: startX + cameraWidth, y: startY + cameraHeight },     // Bottom row, center (no gap)
+            'right_repeater': { x: startX + (cameraWidth * 2), y: startY + cameraHeight } // Bottom row, right (no gap)
+        };
+
+        // Use the predefined position for this camera
+        const position = defaultPositions[camera];
+        if (position) {
+            this.positionCameraOnCanvas(camera, position.x, position.y);
+            console.log(`🎬 Added ${camera} to default position (${position.x}, ${position.y})`);
+        } else {
+            // Fallback: find an empty spot using the existing algorithm
+            const existingCameras = canvas.querySelectorAll('.camera-item.positioned');
+            const positions = Array.from(existingCameras).map(item => ({
+                x: parseInt(item.style.left) || 0,
+                y: parseInt(item.style.top) || 0
+            }));
+
+            // Use consistent spacing: 140px horizontal, 100px vertical
+            const horizontalSpacing = 140;
+            const verticalSpacing = 100;
+            let found = false;
+            let x = 20, y = 20;
+
+            for (let row = 0; row < 3 && !found; row++) {
+                for (let col = 0; col < 3 && !found; col++) {
+                    const testX = col * horizontalSpacing + 20;
+                    const testY = row * verticalSpacing + 20;
+
+                    const occupied = positions.some(pos =>
+                        Math.abs(pos.x - testX) < 60 && Math.abs(pos.y - testY) < 50
+                    );
+
+                    if (!occupied) {
+                        x = testX;
+                        y = testY;
+                        found = true;
+                    }
+                }
+            }
+
+            this.positionCameraOnCanvas(camera, x, y);
+            console.log(`🎬 Added ${camera} to fallback position (${x}, ${y})`);
+        }
     }
 
     async detectHardwareAcceleration() {
@@ -3238,14 +4086,22 @@ class SentrySixApp {
         const qualityInput = document.querySelector('input[name="export-quality"]:checked');
         const quality = qualityInput?.value || 'full';
 
-        const selectedCameras = Array.from(document.querySelectorAll('.camera-export-toggle:checked'))
-            .map(toggle => toggle.closest('.camera-slot').dataset.camera)
-            .filter(Boolean);
+        // Use flexible camera layout system for camera selection
+        const selectedCameras = this.getExportCameras();
+        const cameraLayout = this.generateFFMPEGLayout();
 
         if (selectedCameras.length === 0) {
-            alert('Please select at least one camera to export');
+            alert('Please position at least one camera on the canvas to export');
             return;
         }
+
+        if (!cameraLayout) {
+            alert('Camera layout could not be generated. Please check your camera positions.');
+            return;
+        }
+
+        console.log(`🎬 Exporting with flexible layout: ${selectedCameras.length} cameras`);
+        console.log('🎬 Camera layout:', cameraLayout);
 
         const timestampEnabled = document.getElementById('timestamp-overlay-enabled')?.checked || false;
         const timestampPosition = document.getElementById('timestamp-position')?.value || 'bottom-center';
@@ -3283,13 +4139,14 @@ class SentrySixApp {
             // Debug: Log timelapse settings
             console.log('🎬 Timelapse settings:', timelapseData);
 
-            // Prepare export data
+            // Prepare export data with flexible camera layout
             const exportData = {
                 timeline: this.currentTimeline,
                 startTime,
                 endTime,
                 quality,
                 cameras: selectedCameras,
+                cameraLayout: cameraLayout, // Add flexible camera layout data
                 timestamp: {
                     enabled: timestampEnabled,
                     position: timestampPosition

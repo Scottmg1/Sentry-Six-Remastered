@@ -383,34 +383,45 @@
                         </div>
                     </div>
 
-                    <!-- 2. Camera Layout (full width) - Keep as-is -->
+                    <!-- 2. Camera Layout (full width) - Flexible positioning system -->
                     <div class="export-section">
                         <h3>Camera Layout</h3>
-                        <div class="camera-layout-preview">
-                            <div class="camera-grid">
-                                <div class="camera-slot" data-camera="left_pillar">
-                                    <span class="camera-label">Left Pillar</span>
-                                    <input type="checkbox" class="camera-export-toggle" checked>
+                        <div class="camera-layout-container">
+                            <!-- Free-form camera positioning area -->
+                            <div class="camera-layout-canvas" id="camera-layout-canvas">
+                                <div class="canvas-instructions">
+                                    <span>Drag cameras from the sidebar to arrange your custom layout</span>
                                 </div>
-                                <div class="camera-slot" data-camera="front">
-                                    <span class="camera-label">Front</span>
-                                    <input type="checkbox" class="camera-export-toggle" checked>
-                                </div>
-                                <div class="camera-slot" data-camera="right_pillar">
-                                    <span class="camera-label">Right Pillar</span>
-                                    <input type="checkbox" class="camera-export-toggle" checked>
-                                </div>
-                                <div class="camera-slot" data-camera="left_repeater">
-                                    <span class="camera-label">Left Repeater</span>
-                                    <input type="checkbox" class="camera-export-toggle" checked>
-                                </div>
-                                <div class="camera-slot" data-camera="back">
-                                    <span class="camera-label">Back</span>
-                                    <input type="checkbox" class="camera-export-toggle" checked>
-                                </div>
-                                <div class="camera-slot" data-camera="right_repeater">
-                                    <span class="camera-label">Right Repeater</span>
-                                    <input type="checkbox" class="camera-export-toggle" checked>
+                            </div>
+
+                            <!-- Camera sidebar for selection and unused cameras -->
+                            <div class="camera-sidebar">
+                                <h4>Available Cameras</h4>
+                                <div class="camera-list">
+                                    <div class="camera-item disabled" data-camera="left_pillar" draggable="true">
+                                        <span class="camera-label">Left Pillar</span>
+                                        <input type="checkbox" class="camera-export-toggle">
+                                    </div>
+                                    <div class="camera-item disabled" data-camera="front" draggable="true">
+                                        <span class="camera-label">Front</span>
+                                        <input type="checkbox" class="camera-export-toggle">
+                                    </div>
+                                    <div class="camera-item disabled" data-camera="right_pillar" draggable="true">
+                                        <span class="camera-label">Right Pillar</span>
+                                        <input type="checkbox" class="camera-export-toggle">
+                                    </div>
+                                    <div class="camera-item disabled" data-camera="left_repeater" draggable="true">
+                                        <span class="camera-label">Left Repeater</span>
+                                        <input type="checkbox" class="camera-export-toggle">
+                                    </div>
+                                    <div class="camera-item disabled" data-camera="back" draggable="true">
+                                        <span class="camera-label">Back</span>
+                                        <input type="checkbox" class="camera-export-toggle">
+                                    </div>
+                                    <div class="camera-item disabled" data-camera="right_repeater" draggable="true">
+                                        <span class="camera-label">Right Repeater</span>
+                                        <input type="checkbox" class="camera-export-toggle">
+                                    </div>
                                 </div>
                             </div>
                         </div>

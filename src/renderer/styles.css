@@ -967,37 +967,154 @@ body {
     }
 }
 
-/* Camera Layout Preview */
-.camera-layout-preview {
+/* Flexible Camera Layout System */
+.camera-layout-container {
+    display: flex;
+    gap: 20px;
     background: #333333;
     border-radius: 6px;
     padding: 16px;
+    min-height: 300px;
 }
 
-.camera-grid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    grid-template-rows: repeat(2, 1fr);
-    gap: 8px;
-    max-width: 400px;
+/* Free-form camera positioning canvas */
+.camera-layout-canvas {
+    flex: 1;
+    background: #2a2a2a;
+    border-radius: 4px;
+    border: 2px dashed #555555;
+    position: relative;
+    min-height: 280px;
+    min-width: 400px; /* Ensure minimum width for camera positioning */
+    overflow: visible; /* Changed from hidden to visible to show positioned cameras */
 }
 
-.camera-slot {
-    background: #444444;
+.camera-layout-canvas.drag-over {
+    border-color: #007acc;
+    background: #2d3748;
+}
+
+.canvas-instructions {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: #888888;
+    text-align: center;
+    font-size: 14px;
+    pointer-events: none;
+    opacity: 0.7;
+}
+
+.canvas-instructions.hidden {
+    display: none;
+}
+
+/* Camera sidebar */
+.camera-sidebar {
+    width: 220px; /* Slightly wider to accommodate 2 columns */
+    background: #3a3a3a;
     border-radius: 4px;
     padding: 12px;
+}
+
+.camera-sidebar h4 {
+    margin: 0 0 12px 0;
+    color: #ffffff;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.camera-list {
+    display: grid;
+    grid-template-columns: 1fr 1fr; /* 2 columns */
+    grid-template-rows: repeat(3, 1fr); /* 3 rows */
+    gap: 8px;
+    height: 200px; /* Fixed height to maintain grid structure */
+}
+
+/* Camera items (both in sidebar and on canvas) */
+.camera-item {
+    background: #444444;
+    border-radius: 4px;
+    padding: 8px;
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 8px;
-    min-height: 60px;
+    justify-content: center;
+    gap: 4px;
+    min-height: 55px;
     border: 2px solid transparent;
     transition: all 0.2s;
+    cursor: grab;
+    user-select: none;
+    font-size: 12px; /* Smaller text for grid layout */
 }
 
-.camera-slot:hover {
+.camera-item:hover {
     background: #4a4a4a;
     border-color: #007acc;
+}
+
+.camera-item.dragging {
+    opacity: 0.5;
+    cursor: grabbing;
+}
+
+.camera-item.disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+/* Camera items positioned on canvas */
+.camera-item.positioned {
+    position: absolute;
+    cursor: move;
+    min-width: 100px; /* Increased from 80px for better visibility */
+    min-height: 60px; /* Ensure minimum height */
+    z-index: 10;
+    display: flex; /* Ensure flex display is maintained */
+    background: #444444; /* Ensure background color */
+    border: 2px solid #007acc; /* Add border to make positioned cameras more visible */
+}
+
+.camera-item.positioned:hover {
+    z-index: 20;
+    box-shadow: 0 4px 12px rgba(0, 122, 204, 0.3);
+}
+
+/* Drag feedback and snapping */
+.snap-guide {
+    position: absolute;
+    background: rgba(0, 122, 204, 0.3);
+    pointer-events: none;
+    z-index: 5;
+}
+
+.snap-guide.horizontal {
+    height: 1px;
+    left: 0;
+    right: 0;
+}
+
+.snap-guide.vertical {
+    width: 1px;
+    top: 0;
+    bottom: 0;
+}
+
+.camera-item.snapping {
+    box-shadow: 0 0 0 2px #007acc;
+}
+
+/* Drop zone indicators */
+.drop-zone {
+    position: absolute;
+    border: 2px dashed #007acc;
+    background: rgba(0, 122, 204, 0.1);
+    border-radius: 4px;
+    pointer-events: none;
+    z-index: 5;
 }
 
 .camera-label {
