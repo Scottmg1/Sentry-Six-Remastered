@@ -2073,11 +2073,17 @@ class SentrySixApp {
         // }
 
         qualityInputs.forEach(input => {
-            input.addEventListener('change', () => this.updateExportEstimates());
+            input.addEventListener('change', () => {
+                this.updateExportEstimates();
+                this.updateTimelapsePreview();
+            });
         });
 
         cameraToggles.forEach(toggle => {
-            toggle.addEventListener('change', () => this.updateExportEstimates());
+            toggle.addEventListener('change', () => {
+                this.updateExportEstimates();
+                this.updateTimelapsePreview();
+            });
         });
 
         // Timelapse event listeners
@@ -2927,6 +2933,12 @@ class SentrySixApp {
                 // Store hardware acceleration info for export
                 this.hardwareAcceleration = hwAccel;
                 console.log(`🚀 Hardware acceleration available: ${hwAccel.type}`);
+
+                // Add event listener for hardware acceleration toggle
+                hwaccelCheckbox.addEventListener('change', () => {
+                    this.updateTimelapsePreview();
+                    this.updateExportEstimates();
+                });
             } else {
                 // No hardware acceleration
                 hwaccelStatus.textContent = 'No GPU Detected';
@@ -2950,6 +2962,57 @@ class SentrySixApp {
             hwaccelCheckbox.checked = false;
             hwaccelOption.classList.add('disabled');
             this.hardwareAcceleration = null;
+        }
+    }
+
+    // Unified file size calculation used by all export estimates
+    calculateExportFileSize(durationSeconds, selectedCameras, quality, isTimelapse = false, timelapseSpeed = 1) {
+        // Base size per minute calibrated from actual export results
+        // Your 59-minute export → 59-second timelapse = 700.6 MB
+        // This gives us ~715 MB per minute of OUTPUT video for 6 cameras mobile
+        let baseSizePerMinute;
+
+        if (isTimelapse && timelapseSpeed > 1) {
+            // For timelapse OUTPUT duration calculation
+            // Based on actual result: 59 seconds output = 700.6 MB
+            if (quality === 'full') {
+                // Full quality timelapse: higher bitrate
+                baseSizePerMinute = selectedCameras <= 2 ? 400 :
+                                   selectedCameras <= 4 ? 600 :
+                                   selectedCameras <= 6 ? 1000 : 1200; // MB per minute of OUTPUT
+            } else {
+                // Mobile quality timelapse: calibrated from your actual result
+                baseSizePerMinute = selectedCameras <= 2 ? 250 :
+                                   selectedCameras <= 4 ? 450 :
+                                   selectedCameras <= 6 ? 715 : 850; // 715 MB/min output matches your 700.6MB result
+            }
+
+            // Calculate based on OUTPUT duration
+            const outputDurationMinutes = durationSeconds / timelapseSpeed / 60;
+            return Math.round(outputDurationMinutes * baseSizePerMinute);
+        } else {
+            // Regular (non-timelapse) export calculation
+            if (quality === 'full') {
+                // Full quality: higher bitrate
+                baseSizePerMinute = selectedCameras <= 2 ? 60 :
+                                   selectedCameras <= 4 ? 120 :
+                                   selectedCameras <= 6 ? 180 : 220;
+            } else {
+                // Mobile quality: much lower for regular exports
+                baseSizePerMinute = selectedCameras <= 2 ? 25 :
+                                   selectedCameras <= 4 ? 45 :
+                                   selectedCameras <= 6 ? 70 : 90;
+            }
+
+            // Calculate based on INPUT duration
+            const inputDurationMinutes = durationSeconds / 60;
+
+            // Duration factor: longer videos compress slightly better
+            const durationFactor = inputDurationMinutes < 1 ? 1.1 :
+                                  inputDurationMinutes < 5 ? 1.0 :
+                                  inputDurationMinutes < 15 ? 0.95 : 0.9;
+
+            return Math.round(inputDurationMinutes * baseSizePerMinute * durationFactor);
         }
     }
 
@@ -2981,27 +3044,16 @@ class SentrySixApp {
         const exportDurationSeconds = exportDurationMs / 1000;
         const timelapseOutputSeconds = exportDurationSeconds / speedMultiplier;
 
-        // Calculate estimated file size
-        const selectedCameras = Array.from(document.querySelectorAll('.camera-toggle input:checked')).length;
-        const quality = document.querySelector('input[name="quality"]:checked')?.value || 'mobile';
+        // Get current settings
+        const selectedCameras = Array.from(document.querySelectorAll('.camera-export-toggle:checked')).length;
+        const quality = document.querySelector('input[name="export-quality"]:checked')?.value || 'mobile';
 
-        let baseSizePerSecond;
-        if (quality === 'full') {
-            baseSizePerSecond = selectedCameras <= 2 ? 1.5 :
-                               selectedCameras <= 4 ? 2.2 :
-                               selectedCameras <= 6 ? 3.2 : 3.8; // MB per second
-        } else {
-            baseSizePerSecond = selectedCameras <= 2 ? 0.5 :
-                               selectedCameras <= 4 ? 0.8 :
-                               selectedCameras <= 6 ? 1.2 : 1.5; // MB per second
-        }
-
-        // Timelapse compression factor (timelapse videos compress better)
-        const compressionFactor = 0.7;
-        const estimatedSizeMB = Math.round(timelapseOutputSeconds * baseSizePerSecond * compressionFactor);
+        // Use unified calculation
+        const estimatedSizeMB = this.calculateExportFileSize(exportDurationSeconds, selectedCameras, quality, true, speedMultiplier);
 
         // Calculate processing time estimate
-        const processingMultiplier = this.hardwareAcceleration ? 0.3 : 0.8; // Hardware acceleration is much faster
+        const hwaccelEnabled = document.getElementById('hwaccel-enabled')?.checked || false;
+        const processingMultiplier = hwaccelEnabled ? 0.3 : 0.8; // Hardware acceleration is much faster
         const estimatedProcessingMinutes = Math.round(exportDurationSeconds / 60 * processingMultiplier);
 
         // Format durations
@@ -3009,11 +3061,14 @@ class SentrySixApp {
         const outputDuration = this.formatDuration(timelapseOutputSeconds);
         const processingTime = this.formatDuration(estimatedProcessingMinutes * 60);
 
+        // Format quality text
+        const qualityText = quality === 'full' ? 'Full Resolution' : 'Mobile Quality';
+
         // Create comprehensive preview
         const preview = [
             `📹 Input: ${inputDuration} → Output: ${outputDuration} (${speedMultiplier}x speed)`,
-            `📁 Estimated size: ${estimatedSizeMB}MB (${selectedCameras} cameras, ${quality} quality)`,
-            `⏱️ Processing time: ~${processingTime}${this.hardwareAcceleration ? ' (HW accelerated)' : ''}`
+            `📁 Estimated size: ${estimatedSizeMB}MB (${selectedCameras} cameras, ${qualityText})`,
+            `⏱️ Processing time: ~${processingTime}${hwaccelEnabled ? ' (HW Accelerated)' : ''}`
         ].join('\n');
 
         previewText.textContent = preview;
@@ -3051,40 +3106,17 @@ class SentrySixApp {
         const { startTime, endTime } = this.getSyncAdjustedExportRange();
         let exportDuration = Math.floor((endTime - startTime) / 1000);
 
-        // Check if timelapse is enabled and adjust calculations
+        // Check if timelapse is enabled
         const timelapseEnabled = document.getElementById('timelapse-enabled')?.checked || false;
         const timelapseSpeed = parseInt(document.getElementById('timelapse-speed')?.value || '60');
 
-        let finalDuration = exportDuration;
-        let timelapseMultiplier = 1;
+        // Use unified calculation
+        const estimatedSize = this.calculateExportFileSize(exportDuration, selectedCameras, quality, timelapseEnabled, timelapseSpeed);
 
         if (timelapseEnabled && timelapseSpeed > 1) {
-            finalDuration = Math.round(exportDuration / timelapseSpeed);
-            timelapseMultiplier = 0.7; // Timelapse videos compress better
+            const finalDuration = Math.round(exportDuration / timelapseSpeed);
             console.log(`📊 Timelapse estimates: ${exportDuration}s → ${finalDuration}s (${timelapseSpeed}x speed)`);
         }
-
-        // More accurate file size estimation based on quality and camera count
-        let baseSizePerMinute;
-        if (quality === 'full') {
-            // Full quality: higher bitrate, more cameras = larger file
-            baseSizePerMinute = selectedCameras <= 2 ? 80 :
-                               selectedCameras <= 4 ? 120 :
-                               selectedCameras <= 6 ? 180 : 200;
-        } else {
-            // Mobile quality: lower bitrate, scaled down
-            baseSizePerMinute = selectedCameras <= 2 ? 25 :
-                               selectedCameras <= 4 ? 40 :
-                               selectedCameras <= 6 ? 60 : 80;
-        }
-
-        // Adjust for duration (longer videos may have better compression)
-        const durationFactor = finalDuration < 60 ? 1.2 :
-                              finalDuration < 300 ? 1.0 :
-                              finalDuration < 600 ? 0.9 : 0.8;
-
-        // Apply timelapse compression factor
-        const estimatedSize = Math.round((finalDuration / 60) * baseSizePerMinute * durationFactor * timelapseMultiplier);
 
         // Estimate processing time with hardware acceleration consideration
         const hwAccelMultiplier = this.hardwareAcceleration ? 0.3 : 0.8; // Hardware acceleration is much faster
@@ -3094,7 +3126,7 @@ class SentrySixApp {
             Math.round(baseProcessingTime);
 
         fileSizeElement.textContent = `~${estimatedSize} MB`;
-        durationElement.textContent = `~${Math.max(1, Math.round(processingTime / 60))} minutes`;
+        durationElement.textContent = `~${this.formatDuration(Math.max(60, processingTime))}`;
     }
 
     async startVideoExport() {

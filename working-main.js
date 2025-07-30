@@ -1224,15 +1224,47 @@ class SentrySixApp {
                             const stats = fs.statSync(outputPath);
                             const fileSizeMB = (stats.size / (1024 * 1024)).toFixed(1);
                             
-                            // Calculate estimated size for comparison
-                            const durationMinutes = durationSeconds / 60;
+                            // Calculate estimated size for comparison using unified formula
                             const numCameras = inputs.length;
-                            
+
                             let estimatedSize;
-                            if (quality === 'full') {
-                                estimatedSize = Math.round(durationMinutes * (numCameras <= 2 ? 80 : numCameras <= 4 ? 120 : 180));
+
+                            // Check if this was a timelapse export
+                            if (timelapse && timelapse.enabled && timelapse.speed > 1) {
+                                // Timelapse calculation based on OUTPUT duration
+                                // Calibrated from actual result: 59 seconds output = 700.6 MB
+                                let baseSizePerMinute;
+                                if (quality === 'full') {
+                                    baseSizePerMinute = numCameras <= 2 ? 400 :
+                                                       numCameras <= 4 ? 600 :
+                                                       numCameras <= 6 ? 1000 : 1200;
+                                } else {
+                                    baseSizePerMinute = numCameras <= 2 ? 250 :
+                                                       numCameras <= 4 ? 450 :
+                                                       numCameras <= 6 ? 715 : 850; // 715 MB/min output
+                                }
+
+                                const outputDurationMinutes = durationSeconds / timelapse.speed / 60;
+                                estimatedSize = Math.round(outputDurationMinutes * baseSizePerMinute);
                             } else {
-                                estimatedSize = Math.round(durationMinutes * (numCameras <= 2 ? 25 : numCameras <= 4 ? 40 : 60));
+                                // Regular export calculation based on INPUT duration
+                                let baseSizePerMinute;
+                                if (quality === 'full') {
+                                    baseSizePerMinute = numCameras <= 2 ? 60 :
+                                                       numCameras <= 4 ? 120 :
+                                                       numCameras <= 6 ? 180 : 220;
+                                } else {
+                                    baseSizePerMinute = numCameras <= 2 ? 25 :
+                                                       numCameras <= 4 ? 45 :
+                                                       numCameras <= 6 ? 70 : 90;
+                                }
+
+                                const inputDurationMinutes = durationSeconds / 60;
+                                const durationFactor = inputDurationMinutes < 1 ? 1.1 :
+                                                      inputDurationMinutes < 5 ? 1.0 :
+                                                      inputDurationMinutes < 15 ? 0.95 : 0.9;
+
+                                estimatedSize = Math.round(inputDurationMinutes * baseSizePerMinute * durationFactor);
                             }
                             
                             const sizeDifference = Math.abs(parseFloat(fileSizeMB) - estimatedSize);
