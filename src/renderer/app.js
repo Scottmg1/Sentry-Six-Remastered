@@ -3943,7 +3943,12 @@ class SentrySixApp {
             emoji = '❗'; // Red exclamation mark for sentry events
         } else if (event.reason.toLowerCase().includes('user_interaction')) {
             type = 'user_interaction';
-            emoji = '👆'; // Pointing hand for user interaction
+            // Check for specific user interaction types
+            if (event.reason.toLowerCase().includes('honk')) {
+                emoji = '🔊'; // Loudspeaker for honk events
+            } else {
+                emoji = '👆'; // Pointing hand for dashcam button press and other user interactions
+            }
         }
 
         return {
@@ -4208,6 +4213,10 @@ class SentrySixApp {
         let friendlyReason = eventMarker.reason;
         if (eventMarker.reason === 'user_interaction') {
             friendlyReason = 'User Saved';
+        } else if (eventMarker.reason.toLowerCase().includes('user_interaction') && eventMarker.reason.toLowerCase().includes('dashcam')) {
+            friendlyReason = 'User Tapped the Dashcam';
+        } else if (eventMarker.reason.toLowerCase().includes('user_interaction') && eventMarker.reason.toLowerCase().includes('honk')) {
+            friendlyReason = 'User Honk';
         } else if (eventMarker.reason === 'sentry_aware_object_detection') {
             friendlyReason = 'Sentry Detected Object';
         } else if (eventMarker.reason === 'sentry_aware_acceleration') {
