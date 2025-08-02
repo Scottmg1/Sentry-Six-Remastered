@@ -561,16 +561,16 @@ class SentrySixApp {
 
         // Date items (direct selection, no collapsing)
         document.querySelectorAll('.date-item').forEach(item => {
-            item.addEventListener('click', () => {
+            item.addEventListener('click', async () => {
                 const sectionName = item.dataset.section;
                 const dateIndex = parseInt(item.dataset.dateIndex);
 
-                this.selectDateTimeline(sectionName, dateIndex);
+                await this.selectDateTimeline(sectionName, dateIndex);
             });
         });
     }
 
-    selectDateTimeline(sectionName, dateIndex) {
+    async selectDateTimeline(sectionName, dateIndex) {
         const dateGroup = this.clipSections[sectionName][dateIndex];
 
         // Remove previous selection
@@ -585,12 +585,12 @@ class SentrySixApp {
         }
 
         // Create continuous timeline from all clips in the day
-        this.loadDailyTimeline(dateGroup);
+        await this.loadDailyTimeline(dateGroup);
 
         console.log('Selected daily timeline:', sectionName, 'date:', dateGroup.displayDate, 'clips:', dateGroup.clips.length);
     }
 
-    loadDailyTimeline(dateGroup) {
+    async loadDailyTimeline(dateGroup) {
         // Create a continuous timeline data structure with accurate timestamp analysis
         this.currentTimeline = {
             clips: dateGroup.clips,
@@ -612,8 +612,10 @@ class SentrySixApp {
         // Analyze clip timestamps and calculate accurate timeline
         this.analyzeClipTimestamps();
         
-        // Calculate accurate timeline duration based on timestamps
-        this.calculateAccurateTimelineDuration();
+        // Populate all durations with accurate data
+        console.log('🔍 loadDailyTimeline: About to call populateAllDurations...');
+        await this.populateAllDurations();
+        console.log('🔍 loadDailyTimeline: populateAllDurations called');
 
         // Notify debug manager of timeline load
         if (this.debugManager) {
@@ -686,6 +688,70 @@ class SentrySixApp {
         this.currentTimeline.sortedClips = sortedClips;
 
         console.log(`📊 Timeline analysis complete: ${gaps.length} gaps detected`);
+    }
+
+    async populateAllDurations() {
+        console.log('🔍 populateAllDurations: Starting...');
+        console.log('🔍 populateAllDurations: window.electronAPI available?', !!window.electronAPI);
+        console.log('🔍 populateAllDurations: window.electronAPI.getVideoDuration available?', !!(window.electronAPI && window.electronAPI.getVideoDuration));
+        
+        if (!this.currentTimeline || !this.currentTimeline.sortedClips) {
+            console.log('❌ No timeline or sorted clips available for duration population');
+            return;
+        }
+
+        const clips = this.currentTimeline.sortedClips;
+        console.log(`🔍 Populating durations for ${clips.length} clips...`);
+
+        // Initialize actualDurations array if not already done
+        if (!this.currentTimeline.actualDurations) {
+            this.currentTimeline.actualDurations = [];
+        }
+
+        // Process each clip to get its actual duration
+        for (let i = 0; i < clips.length; i++) {
+            const clip = clips[i];
+            console.log(`🔍 Processing clip ${i + 1}/${clips.length}: ${clip.filename}`);
+
+            // Get the front camera file for duration measurement
+            const frontCameraFile = clip.files?.front;
+            if (!frontCameraFile) {
+                console.log(`⚠️ No front camera file found for clip ${i + 1}, using default duration`);
+                this.currentTimeline.actualDurations[i] = 60000; // Default 60 seconds
+                continue;
+            }
+
+            try {
+                console.log(`🔍 Requesting duration for: ${frontCameraFile.path}`);
+                // Request duration from main process
+                const duration = await window.electronAPI.getVideoDuration(frontCameraFile.path);
+                
+                if (duration && duration > 0) {
+                    const durationMs = Math.round(duration * 1000); // Convert to milliseconds
+                    this.currentTimeline.actualDurations[i] = durationMs;
+                    
+                    // Also update the clip's duration property for consistency
+                    clip.duration = durationMs;
+                    
+                    console.log(`✅ Got duration for clip ${i + 1}: ${duration}s (${durationMs}ms) for ${frontCameraFile.path}`);
+                } else {
+                    console.log(`❌ Invalid duration received for clip ${i + 1}: ${duration}, using default`);
+                    this.currentTimeline.actualDurations[i] = 60000; // Default 60 seconds
+                    clip.duration = 60000;
+                }
+            } catch (error) {
+                console.error(`❌ Error getting duration for clip ${i + 1} (${frontCameraFile.path}):`, error);
+                console.log(`❌ Using default duration for clip ${i + 1}`);
+                this.currentTimeline.actualDurations[i] = 60000; // Default 60 seconds
+                clip.duration = 60000;
+            }
+        }
+
+        console.log(`📊 Duration population complete: ${this.currentTimeline.actualDurations.length} durations populated`);
+        console.log(`📊 Actual durations array:`, this.currentTimeline.actualDurations);
+
+        // Recalculate timeline duration with accurate durations
+        this.calculateAccurateTimelineDuration();
     }
 
     calculateAccurateTimelineDuration() {

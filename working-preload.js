@@ -32,6 +32,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
         getVersion: () => ipcRenderer.invoke('app:get-version')
     },
 
+    // Video duration operations
+    getVideoDuration: (filePath) => ipcRenderer.invoke('get-video-duration', filePath),
+
     // Event listeners
     on: (channel, callback) => {
         const allowedChannels = ['folder-selected', 'videos-loaded', 'tesla:export-progress'];

@@ -235,6 +235,25 @@ class SentrySixApp {
             return app.getVersion();
         });
 
+        // Get video duration
+        ipcMain.handle('get-video-duration', async (_, filePath) => {
+            console.log('🔍 get-video-duration IPC handler called with filePath:', filePath);
+            try {
+                const ffmpegPath = this.findFFmpegPath();
+                if (!ffmpegPath) {
+                    console.log('❌ FFmpeg not found in get-video-duration handler');
+                    throw new Error('FFmpeg not found');
+                }
+                console.log('🔍 Calling getVideoDuration with ffmpegPath:', ffmpegPath);
+                const duration = getVideoDuration(filePath, ffmpegPath);
+                console.log('🔍 getVideoDuration returned:', duration);
+                return duration;
+            } catch (error) {
+                console.error('Error getting video duration:', error);
+                return null;
+            }
+        });
+
         // Hardware acceleration detection
         ipcMain.handle('tesla:detect-hwaccel', async () => {
             try {
