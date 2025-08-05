@@ -952,38 +952,75 @@ class SentrySixApp {
             let lastOutputTag = '';
             
             if (numStreams > 1) {
-                // Calculate grid layout for better aspect ratio (16:9)
-                let cols, rows;
-                
-                if (numStreams === 2) {
-                    cols = 2; rows = 1; // 2x1 layout
-                } else if (numStreams === 3) {
-                    cols = 3; rows = 1; // 3x1 layout
-                } else if (numStreams === 4) {
-                    cols = 2; rows = 2; // 2x2 layout
-                } else if (numStreams === 5) {
-                    cols = 3; rows = 2; // 3x2 layout (one empty space)
-                } else if (numStreams === 6) {
-                    cols = 3; rows = 2; // 3x2 layout (16:9 aspect ratio)
+                // Check if custom camera layout is provided
+                if (exportData.cameraLayout && exportData.cameraLayout.cameras && exportData.cameraLayout.cameras.length > 0) {
+                    // Use custom camera layout from frontend
+                    console.log(`🎬 Using custom camera layout with ${exportData.cameraLayout.cameras.length} cameras`);
+                    
+                    // Create layout positions from custom layout
+                    const layout = [];
+                    const cameraOrder = cameras; // Use the order of cameras as provided
+                    
+                    for (let i = 0; i < cameraOrder.length; i++) {
+                        const camera = cameraOrder[i];
+                        const cameraLayout = exportData.cameraLayout.cameras.find(c => c.camera === camera);
+                        
+                        if (cameraLayout) {
+                            // Use the custom position from the layout
+                            layout.push(`${cameraLayout.x}_${cameraLayout.y}`);
+                            console.log(`🎬 Camera ${camera}: position (${cameraLayout.x}, ${cameraLayout.y})`);
+                        } else {
+                            // Fallback to default position if camera not found in layout
+                            const row = Math.floor(i / 2);
+                            const col = i % 2;
+                            layout.push(`${col * w}_${row * h}`);
+                            console.log(`⚠️ Camera ${camera}: using fallback position (${col * w}, ${row * h})`);
+                        }
+                    }
+                    
+                    const layoutStr = layout.join('|');
+                    const xstackFilter = `${cameraStreams.join('')}xstack=inputs=${numStreams}:layout=${layoutStr}[stacked]`;
+                    mainProcessingChain.push(xstackFilter);
+                    lastOutputTag = '[stacked]';
+                    
+                    console.log(`🎬 Custom layout: ${numStreams} cameras, layout: ${layoutStr}`);
                 } else {
-                    // For more than 6 cameras, use 3 columns
-                    cols = 3; rows = Math.ceil(numStreams / 3);
+                    // Fallback to default grid layout calculation
+                    console.log(`🎬 Using default grid layout for ${numStreams} cameras`);
+                    
+                    // Calculate grid layout for better aspect ratio (16:9)
+                    let cols, rows;
+                    
+                    if (numStreams === 2) {
+                        cols = 2; rows = 1; // 2x1 layout
+                    } else if (numStreams === 3) {
+                        cols = 3; rows = 1; // 3x1 layout
+                    } else if (numStreams === 4) {
+                        cols = 2; rows = 2; // 2x2 layout
+                    } else if (numStreams === 5) {
+                        cols = 3; rows = 2; // 3x2 layout (one empty space)
+                    } else if (numStreams === 6) {
+                        cols = 3; rows = 2; // 3x2 layout (16:9 aspect ratio)
+                    } else {
+                        // For more than 6 cameras, use 3 columns
+                        cols = 3; rows = Math.ceil(numStreams / 3);
+                    }
+                    
+                    // Create layout positions
+                    const layout = [];
+                    for (let i = 0; i < numStreams; i++) {
+                        const row = Math.floor(i / cols);
+                        const col = i % cols;
+                        layout.push(`${col * w}_${row * h}`);
+                    }
+                    
+                    const layoutStr = layout.join('|');
+                    const xstackFilter = `${cameraStreams.join('')}xstack=inputs=${numStreams}:layout=${layoutStr}[stacked]`;
+                    mainProcessingChain.push(xstackFilter);
+                    lastOutputTag = '[stacked]';
+                    
+                    console.log(`🔍 Grid layout: ${cols}x${rows}, cameras: ${numStreams}, layout: ${layoutStr}`);
                 }
-                
-                // Create layout positions
-                const layout = [];
-                for (let i = 0; i < numStreams; i++) {
-                    const row = Math.floor(i / cols);
-                    const col = i % cols;
-                    layout.push(`${col * w}_${row * h}`);
-                }
-                
-                const layoutStr = layout.join('|');
-                const xstackFilter = `${cameraStreams.join('')}xstack=inputs=${numStreams}:layout=${layoutStr}[stacked]`;
-                mainProcessingChain.push(xstackFilter);
-                lastOutputTag = '[stacked]';
-                
-                console.log(`🔍 Grid layout: ${cols}x${rows}, cameras: ${numStreams}, layout: ${layoutStr}`);
             } else {
                 lastOutputTag = cameraStreams[0];
             }
@@ -1016,47 +1053,71 @@ class SentrySixApp {
             
             // Add mobile scaling if requested
             if (quality === 'mobile') {
-                // Calculate grid dimensions for proper scaling
-                let cols, rows;
-                if (numStreams === 2) {
-                    cols = 2; rows = 1;
-                } else if (numStreams === 3) {
-                    cols = 3; rows = 1;
-                } else if (numStreams === 4) {
-                    cols = 2; rows = 2;
-                } else if (numStreams === 5) {
-                    cols = 3; rows = 2;
-                } else if (numStreams === 6) {
-                    cols = 3; rows = 2;
+                // Use custom layout dimensions if available, otherwise calculate grid dimensions
+                let totalWidth, totalHeight;
+                
+                if (exportData.cameraLayout && exportData.cameraLayout.totalWidth && exportData.cameraLayout.totalHeight) {
+                    // Use custom layout dimensions
+                    totalWidth = makeEven(exportData.cameraLayout.totalWidth);
+                    totalHeight = makeEven(exportData.cameraLayout.totalHeight);
+                    console.log(`🎬 Using custom layout dimensions: ${totalWidth}x${totalHeight}`);
                 } else {
-                    cols = 3; rows = Math.ceil(numStreams / 3);
+                    // Calculate grid dimensions for proper scaling
+                    let cols, rows;
+                    if (numStreams === 2) {
+                        cols = 2; rows = 1;
+                    } else if (numStreams === 3) {
+                        cols = 3; rows = 1;
+                    } else if (numStreams === 4) {
+                        cols = 2; rows = 2;
+                    } else if (numStreams === 5) {
+                        cols = 3; rows = 2;
+                    } else if (numStreams === 6) {
+                        cols = 3; rows = 2;
+                    } else {
+                        cols = 3; rows = Math.ceil(numStreams / 3);
+                    }
+                    
+                    totalWidth = makeEven(w * cols);
+                    totalHeight = makeEven(h * rows);
+                    console.log(`🎬 Using default grid dimensions: ${totalWidth}x${totalHeight}`);
                 }
                 
-                const totalWidth = makeEven(w * cols);
-                const totalHeight = makeEven(h * rows);
                 const mobileWidth = makeEven(Math.floor(1080 * (totalWidth / totalHeight) / 2) * 2); // Ensure even width
                 
                 mainProcessingChain.push(`${lastOutputTag}scale=${mobileWidth}:1080[final]`);
                 lastOutputTag = '[final]';
             } else {
                 // For 'full' quality, scale the output grid to 1448p height for ALL hardware encoders (NVENC, QSV, VideoToolbox, AMF)
-                // Calculate grid dimensions as in mobile
-                let cols, rows;
-                if (numStreams === 2) {
-                    cols = 2; rows = 1;
-                } else if (numStreams === 3) {
-                    cols = 3; rows = 1;
-                } else if (numStreams === 4) {
-                    cols = 2; rows = 2;
-                } else if (numStreams === 5) {
-                    cols = 3; rows = 2;
-                } else if (numStreams === 6) {
-                    cols = 3; rows = 2;
+                // Use custom layout dimensions if available, otherwise calculate grid dimensions
+                let totalWidth, totalHeight;
+                
+                if (exportData.cameraLayout && exportData.cameraLayout.totalWidth && exportData.cameraLayout.totalHeight) {
+                    // Use custom layout dimensions
+                    totalWidth = makeEven(exportData.cameraLayout.totalWidth);
+                    totalHeight = makeEven(exportData.cameraLayout.totalHeight);
+                    console.log(`🎬 Using custom layout dimensions: ${totalWidth}x${totalHeight}`);
                 } else {
-                    cols = 3; rows = Math.ceil(numStreams / 3);
+                    // Calculate grid dimensions as in mobile
+                    let cols, rows;
+                    if (numStreams === 2) {
+                        cols = 2; rows = 1;
+                    } else if (numStreams === 3) {
+                        cols = 3; rows = 1;
+                    } else if (numStreams === 4) {
+                        cols = 2; rows = 2;
+                    } else if (numStreams === 5) {
+                        cols = 3; rows = 2;
+                    } else if (numStreams === 6) {
+                        cols = 3; rows = 2;
+                    } else {
+                        cols = 3; rows = Math.ceil(numStreams / 3);
+                    }
+                    totalWidth = makeEven(w * cols);
+                    totalHeight = makeEven(h * rows);
+                    console.log(`🎬 Using default grid dimensions: ${totalWidth}x${totalHeight}`);
                 }
-                const totalWidth = makeEven(w * cols);
-                const totalHeight = makeEven(h * rows);
+                
                 const fullWidth = makeEven(Math.floor(1448 * (totalWidth / totalHeight) / 2) * 2); // Ensure even width
                 mainProcessingChain.push(`${lastOutputTag}scale=${fullWidth}:1448[final]`);
                 lastOutputTag = '[final]';
