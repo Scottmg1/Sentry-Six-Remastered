@@ -69,11 +69,16 @@ export class FFmpegHandler {
     }
 
     private findFFmpegPath(): string {
-        // Try common FFMPEG locations
+        const isMac = process.platform === 'darwin';
+        // Prioritize bundled FFmpeg over system PATH
         const possiblePaths = [
-            'ffmpeg', // System PATH
-            path.join(__dirname, '..', '..', 'ffmpeg_bin', 'ffmpeg.exe'), // Bundled Windows
-            path.join(__dirname, '..', '..', 'ffmpeg_bin', 'ffmpeg'), // Bundled Unix
+            ...(isMac ? [
+                path.join(__dirname, '..', '..', 'ffmpeg_bin', 'mac', 'ffmpeg'), // Bundled Mac
+            ] : [
+                path.join(__dirname, '..', '..', 'ffmpeg_bin', 'ffmpeg.exe'), // Bundled Windows
+                path.join(__dirname, '..', '..', 'ffmpeg_bin', 'ffmpeg'), // Bundled Unix
+            ]),
+            'ffmpeg', // System PATH (fallback)
             '/usr/local/bin/ffmpeg', // Homebrew macOS
             '/usr/bin/ffmpeg' // Linux
         ];

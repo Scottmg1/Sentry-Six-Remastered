@@ -456,7 +456,7 @@ class SentrySixApp {
     findFFmpegPath() {
         const isMac = process.platform === 'darwin';
         const possiblePaths = [
-            'ffmpeg', // System PATH (always check first)
+            // Prioritize bundled FFmpeg over system PATH
             ...(isMac ? [
                 path.join(__dirname, 'ffmpeg_bin', 'mac', 'ffmpeg'), // Bundled Mac
                 path.join(process.cwd(), 'ffmpeg_bin', 'mac', 'ffmpeg') // CWD Mac
@@ -466,6 +466,7 @@ class SentrySixApp {
                 path.join(process.cwd(), 'ffmpeg_bin', 'ffmpeg.exe'), // Current working directory
                 path.join(process.cwd(), 'ffmpeg_bin', 'ffmpeg') // Current working directory Unix
             ]),
+            'ffmpeg', // System PATH (fallback)
             '/usr/local/bin/ffmpeg', // Homebrew macOS
             '/usr/bin/ffmpeg' // Linux
         ];

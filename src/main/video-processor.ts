@@ -292,11 +292,16 @@ export class VideoProcessor {
      * Find FFmpeg executable path
      */
     private findFFmpegPath(): string {
-        // Common locations to check
+        const isMac = process.platform === 'darwin';
+        // Prioritize bundled FFmpeg over system PATH
         const possiblePaths = [
-            'ffmpeg', // System PATH
-            path.join(process.cwd(), 'ffmpeg_bin', 'ffmpeg.exe'), // Bundled Windows
-            path.join(process.cwd(), 'ffmpeg_bin', 'ffmpeg'), // Bundled Unix
+            ...(isMac ? [
+                path.join(process.cwd(), 'ffmpeg_bin', 'mac', 'ffmpeg'), // Bundled Mac
+            ] : [
+                path.join(process.cwd(), 'ffmpeg_bin', 'ffmpeg.exe'), // Bundled Windows
+                path.join(process.cwd(), 'ffmpeg_bin', 'ffmpeg'), // Bundled Unix
+            ]),
+            'ffmpeg', // System PATH (fallback)
             '/usr/local/bin/ffmpeg', // Homebrew macOS
             '/usr/bin/ffmpeg', // Linux package manager
         ];
@@ -319,11 +324,16 @@ export class VideoProcessor {
      * Find FFprobe executable path
      */
     private findFFprobePath(): string {
-        // Common locations to check
+        const isMac = process.platform === 'darwin';
+        // Prioritize bundled FFprobe over system PATH
         const possiblePaths = [
-            'ffprobe', // System PATH
-            path.join(process.cwd(), 'ffmpeg_bin', 'ffprobe.exe'), // Bundled Windows
-            path.join(process.cwd(), 'ffmpeg_bin', 'ffprobe'), // Bundled Unix
+            ...(isMac ? [
+                path.join(process.cwd(), 'ffmpeg_bin', 'mac', 'ffprobe'), // Bundled Mac
+            ] : [
+                path.join(process.cwd(), 'ffmpeg_bin', 'ffprobe.exe'), // Bundled Windows
+                path.join(process.cwd(), 'ffmpeg_bin', 'ffprobe'), // Bundled Unix
+            ]),
+            'ffprobe', // System PATH (fallback)
             '/usr/local/bin/ffprobe', // Homebrew macOS
             '/usr/bin/ffprobe', // Linux package manager
         ];
