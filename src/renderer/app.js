@@ -5454,14 +5454,29 @@ class SentrySixApp {
         });
         window.addEventListener('mousemove', (e) => {
             if (!isPanning) return;
-            const speed = 3.0;
-            const dx = (e.clientX - lastX) * speed;
-            const dy = (e.clientY - lastY) * speed;
+            const baseSpeed = 3.0;
+            const currentZoom = this.cameraZoomLevels[camera] || 1.0;
+            
+            // Scale speed inversely with zoom level to maintain consistent panning feel
+            // This ensures panning speed feels the same regardless of zoom level
+            const adjustedSpeed = baseSpeed / currentZoom;
+            
+            const dx = (e.clientX - lastX) * adjustedSpeed;
+            const dy = (e.clientY - lastY) * adjustedSpeed;
             lastX = e.clientX;
             lastY = e.clientY;
             const pan = this.cameraPanOffsets[camera] || { x: 0, y: 0 };
-            pan.x += dx / (this.cameraZoomLevels[camera] || 1.0);
-            pan.y += dy / (this.cameraZoomLevels[camera] || 1.0);
+            
+            // Check if this camera should be mirrored (back and repeater cameras)
+            const isMirroredCamera = ['back', 'left_repeater', 'right_repeater'].includes(camera);
+            
+            // For mirrored cameras, invert the X-axis panning direction
+            if (isMirroredCamera) {
+                pan.x -= dx;
+            } else {
+                pan.x += dx;
+            }
+            pan.y += dy;
             this.cameraPanOffsets[camera] = pan;
             this.setCameraZoom(camera, this.cameraZoomLevels[camera]);
         });
@@ -5503,9 +5518,20 @@ class SentrySixApp {
                 const mouseY = event.clientY - rect.top;
                 const centerX = rect.width / 2;
                 const centerY = rect.height / 2;
+                
+                // Check if this camera should be mirrored (back and repeater cameras)
+                const isMirroredCamera = ['back', 'left_repeater', 'right_repeater'].includes(camera);
+                
                 // Offset from center, in video pixels
-                const offsetX = mouseX - centerX;
+                let offsetX = mouseX - centerX;
                 const offsetY = mouseY - centerY;
+                
+                // For mirrored cameras, we need to invert the X-axis offset
+                // because the video is horizontally flipped with scaleX(-1)
+                if (isMirroredCamera) {
+                    offsetX = -offsetX;
+                }
+                
                 // Calculate new pan so the point under the cursor stays fixed
                 const pan = this.cameraPanOffsets[camera] || { x: 0, y: 0 };
                 // The math: newPan = oldPan - (zoomDelta - 1) * offset
