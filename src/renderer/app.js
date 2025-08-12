@@ -585,12 +585,12 @@ class SentrySixApp {
         }
 
         // Create continuous timeline from all clips in the day
-        await this.loadDailyTimeline(dateGroup);
+        await this.loadDailyTimeline(dateGroup, sectionName);
 
         console.log('Selected daily timeline:', sectionName, 'date:', dateGroup.displayDate, 'clips:', dateGroup.clips.length);
     }
 
-    async loadDailyTimeline(dateGroup) {
+    async loadDailyTimeline(dateGroup, sectionName) {
         // Create a continuous timeline data structure with accurate timestamp analysis
         this.currentTimeline = {
             clips: dateGroup.clips,
@@ -601,6 +601,7 @@ class SentrySixApp {
             isPlaying: false,
             currentPosition: 0, // Global position in milliseconds across all clips
             date: dateGroup.displayDate,
+            sectionName: sectionName, // Store the current section name for event filtering
             actualDurations: [], // Store actual clip durations as they load
             loadedClipCount: 0, // Track how many clips have loaded
             clipTimestamps: [], // Store actual start timestamps for each clip
@@ -5026,6 +5027,7 @@ class SentrySixApp {
             thumbnailPath: event.thumbnailPath,
             folderPath: event.folderPath,
             city: event.city,
+            folderType: event.type, // Preserve the original folder type (SentryClips/SavedClips)
             position: 0 // Will be calculated when timeline is loaded
         };
     }
@@ -5068,16 +5070,17 @@ class SentrySixApp {
         const timelineEnd = new Date(this.currentTimeline.endTime).getTime();
         const actualTimelineDuration = timelineEnd - timelineStart;
 
-        // Get the selected date for filtering events
+        // Get the selected date and section for filtering events
         const selectedDate = this.currentTimeline.date;
+        const selectedSection = this.currentTimeline.sectionName;
         const selectedDateObj = new Date(selectedDate);
         const selectedDateStart = new Date(selectedDateObj.getFullYear(), selectedDateObj.getMonth(), selectedDateObj.getDate()).getTime();
         const selectedDateEnd = selectedDateStart + (24 * 60 * 60 * 1000); // End of the selected date
 
         console.log(`🔍 Rendering event markers for accurate timeline: ${new Date(timelineStart).toLocaleTimeString()} - ${new Date(timelineEnd).toLocaleTimeString()}`);
-        console.log(`📅 Filtering events for date: ${selectedDate} (${new Date(selectedDateStart).toLocaleDateString()})`);
+        console.log(`📅 Filtering events for date: ${selectedDate} (${new Date(selectedDateStart).toLocaleDateString()}) and section: ${selectedSection}`);
 
-        // Filter events by the selected date AND timeline bounds
+        // Filter events by the selected date, section type, AND timeline bounds
         const visibleEvents = this.eventMarkers.filter(eventMarker => {
             const eventTime = eventMarker.timestamp.getTime();
             const eventDate = eventMarker.timestamp.getTime();
@@ -5085,13 +5088,23 @@ class SentrySixApp {
             // Check if event is from the selected date
             const isFromSelectedDate = eventDate >= selectedDateStart && eventDate < selectedDateEnd;
             
+            // Check if event is from the correct section type
+            const isFromCorrectSection = this.isEventFromSection(eventMarker, selectedSection);
+            
             // Check if event is within or after the timeline (for positioning at end)
             const isWithinTimeline = eventTime >= timelineStart;
             
-            return isFromSelectedDate && isWithinTimeline;
+            return isFromSelectedDate && isFromCorrectSection && isWithinTimeline;
         });
 
-        console.log(`📊 Found ${visibleEvents.length} events for selected date (${this.eventMarkers.length} total events)`);
+        console.log(`📊 Found ${visibleEvents.length} events for selected date and section (${this.eventMarkers.length} total events)`);
+        
+        // Map section names to folder types for logging
+        const sectionToFolderType = {
+            'Sentry Detection': 'SentryClips',
+            'User Saved': 'SavedClips'
+        };
+        console.log(`🔍 Section filtering: ${selectedSection} → ${sectionToFolderType[selectedSection] || 'unknown'}`);
 
         // Create and position event markers using continuous timeline positioning
         visibleEvents.forEach(eventMarker => {
@@ -5123,20 +5136,44 @@ class SentrySixApp {
         console.log(`✅ Rendered ${visibleEvents.length} event markers on accurate timeline`);
     }
 
+    isEventFromSection(eventMarker, selectedSection) {
+        // Map section names to folder types
+        const sectionToFolderType = {
+            'Sentry Detection': 'SentryClips',
+            'User Saved': 'SavedClips'
+        };
+
+        const expectedFolderType = sectionToFolderType[selectedSection];
+        
+        if (!expectedFolderType) {
+            console.warn(`Unknown section: ${selectedSection}, showing all events`);
+            return true; // Show all events if section is unknown
+        }
+
+        const isFromCorrectSection = eventMarker.folderType === expectedFolderType;
+        
+        if (!isFromCorrectSection) {
+            console.log(`🚫 Filtered out event: ${eventMarker.reason} (${eventMarker.folderType}) from section: ${selectedSection}`);
+        }
+        
+        return isFromCorrectSection;
+    }
+
     renderLegacyEventMarkers(timelineMarkers) {
         // Calculate timeline bounds using legacy method
         const timelineStart = this.currentTimeline.startTime.getTime();
         const timelineEnd = timelineStart + this.currentTimeline.displayDuration;
 
-        // Get the selected date for filtering events
+        // Get the selected date and section for filtering events
         const selectedDate = this.currentTimeline.date;
+        const selectedSection = this.currentTimeline.sectionName;
         const selectedDateObj = new Date(selectedDate);
         const selectedDateStart = new Date(selectedDateObj.getFullYear(), selectedDateObj.getMonth(), selectedDateObj.getDate()).getTime();
         const selectedDateEnd = selectedDateStart + (24 * 60 * 60 * 1000); // End of the selected date
 
-        console.log(`📅 Filtering events for date: ${selectedDate} (${new Date(selectedDateStart).toLocaleDateString()})`);
+        console.log(`📅 Filtering events for date: ${selectedDate} (${new Date(selectedDateStart).toLocaleDateString()}) and section: ${selectedSection}`);
 
-        // Filter events by the selected date AND timeline bounds
+        // Filter events by the selected date, section type, AND timeline bounds
         const visibleEvents = this.eventMarkers.filter(eventMarker => {
             const eventTime = eventMarker.timestamp.getTime();
             const eventDate = eventMarker.timestamp.getTime();
@@ -5144,10 +5181,13 @@ class SentrySixApp {
             // Check if event is from the selected date
             const isFromSelectedDate = eventDate >= selectedDateStart && eventDate < selectedDateEnd;
             
+            // Check if event is from the correct section type
+            const isFromCorrectSection = this.isEventFromSection(eventMarker, selectedSection);
+            
             // Check if event is within or after the timeline (for positioning at end)
             const isWithinTimeline = eventTime >= timelineStart;
             
-            return isFromSelectedDate && isWithinTimeline;
+            return isFromSelectedDate && isFromCorrectSection && isWithinTimeline;
         });
 
         // Create and position event markers
@@ -5173,7 +5213,7 @@ class SentrySixApp {
             }
         });
 
-        console.log(`Rendered ${visibleEvents.length} event markers for selected date (${this.eventMarkers.length} total events)`);
+        console.log(`Rendered ${visibleEvents.length} event markers for selected date and section (${this.eventMarkers.length} total events)`);
     }
 
     createEventMarkerElement(eventMarker) {
