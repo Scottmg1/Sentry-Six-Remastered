@@ -1,7 +1,0 @@
-PyQt6>=6.0
-PyQt6-Qt6>=6.0
-PyQt6-sip>=13.0
-ffmpeg-python>=0.2
-setuptools>=65.5.0
-wheel>=0.37.0
-# Ensure ffmpeg is installed separately and in system PATH

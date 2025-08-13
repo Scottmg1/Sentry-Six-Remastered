@@ -1,8 +1,7 @@
-# SentrySix 
+# Sentry‑Six (Electron)
 
-SentrySix  is a modern, feature-rich viewer and exporter for your Tesla Sentry and Dashcam footage, built with Python and PyQt6. It provides a fluid, intuitive interface to navigate, review, and export your clips with powerful tools not found in other viewers.
+Sentry‑Six is a modern, feature‑rich viewer and exporter for your Tesla Sentry and Dashcam footage now rewritten in Electron for smoother UI, better multi‑camera sync, and faster exports. It is a ground‑up rewrite in Electron that preserves the core experience while significantly improving performance, reliability, and packaging. rewritten with the help of AI gemini, gpt, and Claud code.
 
-This project was remastered and significantly enhanced through a collaboration between Scott and Google's Gemini 2.5 Pro, building upon the excellent foundation of the original SentrySix by ChadR23.
 
 ## Community & Support
 
@@ -10,85 +9,127 @@ Have questions, suggestions, or want to connect with other users? Join our offic
 
 **[Join the TeslaCam Viewer Discord Server](https://discord.com/invite/9QZEzVwdnt)**
 
-![SentrySix UI Overview](Screenshots/All_cams.png)
+![SentrySix UI Overview](Screenshots/allcams.png)
 
-## 🚀 Features
+## 🚀 What’s New in the Electron Rewrite
 
--   **Synchronized 6-Camera Playback**: Watch footage from the front, back, repeaters, and pillar cameras, all perfectly in sync.
--   **Interactive Event Markers**: Automatically displays icons on the timeline for **Sentry**, **Honk**, and **User-saved** events.
-    -   🖱️ **Click to Seek**: Instantly jump to any event. Sentry and User events jump 10 seconds prior to give you context.
-    -   🖼️ **Hover to Preview**: Hover over an event icon to see the official `thumb.png` and the reason for the event in a tooltip.
--   **Visual Clip Exporting**:
-    -   🚩 **Draggable Markers**: Set your export start and end points with draggable red and green markers directly on the timeline for frame-perfect trimming.
-    -   ✨ **Live Scrubbing Preview**: Get an instant visual preview in the main video grid as you drag the markers.
--   **Flexible Layout Control**: Use the simple checkboxes in the toolbar to instantly toggle the visibility of any combination of cameras.
--   **High-Quality Exports**:
-    -   Choose between **Full Resolution** for archival quality or a **Mobile-Friendly** 1080p version for easy sharing.
-    -   The exported clip intelligently stitches together the camera views based on your selected layout.
--   **Advanced Playback Controls**:
-    -   **Zoom & Pan**: Dynamically zoom and pan any camera view with your mouse wheel and by dragging.
-    -   **Variable Speed**: Adjust playback speed from 0.25x to 4x.
-    -   **Frame-by-Frame**: Step through footage one frame at a time to find the perfect shot.
-    -   **15-Second Skip**: Quickly jump forward or backward in 15-second intervals.
--   **Go To Timestamp**: Jump to a precise time in the day's footage with a simple dialog that even shows a thumbnail preview.
+- **Smooth, stutter‑free UI** during playback and timeline scrubbing
+- **Accurate 6‑camera synchronization** (front, back, left/right repeaters, pillars)
+- **Bundled FFmpeg** with automatic detection (no manual install)
+- **Hardware acceleration support** when available (NVENC, AMF, QSV, VideoToolbox)
+- **Visual export workflow** with custom camera layouts and live estimates
+- **Timelapse exports** with speed controls (e.g., 4x → 1200x)
+- **Timestamp overlays** with configurable position
+- **Robust timeline engine** with event markers and debugging tools
+- **Cross‑platform packaging** (Windows/macOS/Linux installers)
+
+## ✨ Features
+
+- **Synchronized 6‑Camera Playback**: Front, Back, Left/Right Repeaters, Left/Right Pillars all kept in sync by a refined timing model.
+- **Interactive Event Markers**: Icons for **Sentry**, **Honk**, and **User‑saved** events on the timeline.
+  - 🖱️ **Click to Seek**: Instantly jump to any event; Sentry/User events jump ~10 seconds prior for context.
+  - 🖼️ **Hover to Preview**: Preview via `thumb.png` and event reason.
+- **Visual Clip Exporting**:
+  - 🚩 **Start/End Markers** directly on the timeline for frame‑tight trimming.
+  - 🧩 **Custom Camera Layouts**: Arrange cameras freely before export.
+  - ⚡ **Hardware Acceleration**: Enables GPU encoding when supported.
+  - ⏱️ **Live Estimates**: See export progress, duration, and size predictions.
+- **Advanced Playback Controls**:
+  - **Variable Speed**: 0.1x–4x
+  - **Frame‑by‑Frame**, **15‑Second Skip**, **Volume Control**
+  - **Camera Visibility Panel**: Toggle any camera on/off instantly
+- **Timelapse & Timestamp Overlay**:
+  - Timelapse speeds from 4x up to 1200x
+  - Overlay timestamp at bottom/top left/center/right
+- **Debug & Diagnostics**:
+  - Built‑in **Timeline Debug Panel** (gap detection, missing camera data, file size anomalies)
+  - **Export terminal logs** for support
 
 ## 📸 Layouts & UI
 
 | Feature | Screenshot |
 | :--- | :--- |
-| **Event Markers & Tooltip** | ![Event Markers & Tooltip](Screenshots/even_Markers.png) |
-| **Draggable Export Markers** | ![Draggable Export Marker](Screenshots/export_markers.png) |
-| **All Camera View** | ![All Camera View](Screenshots/All_cams.png) |
-| **Go To Time Dialog** | ![Timestamp Preview](Screenshots/go_to_time.png) |
+| **All Camera View** | ![All Camera View](Screenshots/allcams.png) |
+| **Folder Selection** | ![Folder/Date Slection](Screenshots/folderselection.png) |
+| **Event Markers & Tooltip** | ![Event Markers & Tooltip](Screenshots/eventmarkers.png) |
+| **Draggable Export Markers** | ![Draggable Export Marker](Screenshots/startend.png) |
+| **Export settings** | ![Export customization](Screenshots/exportsettings.png) |
 
-## 📋 Requirements
 
--   Python 3.10+
--   PyQt6
 
-Install all Python dependencies with:
+## 📦 Requirements
+
+- Node.js 18+
+- Windows/macOS/Linux
+- FFmpeg is bundled with the app; no system install required
+
+## 🧰 Installation (from source)
 
 ```bash
-pip install -r requirements.txt
+npm install
+npm start
 ```
-## Installation  
 
-1. Download the latest `SentrySix.exe` from the [Releases page](https://github.com/ChadR23/Sentry-Six/releases).
-2. Double-click the downloaded file to run the application. No installation or Python required.
-3. (Optional) Pin the app to your taskbar for easy access.
-4. To check for updates, use the "Check for Updates" button in the app. If a new version is available, the app will guide you through the update process.
+- Development: `npm run dev`
+- Build installers: `npm run dist` (outputs to `release/`)
+
+## Installation (prebuilt) COMING SOON
+
+1. Download the latest installer from the Releases page.
+2. Run the installer. No Python or system FFmpeg required.
+3. (Optional) Pin the app to your taskbar.
+4. Use the in‑app update button to check for updates.
 
 ## FFmpeg
 
-FFmpeg is now bundled with Sentry-Six and managed automatically by the application. No manual installation or PATH configuration is required.
+FFmpeg is bundled under the app’s `ffmpeg_bin/` directory and used automatically. The app falls back to system FFmpeg if needed. No PATH setup required.
 
 ## 🛠️ Usage
 
-1.  Launch the application by running **main.py**.
-2.  Click **“Select Clips Folder”** and navigate to your `TeslaCam` folder (which contains `SavedClips` and/or `SentryClips`).
-3.  Click the **Date** dropdown and select the date you want to review.
-4.  Use the playback controls, event markers, and timeline to find your desired footage.
-5.  To export:
-    -   Move the timeline scrubber to your desired start point and click **Set Start**.
-    -   Move to your desired end point and click **Set End**.
-    -   Fine-tune by dragging the green and red markers on the timeline.
-    -   Click **Export Clip** and choose your resolution.
+1. Launch the application.
+2. Click **“Open Folder”** and select your `TeslaCam` folder containing `SavedClips/`, `SentryClips/`, or `RecentClips/`.
+3. Select a date/event; clips are grouped automatically.
+4. Use playback controls and the timeline to browse footage; all visible cameras remain in sync.
+5. To export:
+   - Set the **Start** and **End** markers on the timeline.
+   - Optionally arrange a **Custom Camera Layout**.
+   - Choose **Quality** (Full/Mobile), **Hardware Acceleration**, **Timelapse**, and **Timestamp Overlay**.
+   - Click **Export** and monitor progress.
 
-## ⚠️ Disclaimer
+## 🔁 Why Electron vs. Python (PyQt6)
 
-SentrySix is an open-source utility provided as-is, with no warranties or guarantees. By using this software, you accept that you are doing so at your own risk. The developers are not responsible for any data loss, system behavior, or other unexpected issues that may arise.
+| Area | Python (Old) | Electron (New) |
+| --- | --- | --- |
+| UI Responsiveness | Occasional 1–3s UI freezes during heavy operations | Smooth scrubbing and playback, non‑blocking UI |
+| Multi‑Camera Sync | Good, but inconsistent under load | Refined timing model with HTML5 video for consistent alignment |
+| Exports | CPU‑heavy, limited GPU use | GPU encoding when available (NVENC/AMF/QSV/VideoToolbox) |
+| FFmpeg Handling | External/system dependency | Bundled FFmpeg with automatic detection |
+| Packaging | Platform‑specific hurdles | One‑command builds for Win/macOS/Linux |
+| Debugging | Limited built‑in diagnostics | Timeline Debug Panel, terminal log export |
 
-It is always recommended to have a backup of your important TeslaCam footage before performing any file operations.
+For the original Python version and history, see the repository on GitHub: [Sentry‑Six (Python)](https://github.com/ChadR23/Sentry-Six/tree/oldmain).
+
+## ❓ Troubleshooting
+
+- If FFmpeg isn’t detected, ensure platform‑appropriate binaries are present in `ffmpeg_bin/` (Windows: `ffmpeg.exe`, `ffprobe.exe`; macOS: `ffmpeg_bin/mac/`).
+- If videos don’t load, verify your Tesla folder structure and that files are `.mp4`.
+- On Windows, the app icon is `assets/Sentry_six.ico`.
+
+## Known Issues
+
+- Short exports and camera sync: Very short clips can show minor desync between cameras because Tesla records each camera as a separate file that may start a fraction of a second apart. Workarounds: export a slightly longer range and trim afterward, or include an extra second at the start.
+- Network shares (NAS): Loading and exporting from network-attached storage can be unreliable due to latency and file locking on SMB/NFS. For best results, copy clips to a local SSD/HDD or plug the drive in via USB before loading.
+- Slow date load on large folders: When you click a date, the app parses all clips to build an accurate timeline. Very large folders will take longer. Tips: archive or move old dates you do not review often, keep clips on a fast SSD, and limit the folder to specific days.
 
 ## 🗺️ Roadmap
 
 This project is actively developed. Here are some ideas for the future:
 
--   [ ] Display GPS data from `event.json` on a map widget.
--   [ ] Option to burn-in camera name labels (e.g., "Front", "Left Repeater") on exported videos.
--   [ ] Support for exporting clips as GIFs or image sequences.
--   [ ] Drag-and-drop support for clip folders.
--   [ ] Add Model Y (Juniper) front bumper camera support if/when it's used for Sentry/Dashcam.
+- [ ] Display GPS data from `event.json` on a map widget.
+- [ ] Option to burn‑in camera name labels (e.g., "Front", "Left Repeater") on exported videos.
+- [ ] Support for exporting clips as GIFs or image sequences.
+- [ ] Drag‑and‑drop support for clip folders.
+- [ ] Add Model Y (Juniper) front bumper camera support if/when it’s used for Sentry/Dashcam.
 
 ## 🙌 Contributing
 
@@ -100,5 +141,13 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## ❤️ Credits
 
--   **Original Concept & Code:** ChadR23
--   **Remaster & Feature Development:** A collaborative effort between Scott and Google's Gemini 2.5 Pro AI.
+- **Original Concept & Code:** ChadR23
+- **Electron Rewrite & Enhancements:** Sentry‑Six Team (with AI assistance)
+- **Remaster & Feature Development:** A collaborative effort between Scott and Google's Gemini 2.5 Pro AI.
+
+
+
+## 🙏 Special Thanks
+
+- [Scott](https://github.com/Scottmg1), [Parallax](https://github.com/DennisGarvey), and 38tu for hands‑on beta testing and invaluable feedback.
+- ^^^ our incredible beta testers for real‑world feedback, edge‑case reports, and patience while we iterated on the Electron rewrite.
