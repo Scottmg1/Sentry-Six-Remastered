@@ -25,7 +25,7 @@ Have questions, suggestions, or want to connect with other users? Join our offic
 
 ## ✨ Features
 
-- **Synchronized 6‑Camera Playback**: Front, Back, Left/Right Repeaters, Left/Right Pillars — all kept in sync by a refined timing model.
+- **Synchronized 6‑Camera Playback**: Front, Back, Left/Right Repeaters, Left/Right Pillars all kept in sync by a refined timing model.
 - **Interactive Event Markers**: Icons for **Sentry**, **Honk**, and **User‑saved** events on the timeline.
   - 🖱️ **Click to Seek**: Instantly jump to any event; Sentry/User events jump ~10 seconds prior for context.
   - 🖼️ **Hover to Preview**: Preview via `thumb.png` and event reason.
