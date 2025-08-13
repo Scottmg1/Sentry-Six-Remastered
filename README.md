@@ -104,7 +104,7 @@ FFmpeg is bundled under the app’s `ffmpeg_bin/` directory and used automatical
 | Packaging | Platform‑specific hurdles | One‑command builds for Win/macOS/Linux |
 | Debugging | Limited built‑in diagnostics | Timeline Debug Panel, terminal log export |
 
-For the original Python version and history, see the repository on GitHub: [Sentry‑Six (Python)](https://github.com/ChadR23/Sentry-Six/tree/main).
+For the original Python version and history, see the repository on GitHub: [Sentry‑Six (Python)](https://github.com/ChadR23/Sentry-Six/tree/oldmain).
 
 ## ❓ Troubleshooting
 
@@ -140,6 +140,5 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 🙏 Special Thanks
 
-- Scott, Parallax, and 38tu — for hands‑on beta testing and invaluable feedback.
+- [Scott](https://github.com/Scottmg1), [Parallax](https://github.com/DennisGarvey), and 38tu — for hands‑on beta testing and invaluable feedback.
 - ^^^ our incredible beta testers for real‑world feedback, edge‑case reports, and patience while we iterated on the Electron rewrite.
-- To the broader TeslaCam community for suggestions that shaped features like custom layouts, hardware‑accelerated exports, and the timeline debug tools.
