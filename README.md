@@ -70,7 +70,7 @@ npm start
 - Development: `npm run dev`
 - Build installers: `npm run dist` (outputs to `release/`)
 
-## Installation (prebuilt)
+## Installation (prebuilt) COMMING SOON
 
 1. Download the latest installer from the Releases page.
 2. Run the installer. No Python or system FFmpeg required.
