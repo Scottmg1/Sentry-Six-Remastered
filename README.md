@@ -141,5 +141,5 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 🙏 Special Thanks
 
-- [Scott](https://github.com/Scottmg1), [Parallax](https://github.com/DennisGarvey), and 38tu — for hands‑on beta testing and invaluable feedback.
+- [Scott](https://github.com/Scottmg1), [Parallax](https://github.com/DennisGarvey), and 38tu for hands‑on beta testing and invaluable feedback.
 - ^^^ our incredible beta testers for real‑world feedback, edge‑case reports, and patience while we iterated on the Electron rewrite.
