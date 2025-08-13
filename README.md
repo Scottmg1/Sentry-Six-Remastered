@@ -49,11 +49,13 @@ Have questions, suggestions, or want to connect with other users? Join our offic
 
 | Feature | Screenshot |
 | :--- | :--- |
-| **Event Markers & Tooltip** | ![Event Markers & Tooltip](Screenshots/eventmarkers.png) |
-| **Draggable Export Markers** | ![Draggable Export Marker](Screenshots/startend.png) |
 | **All Camera View** | ![All Camera View](Screenshots/allcams.png) |
 | **Folder Selection** | ![Folder/Date Slection](Screenshots/folderselection.png) |
+| **Event Markers & Tooltip** | ![Event Markers & Tooltip](Screenshots/eventmarkers.png) |
+| **Draggable Export Markers** | ![Draggable Export Marker](Screenshots/startend.png) |
 | **Export settings** | ![Export customization](Screenshots/exportsettings.png) |
+
+
 
 ## 📦 Requirements
 
