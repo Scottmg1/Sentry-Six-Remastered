@@ -115,6 +115,12 @@ For the original Python version and history, see the repository on GitHub: [Sent
 - If videos don’t load, verify your Tesla folder structure and that files are `.mp4`.
 - On Windows, the app icon is `assets/Sentry_six.ico`.
 
+## Known Issues
+
+- Short exports and camera sync: Very short clips can show minor desync between cameras because Tesla records each camera as a separate file that may start a fraction of a second apart. Workarounds: export a slightly longer range and trim afterward, or include an extra second at the start.
+- Network shares (NAS): Loading and exporting from network-attached storage can be unreliable due to latency and file locking on SMB/NFS. For best results, copy clips to a local SSD/HDD or plug the drive in via USB before loading.
+- Slow date load on large folders: When you click a date, the app parses all clips to build an accurate timeline. Very large folders will take longer. Tips: archive or move old dates you do not review often, keep clips on a fast SSD, and limit the folder to specific days.
+
 ## 🗺️ Roadmap
 
 This project is actively developed. Here are some ideas for the future:
