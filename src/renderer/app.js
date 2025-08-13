@@ -4868,12 +4868,15 @@ class SentrySixApp {
             document.getElementById('close-onboarding-modal').onclick = () => {
                 const dontShow = document.getElementById('onboarding-dont-show').checked;
                 if (dontShow) {
+                    // Persistently suppress onboarding when user explicitly opts out
                     localStorage.setItem('onboardingNeverShow', 'true');
+                    localStorage.setItem('onboardingShown', 'true');
                 } else {
+                    // Ensure onboarding can appear again next launch
                     localStorage.removeItem('onboardingNeverShow');
+                    localStorage.removeItem('onboardingShown');
                 }
                 onboardingModal.classList.add('hidden');
-                localStorage.setItem('onboardingShown', 'true');
             };
         } else {
             onboardingModal.classList.add('hidden');
