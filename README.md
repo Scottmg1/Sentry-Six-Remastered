@@ -9,7 +9,7 @@ Have questions, suggestions, or want to connect with other users? Join our offic
 
 **[Join the TeslaCam Viewer Discord Server](https://discord.com/invite/9QZEzVwdnt)**
 
-![SentrySix UI Overview](Screenshots/All_cams.png)
+![SentrySix UI Overview](Screenshots/allcams.png)
 
 ## 🚀 What’s New in the Electron Rewrite
 
@@ -49,10 +49,11 @@ Have questions, suggestions, or want to connect with other users? Join our offic
 
 | Feature | Screenshot |
 | :--- | :--- |
-| **Event Markers & Tooltip** | ![Event Markers & Tooltip](Screenshots/even_Markers.png) |
-| **Draggable Export Markers** | ![Draggable Export Marker](Screenshots/export_markers.png) |
-| **All Camera View** | ![All Camera View](Screenshots/All_cams.png) |
-| **Go To Time Dialog** | ![Timestamp Preview](Screenshots/go_to_time.png) |
+| **Event Markers & Tooltip** | ![Event Markers & Tooltip](Screenshots/eventmarkers.png) |
+| **Draggable Export Markers** | ![Draggable Export Marker](Screenshots/eventmarkers.png) |
+| **All Camera View** | ![All Camera View](Screenshots/allcams.png) |
+| **Folder Selection** | ![Folder/Date Slection](Screenshots/folderselection.png) |
+| **Export settings** | ![Export customization](Screenshots/exportsettings.png) |
 
 ## 📦 Requirements
 
@@ -70,7 +71,7 @@ npm start
 - Development: `npm run dev`
 - Build installers: `npm run dist` (outputs to `release/`)
 
-## Installation (prebuilt) COMMING SOON
+## Installation (prebuilt) COMING SOON
 
 1. Download the latest installer from the Releases page.
 2. Run the installer. No Python or system FFmpeg required.
