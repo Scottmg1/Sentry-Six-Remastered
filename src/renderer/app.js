@@ -145,12 +145,20 @@ class SentrySixApp {
             updateBtn.addEventListener('click', async () => {
                 this.showStatus('Checking for updates...');
                 try {
-                    this.showLoadingScreen('Checking for updates and downloading...');
+                    this.showLoadingScreen('Checking for updates...');
                     const result = await window.electronAPI.invoke('app:update-to-commit');
                     this.hideLoadingScreen();
+                    
                     if (result && result.success) {
-                        alert('Update downloaded and applied!\n\nPlease restart the app to use the latest version.');
-                        this.showStatus('Update downloaded! Please restart the app.');
+                        if (result.alreadyUpToDate) {
+                            // User is already up to date
+                            alert(result.message);
+                            this.showStatus('Already up to date!');
+                        } else {
+                            // Update was downloaded and applied
+                            alert('Update downloaded and applied!\n\nPlease restart the app to use the latest version.');
+                            this.showStatus('Update downloaded! Please restart the app.');
+                        }
                     } else {
                         alert('Update failed: ' + (result && result.error ? result.error : 'Unknown error'));
                         this.showStatus('Update failed: ' + (result && result.error ? result.error : 'Unknown error'));
@@ -584,10 +592,17 @@ class SentrySixApp {
             selectedItem.classList.add('active');
         }
 
-        // Create continuous timeline from all clips in the day
-        await this.loadDailyTimeline(dateGroup, sectionName);
+        // Show loading indicator
+        this.showDurationLoadingIndicator(selectedItem, dateGroup.clips.length);
 
-        console.log('Selected daily timeline:', sectionName, 'date:', dateGroup.displayDate, 'clips:', dateGroup.clips.length);
+        try {
+            // Create continuous timeline from all clips in the day
+            await this.loadDailyTimeline(dateGroup, sectionName);
+            console.log('Selected daily timeline:', sectionName, 'date:', dateGroup.displayDate, 'clips:', dateGroup.clips.length);
+        } finally {
+            // Hide loading indicator
+            this.hideDurationLoadingIndicator();
+        }
     }
 
     async loadDailyTimeline(dateGroup, sectionName) {
@@ -714,6 +729,9 @@ class SentrySixApp {
             const clip = clips[i];
             console.log(`🔍 Processing clip ${i + 1}/${clips.length}: ${clip.filename}`);
 
+            // Update loading progress
+            this.updateDurationLoadingProgress(i + 1, clips.length);
+
             // Get the front camera file for duration measurement
             const frontCameraFile = clip.files?.front;
             if (!frontCameraFile) {
@@ -792,6 +810,64 @@ class SentrySixApp {
         this.currentTimeline.endTime = lastClipEnd;
 
         console.log(`⏱️ Continuous timeline duration: ${Math.round(continuousDuration / 1000)}s (${knownClips}/${clips.length} clips) | Total timeline: ${Math.round(totalTimelineDuration / 1000)}s | Gaps: ${Math.round(totalGapDuration / 1000)}s`);
+    }
+
+    showDurationLoadingIndicator(selectedItem, totalClips) {
+        // Create loading indicator if it doesn't exist
+        if (!this.durationLoadingIndicator) {
+            this.durationLoadingIndicator = document.createElement('div');
+            this.durationLoadingIndicator.id = 'duration-loading-indicator';
+            this.durationLoadingIndicator.innerHTML = `
+                <div class="loading-content">
+                    <div class="loading-spinner"></div>
+                    <div class="loading-text">
+                        <div class="loading-title">Analyzing Video Durations</div>
+                        <div class="loading-subtitle">Please wait while we probe ${totalClips} video files...</div>
+                        <div class="loading-progress">
+                            <div class="progress-bar">
+                                <div class="progress-fill"></div>
+                            </div>
+                            <div class="progress-text">0 / ${totalClips}</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            this.durationLoadingIndicator.className = 'duration-loading-overlay';
+            document.body.appendChild(this.durationLoadingIndicator);
+        } else {
+            // Update existing indicator
+            const progressText = this.durationLoadingIndicator.querySelector('.loading-subtitle');
+            const progressBar = this.durationLoadingIndicator.querySelector('.progress-fill');
+            const progressCount = this.durationLoadingIndicator.querySelector('.progress-text');
+            
+            if (progressText) progressText.textContent = `Please wait while we probe ${totalClips} video files...`;
+            if (progressBar) progressBar.style.width = '0%';
+            if (progressCount) progressCount.textContent = `0 / ${totalClips}`;
+        }
+
+        // Show the indicator
+        this.durationLoadingIndicator.style.display = 'flex';
+    }
+
+    updateDurationLoadingProgress(current, total) {
+        if (this.durationLoadingIndicator) {
+            const progressBar = this.durationLoadingIndicator.querySelector('.progress-fill');
+            const progressCount = this.durationLoadingIndicator.querySelector('.progress-text');
+            
+            if (progressBar) {
+                const percentage = (current / total) * 100;
+                progressBar.style.width = `${percentage}%`;
+            }
+            if (progressCount) {
+                progressCount.textContent = `${current} / ${total}`;
+            }
+        }
+    }
+
+    hideDurationLoadingIndicator() {
+        if (this.durationLoadingIndicator) {
+            this.durationLoadingIndicator.style.display = 'none';
+        }
     }
 
     calculateAccurateClipPosition(clipIndex) {

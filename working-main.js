@@ -373,8 +373,19 @@ class SentrySixApp {
         ipcMain.handle('app:update-to-commit', async () => {
             let tmpZipPath, extractDir;
             try {
-                // Fetch latest commit SHA from GitHub API
-                const apiUrl = 'https://api.github.com/repos/ChadR23/Sentry-Six/commits/Electron-rebuld';
+                // Get current commit SHA
+                const { execSync } = require('child_process');
+                let currentSha;
+                try {
+                    currentSha = execSync('git rev-parse HEAD', { cwd: process.cwd(), encoding: 'utf8' }).trim();
+                    console.log('Current commit SHA:', currentSha);
+                } catch (gitError) {
+                    console.warn('Could not get current commit SHA:', gitError.message);
+                    currentSha = null;
+                }
+
+                // Fetch latest commit SHA from GitHub API (main branch)
+                const apiUrl = 'https://api.github.com/repos/ChadR23/Sentry-Six/commits/main';
                 const https = require('https');
                 const fetchLatestSha = () => new Promise((resolve, reject) => {
                     https.get(apiUrl, { headers: { 'User-Agent': 'Sentry-Six-Updater' } }, (res) => {
@@ -398,6 +409,17 @@ class SentrySixApp {
                 });
                 const latestSha = await fetchLatestSha();
                 console.log('Latest commit SHA:', latestSha);
+
+                // Check if we're already up to date
+                if (currentSha && currentSha === latestSha) {
+                    console.log('Already up to date!');
+                    return { 
+                        success: true, 
+                        alreadyUpToDate: true, 
+                        message: 'You are already running the latest version!' 
+                    };
+                }
+
                 const zipUrl = `https://github.com/ChadR23/Sentry-Six/archive/${latestSha}.zip`;
                 tmpZipPath = path.join(os.tmpdir(), `sentry-six-update-${latestSha}.zip`);
                 extractDir = path.join(os.tmpdir(), `sentry-six-update-${latestSha}`);
@@ -439,7 +461,11 @@ class SentrySixApp {
                 // Cleanup temp files
                 try { if (fs.existsSync(tmpZipPath)) fs.unlinkSync(tmpZipPath); } catch (e) { console.warn('Failed to delete temp zip:', e); }
                 try { if (fs.existsSync(extractDir)) rmSync(extractDir, { recursive: true, force: true }); } catch (e) { console.warn('Failed to delete temp extract dir:', e); }
-                return { success: true };
+                return { 
+                    success: true, 
+                    alreadyUpToDate: false, 
+                    message: 'Update downloaded and applied successfully!' 
+                };
             } catch (err) {
                 console.error('Update failed:', err);
                 // Cleanup temp files on failure too
@@ -1958,13 +1984,28 @@ class SentrySixApp {
 
         try {
             const teslaFolders = ['SavedClips', 'SentryClips']; // Skip RecentClips as per requirements
+            
+            // Check if this is a direct SavedClips/SentryClips folder (same logic as scanTeslaFolder)
+            const isDirectClipFolder = teslaFolders.some(folder =>
+                folderPath.toLowerCase().includes(folder.toLowerCase())
+            );
 
-            for (const folderType of teslaFolders) {
-                const subFolderPath = path.join(folderPath, folderType);
+            if (isDirectClipFolder) {
+                // User selected a specific SavedClips or SentryClips folder
+                const folderType = teslaFolders.find(folder => 
+                    folderPath.toLowerCase().includes(folder.toLowerCase())
+                );
+                const clipEvents = await this.scanClipFoldersForEvents(folderPath, folderType);
+                events.push(...clipEvents);
+            } else {
+                // User selected the root TeslaCam folder, scan for subdirectories
+                for (const folderType of teslaFolders) {
+                    const subFolderPath = path.join(folderPath, folderType);
 
-                if (fs.existsSync(subFolderPath)) {
-                    const clipEvents = await this.scanClipFoldersForEvents(subFolderPath, folderType);
-                    events.push(...clipEvents);
+                    if (fs.existsSync(subFolderPath)) {
+                        const clipEvents = await this.scanClipFoldersForEvents(subFolderPath, folderType);
+                        events.push(...clipEvents);
+                    }
                 }
             }
 
